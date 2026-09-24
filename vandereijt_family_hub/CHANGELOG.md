@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+- Officieel VANDEREIJT.COM app-icoon toegevoegd voor de Home Assistant Apps-lijst.
+- VANDEREIJT.COM logo toegevoegd voor de App-detailpagina.
+- Branding-assets worden nu rechtstreeks met de App meegeleverd.
+
+
 ## 0.4.0
 - Nieuwe productnaam: **VANDEREIJT.COM Family Hub** met slogan **for Home Assistant**.
 - Home Assistant-menu blijft bewust **Family Hub**.
