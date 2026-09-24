@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.5.1"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -220,29 +220,40 @@ class HomeAssistantWebSocket:
             return response.get("result")
 
 
-def family_hub_dashboard_config():
+def family_hub_view(title="Family Hub"):
     return {
-        "views": [
+        "title": title,
+        "path": DASHBOARD_VIEW_PATH,
+        "type": "panel",
+        "cards": [
             {
-                "title": "Family Hub",
-                "path": DASHBOARD_VIEW_PATH,
-                "type": "panel",
-                "cards": [
-                    {
-                        "type": "custom:family-hub-card",
-                        "config_url": "/local/family-hub/settings.json",
-                    }
-                ],
+                "type": "custom:family-hub-card",
+                "config_url": "/local/family-hub/settings.json",
             }
-        ]
+        ],
     }
+
+
+def family_hub_dashboard_config(title="Family Hub"):
+    return {"views": [family_hub_view(title)]}
+
+
+def _is_family_hub_view(view):
+    try:
+        cards = view.get("cards") or []
+        return (
+            view.get("path") == DASHBOARD_VIEW_PATH
+            and cards
+            and cards[0].get("type") == "custom:family-hub-card"
+        )
+    except (AttributeError, IndexError, TypeError):
+        return False
 
 
 def _is_family_hub_config(config):
     try:
         views = config.get("views") or []
-        cards = views[0].get("cards") or []
-        return cards and cards[0].get("type") == "custom:family-hub-card"
+        return len(views) == 1 and _is_family_hub_view(views[0])
     except (AttributeError, IndexError, TypeError):
         return False
 
@@ -262,14 +273,166 @@ def _find_family_hub_dashboard(dashboards):
     return None
 
 
+def _find_overview_view(config):
+    for idx, view in enumerate((config or {}).get("views") or []):
+        if view.get("path") == DASHBOARD_VIEW_PATH:
+            return idx, view
+    return None, None
+
+
+def _load_overview_config(ha):
+    try:
+        return ha.call({"type": "lovelace/config", "force": True}) or {}
+    except RuntimeError as exc:
+        if "No config found" in str(exc) or "config_not_found" in str(exc):
+            raise RuntimeError(
+                "Het standaard Overzicht gebruikt nog een automatisch gegenereerde indeling. "
+                "Maak of bewerk één keer een view in Overzicht zodat Home Assistant deze opslaat; "
+                "daarna kan Family Hub veilig een view toevoegen zonder je bestaande Overzicht te vervangen."
+            ) from exc
+        raise
+
+
+def _ensure_resource(ha):
+    info = ha.call({"type": "lovelace/info"}) or {}
+    if info.get("resource_mode") != "storage":
+        raise RuntimeError(
+            "Family Hub kan dashboardbronnen alleen automatisch beheren wanneer Home Assistant resources in storage-modus gebruikt."
+        )
+    resources = ha.call({"type": "lovelace/resources/list"}) or []
+    resource = _find_family_hub_resource(resources)
+    if resource:
+        resource_id = resource.get("id")
+        if not resource_id:
+            raise RuntimeError("Bestaande Family Hub resource heeft geen geldig ID")
+        if resource.get("url") != CARD_RESOURCE_URL or resource.get("type") != "module":
+            ha.call(
+                {
+                    "type": "lovelace/resources/update",
+                    "resource_id": resource_id,
+                    "url": CARD_RESOURCE_URL,
+                    "res_type": "module",
+                }
+            )
+    else:
+        ha.call(
+            {
+                "type": "lovelace/resources/create",
+                "url": CARD_RESOURCE_URL,
+                "res_type": "module",
+            }
+        )
+
+
+def _install_overview_view(ha, title):
+    config = _load_overview_config(ha)
+    views = list(config.get("views") or [])
+    index, existing = _find_overview_view(config)
+    view = family_hub_view(title)
+    if existing is not None and not _is_family_hub_view(existing):
+        raise RuntimeError(
+            "In Overzicht bestaat al een andere view met pad 'family'. Family Hub overschrijft die niet."
+        )
+    if index is None:
+        views.append(view)
+    else:
+        views[index] = view
+    updated = dict(config)
+    updated["views"] = views
+    ha.call({"type": "lovelace/config/save", "config": updated})
+
+
+def _remove_overview_view(ha):
+    config = _load_overview_config(ha)
+    views = list(config.get("views") or [])
+    index, existing = _find_overview_view(config)
+    if existing is None:
+        return
+    if not _is_family_hub_view(existing):
+        raise RuntimeError("De view 'family' in Overzicht wordt niet door Family Hub beheerd.")
+    del views[index]
+    updated = dict(config)
+    updated["views"] = views
+    ha.call({"type": "lovelace/config/save", "config": updated})
+
+
+def _read_sidebar_dashboard_config(ha):
+    try:
+        return ha.call({"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}) or {}
+    except RuntimeError as exc:
+        if "No config found" in str(exc) or "config_not_found" in str(exc):
+            return {}
+        raise
+
+
+def _ensure_sidebar_dashboard(ha, title):
+    dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
+    dashboard = _find_family_hub_dashboard(dashboards)
+    if dashboard:
+        existing_config = _read_sidebar_dashboard_config(ha)
+        if existing_config and not _is_family_hub_config(existing_config):
+            raise RuntimeError(
+                "Er bestaat al een ander dashboard met URL 'family-hub'. Family Hub overschrijft dat dashboard niet."
+            )
+        dashboard_id = dashboard.get("id")
+        if not dashboard_id:
+            raise RuntimeError("Bestaand Family Hub dashboard heeft geen geldig ID")
+        # Deliberately omit 'icon': older/newer Home Assistant schemas differ here.
+        ha.call(
+            {
+                "type": "lovelace/dashboards/update",
+                "dashboard_id": dashboard_id,
+                "title": title,
+                "show_in_sidebar": True,
+                "require_admin": False,
+            }
+        )
+    else:
+        ha.call(
+            {
+                "type": "lovelace/dashboards/create",
+                "url_path": DASHBOARD_URL_PATH,
+                "title": title,
+                "show_in_sidebar": True,
+                "require_admin": False,
+                "mode": "storage",
+            }
+        )
+    ha.call(
+        {
+            "type": "lovelace/config/save",
+            "url_path": DASHBOARD_URL_PATH,
+            "config": family_hub_dashboard_config(title),
+        }
+    )
+
+
+def _remove_sidebar_dashboard(ha):
+    dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
+    dashboard = _find_family_hub_dashboard(dashboards)
+    if not dashboard:
+        return
+    config = _read_sidebar_dashboard_config(ha)
+    if config and not _is_family_hub_config(config):
+        raise RuntimeError("Het dashboard 'family-hub' wordt niet door Family Hub beheerd.")
+    dashboard_id = dashboard.get("id")
+    if not dashboard_id:
+        raise RuntimeError("Family Hub dashboard heeft geen geldig ID")
+    ha.call({"type": "lovelace/dashboards/delete", "dashboard_id": dashboard_id})
+
+
 def dashboard_status():
+    settings = load_settings()
     status = {
         "available": False,
         "installed": False,
-        "managed": bool(load_settings().get("dashboard_managed")),
+        "overview_installed": False,
+        "sidebar_installed": False,
+        "managed": bool(settings.get("dashboard_managed")),
         "show_in_sidebar": False,
-        "title": load_settings().get("dashboard_title", "Family Hub"),
-        "url": f"/{DASHBOARD_URL_PATH}/{DASHBOARD_VIEW_PATH}",
+        "title": settings.get("dashboard_title", "Family Hub"),
+        "url": f"/lovelace/{DASHBOARD_VIEW_PATH}",
+        "sidebar_url": f"/{DASHBOARD_URL_PATH}/{DASHBOARD_VIEW_PATH}",
         "resource_registered": False,
         "resource_mode": None,
         "error": None,
@@ -279,14 +442,29 @@ def dashboard_status():
             info = ha.call({"type": "lovelace/info"}) or {}
             status["resource_mode"] = info.get("resource_mode")
             resources = ha.call({"type": "lovelace/resources/list"}) or []
-            resource = _find_family_hub_resource(resources)
-            status["resource_registered"] = bool(resource)
+            status["resource_registered"] = bool(_find_family_hub_resource(resources))
+
+            try:
+                overview = ha.call({"type": "lovelace/config", "force": True}) or {}
+                _, overview_view = _find_overview_view(overview)
+                status["overview_installed"] = bool(
+                    overview_view and _is_family_hub_view(overview_view)
+                )
+            except RuntimeError:
+                status["overview_installed"] = False
+
             dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
             dashboard = _find_family_hub_dashboard(dashboards)
             if dashboard:
-                status["installed"] = True
-                status["show_in_sidebar"] = bool(dashboard.get("show_in_sidebar", True))
-                status["title"] = dashboard.get("title") or status["title"]
+                sidebar_config = _read_sidebar_dashboard_config(ha)
+                if not sidebar_config or _is_family_hub_config(sidebar_config):
+                    status["sidebar_installed"] = True
+                    status["show_in_sidebar"] = bool(
+                        dashboard.get("show_in_sidebar", True)
+                    )
+                    status["title"] = dashboard.get("title") or status["title"]
+
+            status["installed"] = status["overview_installed"]
             status["available"] = True
     except Exception as exc:
         status["error"] = str(exc)
@@ -296,92 +474,15 @@ def dashboard_status():
 def install_dashboard(title="Family Hub", show_in_sidebar=True):
     title = str(title or "Family Hub").strip()[:80] or "Family Hub"
     show_in_sidebar = bool(show_in_sidebar)
-
     ensure_dirs()
 
     with HomeAssistantWebSocket() as ha:
-        info = ha.call({"type": "lovelace/info"}) or {}
-        if info.get("resource_mode") != "storage":
-            raise RuntimeError(
-                "Family Hub kan dashboardbronnen alleen automatisch beheren wanneer Home Assistant resources in storage-modus gebruikt."
-            )
-
-        # Always list first. This also ensures Home Assistant has loaded its resource store.
-        resources = ha.call({"type": "lovelace/resources/list"}) or []
-        resource = _find_family_hub_resource(resources)
-        if resource:
-            resource_id = resource.get("id")
-            if not resource_id:
-                raise RuntimeError("Bestaande Family Hub resource heeft geen geldig ID")
-            if resource.get("url") != CARD_RESOURCE_URL or resource.get("type") != "module":
-                ha.call(
-                    {
-                        "type": "lovelace/resources/update",
-                        "resource_id": resource_id,
-                        "url": CARD_RESOURCE_URL,
-                        "res_type": "module",
-                    }
-                )
+        _ensure_resource(ha)
+        _install_overview_view(ha, title)
+        if show_in_sidebar:
+            _ensure_sidebar_dashboard(ha, title)
         else:
-            ha.call(
-                {
-                    "type": "lovelace/resources/create",
-                    "url": CARD_RESOURCE_URL,
-                    "res_type": "module",
-                }
-            )
-
-        dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
-        dashboard = _find_family_hub_dashboard(dashboards)
-
-        if dashboard:
-            try:
-                existing_config = ha.call(
-                    {"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}
-                ) or {}
-            except RuntimeError as exc:
-                # A previous install can have created the dashboard metadata but
-                # not yet its config. In that case retrying must be able to recover.
-                if "No config found" in str(exc) or "config_not_found" in str(exc):
-                    existing_config = {}
-                else:
-                    raise
-            if existing_config and not _is_family_hub_config(existing_config):
-                raise RuntimeError(
-                    "Er bestaat al een ander dashboard met URL 'family-hub'. Family Hub overschrijft dat dashboard niet."
-                )
-            dashboard_id = dashboard.get("id")
-            if not dashboard_id:
-                raise RuntimeError("Bestaand Family Hub dashboard heeft geen geldig ID")
-            ha.call(
-                {
-                    "type": "lovelace/dashboards/update",
-                    "dashboard_id": dashboard_id,
-                    "title": title,
-                    "icon": "mdi:calendar-account",
-                    "show_in_sidebar": show_in_sidebar,
-                    "require_admin": False,
-                }
-            )
-        else:
-            ha.call(
-                {
-                    "type": "lovelace/dashboards/create",
-                    "url_path": DASHBOARD_URL_PATH,
-                    "title": title,
-                    "icon": "mdi:calendar-account",
-                    "show_in_sidebar": show_in_sidebar,
-                    "require_admin": False,
-                }
-            )
-
-        ha.call(
-            {
-                "type": "lovelace/config/save",
-                "url_path": DASHBOARD_URL_PATH,
-                "config": family_hub_dashboard_config(),
-            }
-        )
+            _remove_sidebar_dashboard(ha)
 
     settings = load_settings()
     settings["dashboard_managed"] = True
@@ -393,31 +494,18 @@ def install_dashboard(title="Family Hub", show_in_sidebar=True):
 
 def remove_dashboard():
     with HomeAssistantWebSocket() as ha:
-        dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
-        dashboard = _find_family_hub_dashboard(dashboards)
-        if dashboard:
-            try:
-                config = ha.call({"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}) or {}
-            except RuntimeError as exc:
-                if "No config found" in str(exc) or "config_not_found" in str(exc):
-                    config = {}
-                else:
-                    raise
-            if config and not _is_family_hub_config(config):
-                raise RuntimeError("Dit dashboard wordt niet door Family Hub beheerd en wordt daarom niet verwijderd.")
-            dashboard_id = dashboard.get("id")
-            if not dashboard_id:
-                raise RuntimeError("Family Hub dashboard heeft geen geldig ID")
-            ha.call({"type": "lovelace/dashboards/delete", "dashboard_id": dashboard_id})
+        _remove_overview_view(ha)
+        _remove_sidebar_dashboard(ha)
 
     settings = load_settings()
     settings["dashboard_managed"] = False
+    settings["dashboard_show_sidebar"] = False
     settings = save_settings(settings)
     return settings, dashboard_status()
 
 
 def sync_managed_dashboard(delay=8):
-    """Keep a managed dashboard/resource current after an OTA App update."""
+    """Keep managed Overview/sidebar entries current after an OTA App update."""
     time.sleep(delay)
     settings = load_settings()
     if not settings.get("dashboard_managed"):
@@ -427,7 +515,7 @@ def sync_managed_dashboard(delay=8):
             settings.get("dashboard_title", "Family Hub"),
             settings.get("dashboard_show_sidebar", True),
         )
-        print("[Family Hub] Managed dashboard synchronized", flush=True)
+        print("[Family Hub] Managed Overview view/dashboard synchronized", flush=True)
     except Exception as exc:
         print(f"[Family Hub] Managed dashboard sync failed: {exc}", flush=True)
 
