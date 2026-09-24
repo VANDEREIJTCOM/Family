@@ -9,6 +9,7 @@ LABEL \
   io.hass.arch="${BUILD_ARCH}"
 
 WORKDIR /app
+RUN pip install --no-cache-dir websocket-client==1.8.0
 COPY app.py /app/app.py
 COPY static /app/static
 COPY family-hub-card.js /app/family-hub-card.js
