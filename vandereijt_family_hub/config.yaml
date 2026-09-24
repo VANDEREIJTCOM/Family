@@ -1,0 +1,24 @@
+name: VANDEREIJT.COM Family Hub
+version: "0.4.0"
+slug: vandereijt_family_hub
+description: VANDEREIJT.COM Family Hub – een centrale gezinsplanner voor Home Assistant wanddisplays.
+url: https://github.com/VANDEREIJTCOM/Family
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+ingress_stream: true
+panel_title: Family Hub
+panel_icon: mdi:calendar-account
+panel_admin: true
+homeassistant_api: true
+map:
+  - type: homeassistant_config
+    read_only: false
+    path: /homeassistant
+options: {}
+schema: {}
