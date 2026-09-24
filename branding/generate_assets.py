@@ -82,4 +82,4 @@ tag_width = tag_box[2] - tag_box[0]
 draw.text((x + max(0, (162 - tag_width) // 2), 57), tagline, font=tag_font, fill=WHITE)
 
 logo.save(APP / "logo.png", optimize=True)
-print("Generated Home Assistant branding assets for Family Hub 0.5.1")
+# Generated from the supplied VANDEREIJT.COM branding reference.\nprint("Generated Home Assistant branding assets for Family Hub 0.5.1")
