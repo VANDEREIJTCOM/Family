@@ -7,13 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="static/style.css?v=0.5.0">
+  <link rel="stylesheet" href="static/style.css?v=0.5.1">
 </head>
 <body>
 <div class="shell">
   <aside>
     <div class="brand">
-      <img src="static/brand-icon.png?v=0.5.0" alt="VANDEREIJT.COM">
+      <img src="static/brand-icon.png?v=0.5.1" alt="VANDEREIJT.COM">
       <div><strong><span>VANDEREIJT.COM</span> Family Hub</strong><small>for Home Assistant</small></div>
     </div>
     <nav>
@@ -77,9 +77,9 @@
       <div class="grid two">
         <article class="card">
           <h2>Family Hub dashboard</h2>
-          <p>Laat Family Hub zelf het dashboard, de kaart-resource en de Panel-view in Home Assistant aanmaken en onderhouden.</p>
+          <p>Family Hub voegt automatisch een full-screen Family Hub-view toe aan je bestaande Overzicht. Optioneel kun je dezelfde Family Hub ook als apart item in de Home Assistant-zijbalk tonen.</p>
           <label>Naam in Home Assistant<input id="dashboard_title" type="text" value="Family Hub" maxlength="80"></label>
-          <label class="switch"><input id="dashboard_show_sidebar" type="checkbox" checked> Toon Family Hub in de zijbalk</label>
+          <label class="switch"><input id="dashboard_show_sidebar" type="checkbox" checked> Ook apart tonen in de zijbalk</label>
           <div class="dashboard-actions">
             <button id="install-dashboard" class="primary">Dashboard installeren / bijwerken</button>
             <button id="remove-dashboard" class="danger">Dashboard verwijderen</button>
@@ -90,11 +90,11 @@
           <p>Na installatie hoef je niets meer handmatig onder Dashboards of Resources te configureren.</p>
           <ul class="feature-list">
             <li>Family Hub registreert de JavaScript-kaart automatisch.</li>
-            <li>Er wordt automatisch een full-screen Panel-dashboard gemaakt.</li>
-            <li>De keuze voor de Home Assistant-zijbalk wordt automatisch toegepast.</li>
+            <li>Er wordt automatisch een full-screen Family Hub-tab aan je bestaande Overzicht toegevoegd.</li>
+            <li>Als je dat aanvinkt, wordt daarnaast automatisch een apart Family Hub-item in de zijbalk gemaakt.</li>
             <li>Na een Family Hub-update wordt de kaart-resource automatisch naar de nieuwe versie bijgewerkt.</li>
           </ul>
-          <a id="open-dashboard" class="open-dashboard hidden" href="/family-hub/family" target="_top">Open Family Hub dashboard</a>
+          <a id="open-dashboard" class="open-dashboard hidden" href="/lovelace/family" target="_top">Open Family Hub dashboard</a>
         </article>
       </div>
       <article class="card status"><h2>Installatiestatus</h2><div id="install-status" class="status-grid"></div></article>
@@ -102,6 +102,6 @@
   </main>
 </div>
 <div id="toast" class="toast"></div>
-<script src="static/app.js?v=0.5.0"></script>
+<script src="static/app.js?v=0.5.1"></script>
 </body>
 </html>

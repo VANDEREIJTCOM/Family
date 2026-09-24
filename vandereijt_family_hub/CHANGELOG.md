@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1
+- Fix voor de dashboardinstallatie-fout waarbij Home Assistant `Invalid format for dictionary value @ data['icon']` kon geven.
+- Family Hub wordt nu automatisch als full-screen tab aan het bestaande **Overzicht** toegevoegd.
+- De optie **Ook apart tonen in de zijbalk** maakt daarnaast een apart Family Hub-dashboard in de zijbalk; uitgevinkt blijft alleen de tab in Overzicht bestaan.
+- Installatie is veilig/idempotent: bestaande niet-Family-Hub views of dashboards worden niet overschreven.
+- Installatiestatus maakt nu onderscheid tussen Overzicht, zijbalk en de kaart-resource.
+- Branding-assets opnieuw op maat gemaakt voor Home Assistant: 128x128 app-icoon en compact 250x100 productlogo.
+
+
 ## 0.5.0
 - Dashboardinstallatie volledig vanuit de Family Hub App.
 - Family Hub registreert de Lovelace JavaScript-resource automatisch via de Home Assistant WebSocket API.
