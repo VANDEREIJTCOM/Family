@@ -39,3 +39,6 @@ jobs:
         run: |
           node --check vandereijt_family_hub/family-hub-card.js
           node --check vandereijt_family_hub/static/app.js
+
+      - name: Build App container
+        run: docker build --build-arg BUILD_VERSION=0.5.0 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
