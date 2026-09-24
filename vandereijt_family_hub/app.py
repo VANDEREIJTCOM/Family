@@ -335,12 +335,20 @@ def install_dashboard(title="Family Hub", show_in_sidebar=True):
         dashboard = _find_family_hub_dashboard(dashboards)
 
         if dashboard:
-            existing_config = ha.call(
-                {"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}
-            ) or {}
+            try:
+                existing_config = ha.call(
+                    {"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}
+                ) or {}
+            except RuntimeError as exc:
+                # A previous install can have created the dashboard metadata but
+                # not yet its config. In that case retrying must be able to recover.
+                if "No config found" in str(exc) or "config_not_found" in str(exc):
+                    existing_config = {}
+                else:
+                    raise
             if existing_config and not _is_family_hub_config(existing_config):
                 raise RuntimeError(
-                    "Er bestaat al een ander dashboard met URL 'family-hub'. Kies of verwijder dat dashboard eerst."
+                    "Er bestaat al een ander dashboard met URL 'family-hub'. Family Hub overschrijft dat dashboard niet."
                 )
             dashboard_id = dashboard.get("id")
             if not dashboard_id:
@@ -388,7 +396,13 @@ def remove_dashboard():
         dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
         dashboard = _find_family_hub_dashboard(dashboards)
         if dashboard:
-            config = ha.call({"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}) or {}
+            try:
+                config = ha.call({"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}) or {}
+            except RuntimeError as exc:
+                if "No config found" in str(exc) or "config_not_found" in str(exc):
+                    config = {}
+                else:
+                    raise
             if config and not _is_family_hub_config(config):
                 raise RuntimeError("Dit dashboard wordt niet door Family Hub beheerd en wordt daarom niet verwijderd.")
             dashboard_id = dashboard.get("id")
