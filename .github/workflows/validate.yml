@@ -22,9 +22,18 @@ jobs:
           test -f vandereijt_family_hub/config.yaml
           test -f vandereijt_family_hub/Dockerfile
           test -f vandereijt_family_hub/app.py
+          test -f vandereijt_family_hub/family-hub-card.js
+          test -f vandereijt_family_hub/static/index.html
+          test -f vandereijt_family_hub/static/app.js
+          test -f vandereijt_family_hub/static/style.css
           grep -q '^name:' repository.yaml
           grep -q '^version:' vandereijt_family_hub/config.yaml
           grep -q '^slug:' vandereijt_family_hub/config.yaml
 
       - name: Compile Python
         run: python -m py_compile vandereijt_family_hub/app.py
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check vandereijt_family_hub/family-hub-card.js
+          node --check vandereijt_family_hub/static/app.js
