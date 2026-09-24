@@ -1,0 +1,30 @@
+name: Validate repository
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f repository.yaml
+          test -f vandereijt_family_hub/config.yaml
+          test -f vandereijt_family_hub/Dockerfile
+          test -f vandereijt_family_hub/app.py
+          grep -q '^name:' repository.yaml
+          grep -q '^version:' vandereijt_family_hub/config.yaml
+          grep -q '^slug:' vandereijt_family_hub/config.yaml
+
+      - name: Compile Python
+        run: python -m py_compile vandereijt_family_hub/app.py
