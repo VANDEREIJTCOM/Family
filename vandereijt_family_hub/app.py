@@ -3,15 +3,24 @@ import json
 import mimetypes
 import os
 import shutil
+import threading
 import time
 import urllib.error
 import urllib.request
+
+import websocket
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
+APP_VERSION = "0.5.0"
+HA_WS_URL = "ws://supervisor/core/websocket"
+DASHBOARD_URL_PATH = "family-hub"
+DASHBOARD_VIEW_PATH = "family"
+CARD_RESOURCE_BASE = "/local/family-hub/family-hub-card.js"
+CARD_RESOURCE_URL = f"{CARD_RESOURCE_BASE}?v={APP_VERSION}"
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path("/data")
 HA_CONFIG = Path("/homeassistant")
@@ -36,6 +45,9 @@ DEFAULTS = {
     "background_url": "",
     "background_overlay": 82,
     "accent_color": "#2E6CA5",
+    "dashboard_managed": False,
+    "dashboard_show_sidebar": True,
+    "dashboard_title": "Family Hub",
     "members": [],
 }
 
@@ -92,6 +104,9 @@ def normalize_settings(data):
     except (TypeError, ValueError):
         out["max_tasks_per_member"] = 4
     out["show_household_status"] = bool(out.get("show_household_status", True))
+    out["dashboard_managed"] = bool(out.get("dashboard_managed", False))
+    out["dashboard_show_sidebar"] = bool(out.get("dashboard_show_sidebar", True))
+    out["dashboard_title"] = str(out.get("dashboard_title") or "Family Hub")[:80]
     out["version"] = 1
     return out
 
@@ -158,6 +173,251 @@ def grouped_entities():
     return result
 
 
+
+class HomeAssistantWebSocket:
+    """Small synchronous client for the Supervisor-proxied HA WebSocket API."""
+
+    def __init__(self):
+        self.ws = None
+        self.next_id = 1
+
+    def __enter__(self):
+        if not SUPERVISOR_TOKEN:
+            raise RuntimeError("Home Assistant API token ontbreekt")
+        self.ws = websocket.create_connection(HA_WS_URL, timeout=12)
+        hello = json.loads(self.ws.recv())
+        if hello.get("type") != "auth_required":
+            raise RuntimeError("Onverwachte Home Assistant WebSocket-handshake")
+        self.ws.send(json.dumps({"type": "auth", "access_token": SUPERVISOR_TOKEN}))
+        auth = json.loads(self.ws.recv())
+        if auth.get("type") != "auth_ok":
+            raise RuntimeError(auth.get("message") or "Home Assistant WebSocket-authenticatie mislukt")
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.ws is not None:
+            try:
+                self.ws.close()
+            except Exception:
+                pass
+
+    def call(self, message):
+        message = dict(message)
+        message["id"] = self.next_id
+        request_id = self.next_id
+        self.next_id += 1
+        self.ws.send(json.dumps(message))
+        while True:
+            raw = self.ws.recv()
+            if not raw:
+                raise RuntimeError("Home Assistant WebSocket-verbinding verbroken")
+            response = json.loads(raw)
+            if response.get("id") != request_id or response.get("type") != "result":
+                continue
+            if not response.get("success"):
+                error = response.get("error") or {}
+                raise RuntimeError(error.get("message") or error.get("code") or "Home Assistant API-fout")
+            return response.get("result")
+
+
+def family_hub_dashboard_config():
+    return {
+        "views": [
+            {
+                "title": "Family Hub",
+                "path": DASHBOARD_VIEW_PATH,
+                "type": "panel",
+                "cards": [
+                    {
+                        "type": "custom:family-hub-card",
+                        "config_url": "/local/family-hub/settings.json",
+                    }
+                ],
+            }
+        ]
+    }
+
+
+def _is_family_hub_config(config):
+    try:
+        views = config.get("views") or []
+        cards = views[0].get("cards") or []
+        return cards and cards[0].get("type") == "custom:family-hub-card"
+    except (AttributeError, IndexError, TypeError):
+        return False
+
+
+def _find_family_hub_resource(resources):
+    for resource in resources or []:
+        url = str(resource.get("url") or "")
+        if url.split("?", 1)[0] == CARD_RESOURCE_BASE:
+            return resource
+    return None
+
+
+def _find_family_hub_dashboard(dashboards):
+    for dashboard in dashboards or []:
+        if dashboard.get("url_path") == DASHBOARD_URL_PATH:
+            return dashboard
+    return None
+
+
+def dashboard_status():
+    status = {
+        "available": False,
+        "installed": False,
+        "managed": bool(load_settings().get("dashboard_managed")),
+        "show_in_sidebar": False,
+        "title": load_settings().get("dashboard_title", "Family Hub"),
+        "url": f"/{DASHBOARD_URL_PATH}/{DASHBOARD_VIEW_PATH}",
+        "resource_registered": False,
+        "resource_mode": None,
+        "error": None,
+    }
+    try:
+        with HomeAssistantWebSocket() as ha:
+            info = ha.call({"type": "lovelace/info"}) or {}
+            status["resource_mode"] = info.get("resource_mode")
+            resources = ha.call({"type": "lovelace/resources/list"}) or []
+            resource = _find_family_hub_resource(resources)
+            status["resource_registered"] = bool(resource)
+            dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
+            dashboard = _find_family_hub_dashboard(dashboards)
+            if dashboard:
+                status["installed"] = True
+                status["show_in_sidebar"] = bool(dashboard.get("show_in_sidebar", True))
+                status["title"] = dashboard.get("title") or status["title"]
+            status["available"] = True
+    except Exception as exc:
+        status["error"] = str(exc)
+    return status
+
+
+def install_dashboard(title="Family Hub", show_in_sidebar=True):
+    title = str(title or "Family Hub").strip()[:80] or "Family Hub"
+    show_in_sidebar = bool(show_in_sidebar)
+
+    ensure_dirs()
+
+    with HomeAssistantWebSocket() as ha:
+        info = ha.call({"type": "lovelace/info"}) or {}
+        if info.get("resource_mode") != "storage":
+            raise RuntimeError(
+                "Family Hub kan dashboardbronnen alleen automatisch beheren wanneer Home Assistant resources in storage-modus gebruikt."
+            )
+
+        # Always list first. This also ensures Home Assistant has loaded its resource store.
+        resources = ha.call({"type": "lovelace/resources/list"}) or []
+        resource = _find_family_hub_resource(resources)
+        if resource:
+            resource_id = resource.get("id")
+            if not resource_id:
+                raise RuntimeError("Bestaande Family Hub resource heeft geen geldig ID")
+            if resource.get("url") != CARD_RESOURCE_URL or resource.get("type") != "module":
+                ha.call(
+                    {
+                        "type": "lovelace/resources/update",
+                        "resource_id": resource_id,
+                        "url": CARD_RESOURCE_URL,
+                        "res_type": "module",
+                    }
+                )
+        else:
+            ha.call(
+                {
+                    "type": "lovelace/resources/create",
+                    "url": CARD_RESOURCE_URL,
+                    "res_type": "module",
+                }
+            )
+
+        dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
+        dashboard = _find_family_hub_dashboard(dashboards)
+
+        if dashboard:
+            existing_config = ha.call(
+                {"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}
+            ) or {}
+            if existing_config and not _is_family_hub_config(existing_config):
+                raise RuntimeError(
+                    "Er bestaat al een ander dashboard met URL 'family-hub'. Kies of verwijder dat dashboard eerst."
+                )
+            dashboard_id = dashboard.get("id")
+            if not dashboard_id:
+                raise RuntimeError("Bestaand Family Hub dashboard heeft geen geldig ID")
+            ha.call(
+                {
+                    "type": "lovelace/dashboards/update",
+                    "dashboard_id": dashboard_id,
+                    "title": title,
+                    "icon": "mdi:calendar-account",
+                    "show_in_sidebar": show_in_sidebar,
+                    "require_admin": False,
+                }
+            )
+        else:
+            ha.call(
+                {
+                    "type": "lovelace/dashboards/create",
+                    "url_path": DASHBOARD_URL_PATH,
+                    "title": title,
+                    "icon": "mdi:calendar-account",
+                    "show_in_sidebar": show_in_sidebar,
+                    "require_admin": False,
+                }
+            )
+
+        ha.call(
+            {
+                "type": "lovelace/config/save",
+                "url_path": DASHBOARD_URL_PATH,
+                "config": family_hub_dashboard_config(),
+            }
+        )
+
+    settings = load_settings()
+    settings["dashboard_managed"] = True
+    settings["dashboard_show_sidebar"] = show_in_sidebar
+    settings["dashboard_title"] = title
+    settings = save_settings(settings)
+    return settings, dashboard_status()
+
+
+def remove_dashboard():
+    with HomeAssistantWebSocket() as ha:
+        dashboards = ha.call({"type": "lovelace/dashboards/list"}) or []
+        dashboard = _find_family_hub_dashboard(dashboards)
+        if dashboard:
+            config = ha.call({"type": "lovelace/config", "url_path": DASHBOARD_URL_PATH}) or {}
+            if config and not _is_family_hub_config(config):
+                raise RuntimeError("Dit dashboard wordt niet door Family Hub beheerd en wordt daarom niet verwijderd.")
+            dashboard_id = dashboard.get("id")
+            if not dashboard_id:
+                raise RuntimeError("Family Hub dashboard heeft geen geldig ID")
+            ha.call({"type": "lovelace/dashboards/delete", "dashboard_id": dashboard_id})
+
+    settings = load_settings()
+    settings["dashboard_managed"] = False
+    settings = save_settings(settings)
+    return settings, dashboard_status()
+
+
+def sync_managed_dashboard(delay=8):
+    """Keep a managed dashboard/resource current after an OTA App update."""
+    time.sleep(delay)
+    settings = load_settings()
+    if not settings.get("dashboard_managed"):
+        return
+    try:
+        install_dashboard(
+            settings.get("dashboard_title", "Family Hub"),
+            settings.get("dashboard_show_sidebar", True),
+        )
+        print("[Family Hub] Managed dashboard synchronized", flush=True)
+    except Exception as exc:
+        print(f"[Family Hub] Managed dashboard sync failed: {exc}", flush=True)
+
+
 def save_background(data_url):
     if not data_url:
         for path in WWW_DIR.glob("background.*"):
@@ -192,7 +452,7 @@ def save_background(data_url):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "VANDEREIJT.COM-Family-Hub/0.4.1"
+    server_version = f"VANDEREIJT.COM-Family-Hub/{APP_VERSION}"
 
     def log_message(self, fmt, *args):
         print("[Family Hub] " + fmt % args, flush=True)
@@ -229,13 +489,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             return self._json(HTTPStatus.OK, {
                 "ok": True,
-                "version": "0.4.1",
+                "version": APP_VERSION,
                 "card_installed": CARD_TARGET.exists(),
                 "legacy_card_updated": LEGACY_CARD_TARGET.exists(),
                 "settings_published": PUBLIC_SETTINGS.exists(),
                 "homeassistant_api": bool(SUPERVISOR_TOKEN),
                 "card_resource": "/local/family-hub/family-hub-card.js",
                 "settings_url": "/local/family-hub/settings.json",
+                "dashboard": dashboard_status(),
             })
         if path.startswith("/static/"):
             rel = path[len("/static/"):]
@@ -329,6 +590,31 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
+
+        if path == "/api/dashboard/install":
+            try:
+                title = payload.get("title") or "Family Hub"
+                show_in_sidebar = payload.get("show_in_sidebar", True)
+                settings, status = install_dashboard(title, show_in_sidebar)
+                return self._json(
+                    HTTPStatus.OK,
+                    {"ok": True, "settings": settings, "dashboard": status},
+                )
+            except Exception as exc:
+                print(f"[Family Hub] Dashboard install error: {exc}", flush=True)
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+
+        if path == "/api/dashboard/remove":
+            try:
+                settings, status = remove_dashboard()
+                return self._json(
+                    HTTPStatus.OK,
+                    {"ok": True, "settings": settings, "dashboard": status},
+                )
+            except Exception as exc:
+                print(f"[Family Hub] Dashboard remove error: {exc}", flush=True)
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+
         if path == "/api/background/remove":
             try:
                 current = load_settings()
@@ -345,8 +631,9 @@ def main():
     ensure_dirs()
     current = load_settings()
     save_settings(current)
-    print(f"[Family Hub] v0.4.1 listening on {PORT}", flush=True)
+    print(f"[Family Hub] v{APP_VERSION} listening on {PORT}", flush=True)
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
+    threading.Thread(target=sync_managed_dashboard, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
 
