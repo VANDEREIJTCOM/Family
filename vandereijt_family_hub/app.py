@@ -192,7 +192,7 @@ def save_background(data_url):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "VANDEREIJT.COM-Family-Hub/0.4.0"
+    server_version = "VANDEREIJT.COM-Family-Hub/0.4.1"
 
     def log_message(self, fmt, *args):
         print("[Family Hub] " + fmt % args, flush=True)
@@ -229,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             return self._json(HTTPStatus.OK, {
                 "ok": True,
-                "version": "0.4.0",
+                "version": "0.4.1",
                 "card_installed": CARD_TARGET.exists(),
                 "legacy_card_updated": LEGACY_CARD_TARGET.exists(),
                 "settings_published": PUBLIC_SETTINGS.exists(),
@@ -345,7 +345,7 @@ def main():
     ensure_dirs()
     current = load_settings()
     save_settings(current)
-    print(f"[Family Hub] v0.4.0 listening on {PORT}", flush=True)
+    print(f"[Family Hub] v0.4.1 listening on {PORT}", flush=True)
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 

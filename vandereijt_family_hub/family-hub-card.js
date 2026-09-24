@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.4.0
+ * v0.4.1
  */
-const FH_VERSION="0.4.0";
+const FH_VERSION="0.4.1";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
