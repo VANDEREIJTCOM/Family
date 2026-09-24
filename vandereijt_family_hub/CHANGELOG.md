@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+- Dashboardinstallatie volledig vanuit de Family Hub App.
+- Family Hub registreert de Lovelace JavaScript-resource automatisch via de Home Assistant WebSocket API.
+- Met één knop wordt een full-screen Panel-dashboard aangemaakt of bijgewerkt.
+- In de App kies je of het Family Hub-dashboard in de Home Assistant-zijbalk zichtbaar is.
+- Na OTA-updates wordt een beheerd dashboard automatisch gesynchroniseerd en krijgt de kaart-resource automatisch een nieuwe cache-versie.
+- Dashboard kan vanuit de App weer veilig worden verwijderd zonder de Family Hub-instellingen te wissen.
+- Nieuw blauw/geel VANDEREIJT.COM app-icoon en een witte productbanner voor de App-detailpagina.
+- Handmatige YAML- en resource-installatiestappen zijn verwijderd.
+
+
 ## 0.4.1
 - Officieel VANDEREIJT.COM app-icoon toegevoegd voor de Home Assistant Apps-lijst.
 - VANDEREIJT.COM logo toegevoegd voor de App-detailpagina.
