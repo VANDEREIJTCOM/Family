@@ -28,6 +28,7 @@ jobs:
           test -f vandereijt_family_hub/static/index.html
           test -f vandereijt_family_hub/static/app.js
           test -f vandereijt_family_hub/static/style.css
+          test -f vandereijt_family_hub/static/brand-icon.png
           grep -q '^name:' repository.yaml
           grep -q '^version:' vandereijt_family_hub/config.yaml
           grep -q '^slug:' vandereijt_family_hub/config.yaml
