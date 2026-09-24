@@ -28,6 +28,7 @@ jobs:
           test -f vandereijt_family_hub/static/index.html
           test -f vandereijt_family_hub/static/app.js
           test -f vandereijt_family_hub/static/style.css
+          test -f vandereijt_family_hub/static/brand-icon.png
           grep -q '^name:' repository.yaml
           grep -q '^version:' vandereijt_family_hub/config.yaml
           grep -q '^slug:' vandereijt_family_hub/config.yaml
@@ -39,3 +40,6 @@ jobs:
         run: |
           node --check vandereijt_family_hub/family-hub-card.js
           node --check vandereijt_family_hub/static/app.js
+
+      - name: Build App container
+        run: docker build --build-arg BUILD_VERSION=0.5.0 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub

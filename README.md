@@ -2,9 +2,9 @@
 
 Publieke Home Assistant App-repository van VANDEREIJT.COM.
 
-## Family Hub
+## VANDEREIJT.COM Family Hub
 
-**VANDEREIJT.COM Family Hub** is een gezinsplanner voor Home Assistant met een eigen configuratie-interface en een full-screen dashboard voor een wanddisplay.
+**Family Hub** is een gezinsplanner voor Home Assistant met een eigen beheerinterface en een full-screen wanddisplay.
 
 ### Installeren
 
@@ -15,25 +15,23 @@ Publieke Home Assistant App-repository van VANDEREIJT.COM.
 
    `https://github.com/VANDEREIJTCOM/Family`
 
-5. Zoek naar **VANDEREIJT.COM Family Hub** en installeer de app.
-6. Start de app en open de webinterface om het gezin in te richten.
+5. Zoek naar **VANDEREIJT.COM Family Hub** en installeer de App.
+6. Start de App en open **Family Hub** in de zijbalk.
+7. Richt het gezin in en open daarna het tabblad **Dashboard**.
+8. Kies of het dashboard in de Home Assistant-zijbalk moet staan en klik **Dashboard installeren / bijwerken**.
 
-### Dashboard
+Family Hub regelt daarna zelf:
+- de Lovelace JavaScript-resource;
+- het Family Hub-dashboard;
+- de full-screen Panel-view;
+- de sidebar-instelling;
+- cache-versies van de kaart bij toekomstige updates.
 
-Family Hub publiceert de kaart automatisch naar Home Assistant. Voeg éénmalig deze resource toe:
-
-`/local/family-hub/family-hub-card.js`
-
-Gebruik de kaart vervolgens in een Panel-view:
-
-```yaml
-type: custom:family-hub-card
-config_url: /local/family-hub/settings.json
-```
+Er hoeft geen YAML of dashboard-resource handmatig te worden toegevoegd.
 
 ## Updates
 
-Home Assistant leest de versie uit `vandereijt_family_hub/config.yaml`. Wanneer een nieuwe versie in deze repository staat, verschijnt deze als update in Home Assistant.
+Home Assistant leest de versie uit `vandereijt_family_hub/config.yaml`. Zodra een nieuwe versie in deze repository staat, kan Home Assistant die als App-update aanbieden. Een door Family Hub beheerd dashboard wordt na de App-update automatisch gesynchroniseerd.
 
 ## Ontwikkeling
 
