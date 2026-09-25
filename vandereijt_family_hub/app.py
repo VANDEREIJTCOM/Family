@@ -556,6 +556,317 @@ class HomeAssistantWebSocket:
             return response.get("result")
 
 
+
+def load_runtime():
+    if RUNTIME_FILE.exists():
+        try:
+            data = json.loads(RUNTIME_FILE.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def save_runtime(runtime):
+    tmp = RUNTIME_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(RUNTIME_FILE)
+
+
+def _friendly_entity(domain, friendly_name):
+    return _find_member_entity(domain, friendly_name)
+
+
+def ensure_named_todo(display_name):
+    if entity_id := _friendly_entity("todo", display_name):
+        return entity_id
+    result = _create_local_config_entry("local_todo", {"todo_list_name": display_name})
+    if result.get("type") not in ("create_entry", "abort"):
+        raise RuntimeError(f"Kon takenlijst '{display_name}' niet aanmaken")
+    entity_id = _wait_for_member_entity("todo", display_name)
+    if not entity_id:
+        raise RuntimeError(f"Takenlijst '{display_name}' is aangemaakt maar de entity werd niet gevonden")
+    return entity_id
+
+
+def ensure_points_helper(member_name):
+    display_name = f"Family Hub punten {member_name}"
+    with HomeAssistantWebSocket() as ha:
+        items = ha.call({"type": "input_number/list"}) or []
+        for item in items:
+            if item.get("name") == display_name:
+                return f"input_number.{item.get('id')}"
+        created = ha.call({
+            "type": "input_number/create",
+            "name": display_name,
+            "icon": "mdi:star-circle",
+            "initial": 0,
+            "min": 0,
+            "max": 100000,
+            "step": 1,
+            "mode": "box",
+            "unit_of_measurement": "punten",
+        }) or {}
+        helper_id = created.get("id")
+        if not helper_id:
+            raise RuntimeError(f"Puntenhelper voor {member_name} kon niet worden aangemaakt")
+        return f"input_number.{helper_id}"
+
+
+def provision_family_features(settings):
+    settings, provisioned, warnings = provision_member_lists(settings)
+
+    for member in settings.get("members", []):
+        if not member.get("points_entity"):
+            try:
+                member["points_entity"] = ensure_points_helper(member["name"])
+                provisioned.append({
+                    "member": member["name"],
+                    "type": "points",
+                    "entity_id": member["points_entity"],
+                })
+            except Exception as exc:
+                warnings.append(f"Punten {member['name']}: {exc}")
+
+    if not settings.get("shopping_list"):
+        try:
+            settings["shopping_list"] = ensure_named_todo("Family Hub Boodschappen")
+            provisioned.append({"type": "shopping", "entity_id": settings["shopping_list"]})
+        except Exception as exc:
+            warnings.append(f"Boodschappen: {exc}")
+
+    if not settings.get("meals_todo"):
+        try:
+            settings["meals_todo"] = ensure_named_todo("Family Hub Maaltijden")
+            provisioned.append({"type": "meals", "entity_id": settings["meals_todo"]})
+        except Exception as exc:
+            warnings.append(f"Maaltijden: {exc}")
+
+    lists = list(settings.get("lists") or [])
+    if settings.get("shopping_list") and not any(x.get("id") == "shopping" for x in lists):
+        lists.insert(0, {
+            "id": "shopping",
+            "title": "Boodschappen",
+            "icon": "mdi:cart-outline",
+            "color": "#43A66B",
+            "todo_entity": settings["shopping_list"],
+        })
+    for item in lists:
+        if not item.get("todo_entity"):
+            try:
+                item["todo_entity"] = ensure_named_todo(f"Family Hub {item['title']}")
+                provisioned.append({
+                    "type": "list",
+                    "title": item["title"],
+                    "entity_id": item["todo_entity"],
+                })
+            except Exception as exc:
+                warnings.append(f"Lijst {item.get('title')}: {exc}")
+    settings["lists"] = lists
+
+    member_names = {m.get("id"): m.get("name") for m in settings.get("members", [])}
+    for routine in settings.get("routines", []):
+        if not routine.get("todo_entity"):
+            try:
+                who = member_names.get(routine.get("member_id")) or "Gezin"
+                routine["todo_entity"] = ensure_named_todo(
+                    f"Family Hub Routine {who} - {routine['title']}"
+                )
+                provisioned.append({
+                    "type": "routine",
+                    "title": routine["title"],
+                    "entity_id": routine["todo_entity"],
+                })
+            except Exception as exc:
+                warnings.append(f"Routine {routine.get('title')}: {exc}")
+
+    return normalize_settings(settings), provisioned, warnings
+
+
+def _service_payload(result, entity_id):
+    roots = [
+        result,
+        (result or {}).get("response") if isinstance(result, dict) else None,
+        (result or {}).get("service_response") if isinstance(result, dict) else None,
+        (result or {}).get("response_data") if isinstance(result, dict) else None,
+    ]
+    for root in [x for x in roots if isinstance(x, dict)]:
+        if entity_id in root:
+            return root[entity_id]
+        response = root.get("response")
+        if isinstance(response, dict) and entity_id in response:
+            return response[entity_id]
+    return {}
+
+
+def ha_service(domain, service, service_data=None, entity_id=None, return_response=False):
+    message = {
+        "type": "call_service",
+        "domain": domain,
+        "service": service,
+        "service_data": service_data or {},
+        "return_response": bool(return_response),
+    }
+    if entity_id:
+        message["target"] = {"entity_id": entity_id}
+    with HomeAssistantWebSocket() as ha:
+        return ha.call(message) or {}
+
+
+def get_todo_items(entity_id, statuses=None):
+    result = ha_service(
+        "todo",
+        "get_items",
+        {"status": statuses or ["needs_action", "completed"]},
+        entity_id,
+        True,
+    )
+    payload = _service_payload(result, entity_id)
+    return payload.get("items") or [] if isinstance(payload, dict) else []
+
+
+def clear_todo(entity_id):
+    try:
+        items = get_todo_items(entity_id)
+    except Exception:
+        return
+    for item in items:
+        key = item.get("uid") or item.get("summary")
+        if not key:
+            continue
+        try:
+            ha_service("todo", "remove_item", {"item": key}, entity_id)
+        except Exception:
+            pass
+
+
+def add_todo_item(entity_id, title, description="", due_date=None, due_time=None):
+    data = {"item": title}
+    if description:
+        data["description"] = description
+    if due_date and due_time:
+        data["due_datetime"] = f"{due_date} {due_time}:00"
+    elif due_date:
+        data["due_date"] = due_date
+    ha_service("todo", "add_item", data, entity_id)
+
+
+def sync_generated_content():
+    settings = load_settings()
+    runtime = load_runtime()
+    today = time.strftime("%Y-%m-%d")
+    weekday = time.localtime().tm_wday
+    changed = False
+
+    members = {m.get("id"): m for m in settings.get("members", [])}
+
+    for routine in settings.get("routines", []):
+        entity = routine.get("todo_entity")
+        if not entity or weekday not in (routine.get("days") or []):
+            continue
+        key = f"routine:{routine.get('id')}:{today}"
+        if runtime.get(key):
+            continue
+        try:
+            clear_todo(entity)
+            member = members.get(routine.get("member_id")) or {}
+            points_entity = member.get("points_entity") or ""
+            for step in routine.get("steps", []):
+                meta = {
+                    "kind": "routine_step",
+                    "routine_id": routine.get("id"),
+                    "step_id": step.get("id"),
+                    "member_id": routine.get("member_id"),
+                    "points": step.get("points", 0),
+                    "points_entity": points_entity,
+                    "date": today,
+                }
+                add_todo_item(
+                    entity,
+                    step.get("title") or "Stap",
+                    "FH_META:" + json.dumps(meta, separators=(",", ":")),
+                    today,
+                    None,
+                )
+            runtime[key] = int(time.time())
+            changed = True
+        except Exception as exc:
+            print(f"[Family Hub] Routine sync failed for {routine.get('title')}: {exc}", flush=True)
+
+    for task in settings.get("smart_tasks", []):
+        if not task.get("enabled", True) or weekday not in (task.get("days") or []):
+            continue
+        member = members.get(task.get("member_id"))
+        if not member or not member.get("todo"):
+            continue
+        key = f"smarttask:{task.get('id')}:{today}"
+        if runtime.get(key):
+            continue
+        try:
+            meta = {
+                "kind": "smart_task",
+                "task_id": task.get("id"),
+                "member_id": task.get("member_id"),
+                "points": task.get("points", 0),
+                "points_entity": member.get("points_entity") or "",
+                "date": today,
+            }
+            add_todo_item(
+                member["todo"],
+                task.get("title") or "Taak",
+                "FH_META:" + json.dumps(meta, separators=(",", ":")),
+                today,
+                task.get("due_time") or None,
+            )
+            runtime[key] = int(time.time())
+            changed = True
+        except Exception as exc:
+            print(f"[Family Hub] Smart task sync failed for {task.get('title')}: {exc}", flush=True)
+
+    # Keep only about 45 days of generation markers.
+    cutoff = time.time() - (45 * 86400)
+    for key, value in list(runtime.items()):
+        if isinstance(value, (int, float)) and value < cutoff:
+            runtime.pop(key, None)
+            changed = True
+
+    if changed:
+        save_runtime(runtime)
+
+
+def family_scheduler_loop():
+    time.sleep(12)
+    while True:
+        try:
+            settings = load_settings()
+            updated, provisioned, warnings = provision_family_features(settings)
+            if provisioned:
+                save_settings(updated)
+                print(f"[Family Hub] Provisioned {len(provisioned)} Family Hub entities", flush=True)
+            for warning in warnings:
+                print(f"[Family Hub] Provision warning: {warning}", flush=True)
+            sync_generated_content()
+        except Exception as exc:
+            print(f"[Family Hub] Background sync failed: {exc}", flush=True)
+        time.sleep(60)
+
+
+def create_remote_calendar(name, url):
+    result = _create_local_config_entry(
+        "remote_calendar",
+        {
+            "calendar_name": str(name or "Externe agenda")[:80],
+            "url": str(url or "").strip(),
+            "verify_ssl": True,
+        },
+    )
+    if result.get("type") == "create_entry":
+        return result
+    if result.get("type") == "abort":
+        raise RuntimeError(f"Agenda bestaat al: {result.get('reason') or 'onbekend'}")
+    raise RuntimeError("Deze agenda vraagt extra authenticatie. Voeg die eerst als integratie toe in Home Assistant.")
+
+
 def family_hub_view(title="Family Hub"):
     return {
         "title": title,
