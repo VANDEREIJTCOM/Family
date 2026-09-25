@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.0 — Full Family Hub
+- Volledig nieuwe touch-first Family Hub-interface met een vaste, configureerbare navigatiebalk onderaan.
+- Admin bepaalt welke schermen zichtbaar zijn en in welke volgorde ze in de navigatie staan.
+- Admin bepaalt ook welke blokken op het startscherm **Vandaag** zichtbaar zijn en in welke volgorde.
+- Persoonlijke profielpagina's per gezinslid met afspraken, taken, routines en punten.
+- Routines met visuele stappen, voortgang, dagen, tijden en punten per stap.
+- Slimme terugkerende taken met gezinslid, weekdagen, deadline, icoon en punten.
+- Punten worden opgeslagen in automatisch aangemaakte Home Assistant `input_number` helpers.
+- Beloningen met puntkosten en inwisselen vanaf het Family Hub-scherm.
+- Meerdere gedeelde lijstjes, ieder als native Home Assistant To-do.
+- Automatische boodschappenlijst en maaltijdplanner met ingrediënten naar boodschappen.
+- Externe publieke ICS/webcal-agenda's vanuit de Family Hub App toevoegen.
+- Vertrekhulp op basis van afspraken en configureerbare checklists.
+- Configureerbaar slim-huisblok met Home Assistant-entiteiten.
+- Contextuele meldingen op basis van geselecteerde Home Assistant-entiteiten.
+- Screensaver/fotolijst na inactiviteit met klok, datum, achtergrond en optionele foto-URL's.
+- Responsive weergave voor wanddisplay, tablet en telefoon.
+- Family Hub maakt benodigde lokale agenda's, takenlijsten, routine-lijsten, lijstjes, maaltijdlijst en puntenhelpers automatisch aan.
+- Routines en terugkerende taken worden door de App dagelijks automatisch klaar gezet.
+- Bestaande Home Assistant agenda's en To-do's blijven selecteerbaar en worden niet vervangen.
+
+
 ## 0.5.3
 - Nieuwe gezinsleden krijgen automatisch een lokale Home Assistant-agenda en lokale takenlijst wanneer geen bestaande `calendar.*` of `todo.*` is gekozen.
 - Bestaande gezinsleden met lege agenda/taken-koppelingen worden na de App-update automatisch aangevuld.
