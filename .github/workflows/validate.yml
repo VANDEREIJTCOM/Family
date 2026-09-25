@@ -40,6 +40,9 @@ jobs:
         run: |
           node --check vandereijt_family_hub/family-hub-card.js
           node --check vandereijt_family_hub/static/app.js
+          grep -q '"panel": True' vandereijt_family_hub/app.py
+          grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
+          grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.5.1 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.5.2 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub

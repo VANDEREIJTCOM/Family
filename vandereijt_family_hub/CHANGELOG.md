@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2
+- Fix: de Family Hub-view gebruikt nu de native Home Assistant `panel: true`-instelling in plaats van een ongeldig view-type.
+- Fix: de kaart uit de Home Assistant kaartkiezer vult automatisch `config_url: /local/family-hub/settings.json` in.
+- De Family Hub-kaart werkt daardoor ook als een gebruiker hem handmatig uit de kaartkiezer toevoegt.
+- Bestaande door Family Hub beheerde Overzicht-tabs worden bij **Dashboard installeren / bijwerken** automatisch naar de correcte panelconfiguratie hersteld.
+
+
 ## 0.5.1
 - Fix voor de dashboardinstallatie-fout waarbij Home Assistant `Invalid format for dictionary value @ data['icon']` kon geven.
 - Family Hub wordt nu automatisch als full-screen tab aan het bestaande **Overzicht** toegevoegd.

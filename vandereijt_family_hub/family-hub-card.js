@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.5.1
+ * v0.5.2
  */
-const FH_VERSION="0.5.1";
+const FH_VERSION="0.5.2";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -31,10 +31,14 @@ class FamilyHubCard extends HTMLElement{
     this._configFetched=0;
   }
 
+  static getStubConfig(){
+    return {config_url:"/local/family-hub/settings.json"};
+  }
+
   setConfig(config){
-    if(!config) throw new Error("Family Hub: configuratie ontbreekt.");
+    if(!config) config={};
     this._base=Object.assign({},config);
-    this._configUrl=config.config_url||null;
+    this._configUrl=config.config_url||"/local/family-hub/settings.json";
     this._config=Object.assign({
       title:"Familie",
       subtitle:"",
@@ -48,9 +52,6 @@ class FamilyHubCard extends HTMLElement{
       accent_color:"#2E6CA5",
       members:[]
     },config);
-    if(!this._configUrl && (!Array.isArray(this._config.members)||!this._config.members.length)){
-      throw new Error("Family Hub: configureer minimaal één gezinslid of gebruik config_url.");
-    }
     this._restartTimer();
     this._loadRemote(true).then(()=>this._load());
     this._render();
