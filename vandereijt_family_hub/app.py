@@ -2,6 +2,7 @@ import base64
 import json
 import mimetypes
 import os
+import re
 import shutil
 import threading
 import time
@@ -15,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.5.2"
+APP_VERSION = "0.5.3"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -171,6 +172,158 @@ def grouped_entities():
     for domain in wanted:
         result[domain].sort(key=lambda x: str(x["name"]).lower())
     return result
+
+
+
+def ha_api(method, path, payload=None):
+    if not SUPERVISOR_TOKEN:
+        raise RuntimeError("Home Assistant API token ontbreekt")
+    body = None
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"http://supervisor/core/api/{path.lstrip('/')}",
+        data=body,
+        method=method.upper(),
+        headers={
+            "Authorization": f"Bearer {SUPERVISOR_TOKEN}",
+            "Content-Type": "application/json",
+            "HA-Frontend-Base": "http://homeassistant.local",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            raw = response.read()
+            return json.loads(raw.decode("utf-8")) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Home Assistant API {exc.code}: {detail[:300]}") from exc
+
+
+def _entity_slug(value):
+    value = str(value or "").lower().strip()
+    value = re.sub(r"[^a-z0-9]+", "_", value)
+    return value.strip("_")
+
+
+def _find_member_entity(domain, name):
+    expected_slug = _entity_slug(name)
+    for state in ha_states():
+        entity_id = str(state.get("entity_id") or "")
+        if not entity_id.startswith(domain + "."):
+            continue
+        friendly = str((state.get("attributes") or {}).get("friendly_name") or "")
+        if friendly == name or entity_id == f"{domain}.{expected_slug}":
+            return entity_id
+    return ""
+
+
+def _wait_for_member_entity(domain, name, timeout=12):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if entity_id := _find_member_entity(domain, name):
+            return entity_id
+        time.sleep(0.6)
+    return ""
+
+
+def _create_local_config_entry(handler, data):
+    flow = ha_api("POST", "config/config_entries/flow", {"handler": handler})
+    if flow.get("type") == "abort":
+        return flow
+    flow_id = flow.get("flow_id")
+    if not flow_id:
+        raise RuntimeError(f"Kon {handler} configuratie niet starten")
+    result = ha_api("POST", f"config/config_entries/flow/{flow_id}", data)
+    if result.get("type") not in ("create_entry", "abort"):
+        raise RuntimeError(
+            f"Onverwacht resultaat bij {handler}: {result.get('type') or 'onbekend'}"
+        )
+    return result
+
+
+def ensure_local_calendar(member_name):
+    display_name = f"Family Hub {member_name}"
+    if entity_id := _find_member_entity("calendar", display_name):
+        return entity_id
+    result = _create_local_config_entry(
+        "local_calendar",
+        {"calendar_name": display_name, "import": "create_empty"},
+    )
+    if result.get("type") == "abort":
+        print(
+            f"[Family Hub] Local calendar already exists for {member_name}: {result.get('reason')}",
+            flush=True,
+        )
+    entity_id = _wait_for_member_entity("calendar", display_name)
+    if not entity_id:
+        raise RuntimeError(f"Lokale agenda voor {member_name} is aangemaakt maar de entity werd niet gevonden")
+    return entity_id
+
+
+def ensure_local_todo(member_name):
+    display_name = f"Family Hub {member_name}"
+    if entity_id := _find_member_entity("todo", display_name):
+        return entity_id
+    result = _create_local_config_entry(
+        "local_todo",
+        {"todo_list_name": display_name},
+    )
+    if result.get("type") == "abort":
+        print(
+            f"[Family Hub] Local todo already exists for {member_name}: {result.get('reason')}",
+            flush=True,
+        )
+    entity_id = _wait_for_member_entity("todo", display_name)
+    if not entity_id:
+        raise RuntimeError(f"Lokale takenlijst voor {member_name} is aangemaakt maar de entity werd niet gevonden")
+    return entity_id
+
+
+def provision_member_lists(settings):
+    """Create local HA calendar/todo entities for members that have no link."""
+    settings = normalize_settings(settings)
+    provisioned = []
+    warnings = []
+
+    for member in settings.get("members", []):
+        name = member.get("name") or "Gezinslid"
+
+        if not member.get("calendar"):
+            try:
+                member["calendar"] = ensure_local_calendar(name)
+                provisioned.append({"member": name, "type": "calendar", "entity_id": member["calendar"]})
+            except Exception as exc:
+                warnings.append(f"Agenda {name}: {exc}")
+
+        if not member.get("todo"):
+            try:
+                member["todo"] = ensure_local_todo(name)
+                provisioned.append({"member": name, "type": "todo", "entity_id": member["todo"]})
+            except Exception as exc:
+                warnings.append(f"Taken {name}: {exc}")
+
+    return settings, provisioned, warnings
+
+
+def sync_member_lists(delay=10):
+    """Provision defaults for existing members after an App upgrade/start."""
+    time.sleep(delay)
+    settings = load_settings()
+    if not settings.get("members"):
+        return
+    try:
+        updated, provisioned, warnings = provision_member_lists(settings)
+        if provisioned:
+            save_settings(updated)
+            print(
+                f"[Family Hub] Provisioned {len(provisioned)} member calendar/todo entities",
+                flush=True,
+            )
+        for warning in warnings:
+            print(f"[Family Hub] Provision warning: {warning}", flush=True)
+    except Exception as exc:
+        print(f"[Family Hub] Member list provisioning failed: {exc}", flush=True)
 
 
 
@@ -680,6 +833,7 @@ class Handler(BaseHTTPRequestHandler):
                     settings = dict(settings)
                     settings["background_url"] = current.get("background_url", "")
                 incoming_members = settings.get("members", []) if isinstance(settings, dict) else []
+                settings, provisioned, provision_warnings = provision_member_lists(settings)
                 settings = save_settings(settings)
                 persisted = load_settings()
                 if len(persisted.get("members", [])) != len(settings.get("members", [])):
@@ -688,7 +842,16 @@ class Handler(BaseHTTPRequestHandler):
                     f"[Family Hub] Settings saved: received_members={len(incoming_members) if isinstance(incoming_members, list) else 'invalid'} persisted_members={len(persisted.get('members', []))}",
                     flush=True,
                 )
-                return self._json(HTTPStatus.OK, {"ok": True, "settings": persisted, "saved_members": len(persisted.get("members", []))})
+                return self._json(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        "settings": persisted,
+                        "saved_members": len(persisted.get("members", [])),
+                        "provisioned": provisioned,
+                        "warnings": provision_warnings,
+                    },
+                )
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
@@ -735,6 +898,7 @@ def main():
     save_settings(current)
     print(f"[Family Hub] v{APP_VERSION} listening on {PORT}", flush=True)
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
+    threading.Thread(target=sync_member_lists, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
