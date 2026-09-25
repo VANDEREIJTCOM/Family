@@ -1,25 +1,54 @@
-# VANDEREIJT.COM Family Hub – installatie
+# VANDEREIJT.COM Family Hub – installatie en beheer
 
 ## Installatie
 
-1. Voeg de VANDEREIJT.COM App-repository toe aan Home Assistant: `https://github.com/VANDEREIJTCOM/Family`
+1. Voeg `https://github.com/VANDEREIJTCOM/Family` toe als Home Assistant App-repository.
 2. Installeer **VANDEREIJT.COM Family Hub**.
 3. Start de App.
-4. Richt gezin, koppelingen en uiterlijk in.
-5. Open het tabblad **Dashboard**.
-6. Kies of Family Hub **ook apart in de zijbalk** moet verschijnen.
-7. Klik **Dashboard installeren / bijwerken**.
+4. Voeg onder **Gezin** de gezinsleden toe.
+5. Druk **Opslaan**. Family Hub maakt ontbrekende lokale agenda's, takenlijsten en puntenhelpers automatisch aan.
+6. Richt de gewenste functies in.
+7. Open **Dashboard** en klik **Dashboard installeren / bijwerken**.
 
-Family Hub registreert automatisch de kaart-resource en voegt een full-screen **Family Hub-tab toe aan het bestaande Overzicht**. Als de zijbalkoptie aan staat, wordt daarnaast een apart Family Hub-dashboard gemaakt.
+Daarna registreert Family Hub automatisch de Lovelace resource, de full-screen Family Hub-tab in Overzicht en optioneel het zijbalkdashboard.
 
-## Dashboard verwijderen
+## Beheer in 0.6
 
-Via hetzelfde tabblad kan Family Hub de door de App beheerde Overzicht-tab en het eventuele zijbalkdashboard weer verwijderen. Gezinssamenstelling en overige Family Hub-instellingen blijven bewaard.
+De beheerinterface bevat aparte onderdelen voor:
+- gezin en Home Assistant-koppelingen;
+- bestaande en publieke ICS/webcal-agenda's;
+- routines en terugkerende taken;
+- gedeelde lijstjes en maaltijdplanner;
+- punten en beloningen;
+- slim-huisstatus, meldingen en vertrekhulp;
+- schermen, onderste navigatie en de indeling van Vandaag;
+- achtergrond en screensaver;
+- dashboardinstallatie.
+
+## Automatisch aangemaakte Home Assistant-entiteiten
+
+Wanneer nodig maakt Family Hub zelf native entiteiten aan:
+- `calendar.*` via Local Calendar;
+- `todo.*` via Local To-do;
+- `input_number.*` voor punten.
+
+Bestaande gekoppelde entiteiten worden niet vervangen.
+
+## Externe agenda's
+
+Een publieke ICS/webcal-link kan vanuit **Agenda's** rechtstreeks worden toegevoegd. Agenda's met provider-authenticatie, zoals privé Google- of Microsoft-agenda's, voeg je als Home Assistant-integratie toe; daarna verschijnen ze automatisch in de Family Hub-keuzelijsten.
+
+## Schermindeling
+
+Onder **Schermen & navigatie** bepaalt de administrator:
+- welke Family Hub-schermen zichtbaar zijn;
+- de volgorde in de onderste navigatiebalk;
+- welke blokken op **Vandaag** staan;
+- de volgorde van die blokken.
 
 ## Veiligheid
 
-- De beheerinterface gebruikt Home Assistant Ingress.
-- Het beheer-paneel is alleen voor administrators zichtbaar.
-- De App gebruikt `homeassistant_api` en de Home Assistant WebSocket API.
-- Bestaande niet-Family-Hub views of dashboards worden niet overschreven.
-- Er worden geen gezinsgegevens naar externe diensten verzonden.
+- De beheerinterface gebruikt Home Assistant Ingress en is alleen voor administrators zichtbaar.
+- Family Hub gebruikt de Home Assistant API en WebSocket API.
+- Family Hub overschrijft geen niet-Family-Hub dashboard/view met dezelfde naam.
+- Gezinsdata wordt niet naar een VANDEREIJT.COM cloudservice verstuurd.

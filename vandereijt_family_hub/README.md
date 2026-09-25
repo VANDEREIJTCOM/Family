@@ -2,28 +2,63 @@
 
 **for Home Assistant**
 
-Family Hub is een Home Assistant App voor een centraal gezinsdisplay met agenda's, taken, boodschappen, aanwezigheid, kleuren en een eigen achtergrond.
+Family Hub maakt van Home Assistant een centrale gezinsomgeving voor een wanddisplay, tablet en telefoon. De App combineert gezinsplanning met het slimme huis, zonder dat gebruikers zelf Lovelace-resources of YAML hoeven te onderhouden.
 
-## Functies in v0.5.1
+## Family Hub 0.6
 
-- Gezinssamenstelling beheren zonder YAML
-- Kleur en MDI-icoon per gezinslid
-- `person.*`, `calendar.*` en `todo.*` kiezen uit Home Assistant
-- Weer- en boodschappen-entiteit kiezen
-- Achtergrondfoto uploaden en lokaal opslaan
-- Transparantie en accentkleur instellen
-- Automatische publicatie van `settings.json`
-- Automatische registratie en update van `family-hub-card.js`
-- Family Hub automatisch als full-screen tab toevoegen aan het bestaande **Overzicht**
-- Optioneel een apart Family Hub-dashboard in de Home Assistant-zijbalk tonen
-- Automatische synchronisatie na OTA-updates
-- Family Hub-tab en zijbalkdashboard vanuit de App verwijderen zonder gezinsinstellingen te wissen
-- Configuratie blijft in `/data` bewaard en valt onder Home Assistant App backups
+### Gezin
+- Persoonlijk profiel per gezinslid
+- Eigen kleur, Home Assistant-persoon, agenda en takenlijst
+- Automatisch lokale agenda/takenlijst als er niets is gekoppeld
+- Punten per gezinslid via een automatisch aangemaakte Home Assistant helper
 
-## Dashboard
+### Agenda
+- Gezamenlijke weekagenda
+- Afspraken direct vanaf het Family Hub-scherm toevoegen
+- Bestaande `calendar.*` entiteiten gebruiken
+- Publieke ICS/webcal-agenda vanuit de beheer-App toevoegen
+- Externe Google/Outlook/CalDAV-agenda's die al in Home Assistant staan blijven selecteerbaar
 
-Open in de Family Hub App het tabblad **Dashboard**. Kies de gewenste naam en of je Family Hub daarnaast apart in de Home Assistant-zijbalk wilt zien. Klik vervolgens op **Dashboard installeren / bijwerken**.
+### Taken, routines en punten
+- Losse taken
+- Terugkerende slimme taken per weekdag
+- Deadline, icoon en punten
+- Routines met meerdere visuele stappen
+- Dagelijkse automatische generatie van routine-stappen en slimme taken
+- Beloningen met puntkosten en inwisselen via het scherm
 
-Family Hub voegt altijd een full-screen tab aan **Overzicht** toe. Alleen wanneer de zijbalkoptie is aangevinkt, wordt daarnaast een apart Family Hub-dashboard aangemaakt.
+### Lijsten en maaltijden
+- Meerdere gedeelde lijstjes
+- Automatisch aangemaakte Home Assistant To-do per lijst
+- Boodschappenlijst
+- Maaltijdplanner per dag
+- Ingrediënten met één druk naar boodschappen
 
-Er zijn geen handmatige YAML-, Resource- of Dashboard-stappen nodig.
+### Slim huis
+- Configureerbaar huisstatusblok met willekeurige Home Assistant-entiteiten
+- Contextuele meldingen op basis van geselecteerde entiteiten
+- Aanwezigheid van gezinsleden
+- Vertrekhulp: match afspraken zoals voetbal/school en toon vooraf een checklist
+
+### Schermen
+- Touch-first onderste navigatiebalk
+- Admin bepaalt welke schermen zichtbaar zijn en in welke volgorde
+- Admin bepaalt welke blokken en volgorde het startscherm **Vandaag** heeft
+- Persoonlijke gezinsprofielen
+- Responsive voor wanddisplay, tablet en telefoon
+- Screensaver/fotolijst met klok en datum na inactiviteit
+
+## Installatie
+
+1. Voeg `https://github.com/VANDEREIJTCOM/Family` toe als Home Assistant App-repository.
+2. Installeer **VANDEREIJT.COM Family Hub**.
+3. Start de App en open de beheerinterface.
+4. Voeg gezinsleden toe en druk **Opslaan**. Family Hub maakt ontbrekende agenda's, takenlijsten en puntenhelpers automatisch aan.
+5. Configureer optioneel routines, taken, lijstjes, maaltijden, vertrekhulp, huisstatus en schermindeling.
+6. Open **Dashboard** en klik **Dashboard installeren / bijwerken**.
+
+Family Hub registreert de kaart-resource, maakt de full-screen Family Hub-tab in Overzicht en optioneel een apart zijbalkitem automatisch aan.
+
+## Opslag
+
+Family Hub bewaart zijn configuratie in de eigen App-data. De daadwerkelijke gezinsdata wordt waar mogelijk in native Home Assistant-entiteiten opgeslagen, waaronder `calendar.*`, `todo.*` en `input_number.*`.

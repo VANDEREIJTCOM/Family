@@ -47,6 +47,14 @@ jobs:
           grep -q 'def ensure_local_todo' vandereijt_family_hub/app.py
           grep -q 'local_calendar' vandereijt_family_hub/app.py
           grep -q 'local_todo' vandereijt_family_hub/app.py
+          grep -q 'def provision_family_features' vandereijt_family_hub/app.py
+          grep -q 'def family_scheduler_loop' vandereijt_family_hub/app.py
+          grep -q 'def ensure_points_helper' vandereijt_family_hub/app.py
+          grep -q 'DEFAULT_NAVIGATION' vandereijt_family_hub/app.py
+          grep -q '_navigation()' vandereijt_family_hub/family-hub-card.js
+          grep -q '_screensaverHtml()' vandereijt_family_hub/family-hub-card.js
+          grep -q '_rewardsScreen()' vandereijt_family_hub/family-hub-card.js
+          grep -q '_departuresSection()' vandereijt_family_hub/family-hub-card.js
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.5.3 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.6.0 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub

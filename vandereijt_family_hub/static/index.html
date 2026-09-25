@@ -7,62 +7,116 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="static/style.css?v=0.5.3">
+  <link rel="stylesheet" href="static/style.css?v=0.6.0">
 </head>
 <body>
 <div class="shell">
   <aside>
     <div class="brand">
-      <img src="static/brand-icon.png?v=0.5.3" alt="VANDEREIJT.COM">
+      <img src="static/brand-icon.png?v=0.6.0" alt="VANDEREIJT.COM">
       <div><strong><span>VANDEREIJT.COM</span> Family Hub</strong><small>for Home Assistant</small></div>
     </div>
     <nav>
-      <button class="nav active" data-tab="general">Algemeen</button>
+      <button class="nav active" data-tab="general"><ha-icon>🏠</ha-icon>Algemeen</button>
       <button class="nav" data-tab="family">Gezin</button>
-      <button class="nav" data-tab="links">Koppelingen</button>
+      <button class="nav" data-tab="calendars">Agenda's</button>
+      <button class="nav" data-tab="routines">Routines & taken</button>
+      <button class="nav" data-tab="lists">Lijsten & eten</button>
+      <button class="nav" data-tab="rewards">Punten & beloningen</button>
+      <button class="nav" data-tab="home">Huis & vertrek</button>
+      <button class="nav" data-tab="screens">Schermen & navigatie</button>
       <button class="nav" data-tab="appearance">Uiterlijk</button>
-      <button class="nav" data-tab="install">Dashboard</button>
+      <button class="nav" data-tab="dashboard">Dashboard</button>
     </nav>
     <div id="connection" class="connection">Verbinden met Home Assistant…</div>
   </aside>
+
   <main>
     <header>
-      <div><div class="eyebrow"><span>VANDEREIJT.COM</span> Family Hub <em>for Home Assistant</em></div><h1 id="page-title">Algemeen</h1></div>
+      <div>
+        <div class="eyebrow"><span>VANDEREIJT.COM</span> Family Hub <em>for Home Assistant</em></div>
+        <h1 id="page-title">Algemeen</h1>
+      </div>
       <div class="actions"><span id="save-state">Niet gewijzigd</span><button id="save" class="primary">Opslaan</button></div>
     </header>
 
     <section id="tab-general" class="tab active">
+      <div class="hero-card">
+        <div><span class="pill">Family Hub 0.6</span><h2>Het centrale scherm voor gezin én huis.</h2><p>Agenda, taken, routines, punten, lijstjes, maaltijden, vertrekhulp en Home Assistant-status in één interface.</p></div>
+        <div class="hero-mark">FH</div>
+      </div>
       <div class="grid two">
-        <article class="card"><h2>Dashboard</h2><p>De naam en subtitel op het familiescherm.</p>
+        <article class="card"><h2>Naam & gedrag</h2>
           <label>Titel<input id="title" type="text" placeholder="Familie Vandereijt"></label>
           <label>Subtitel<input id="subtitle" type="text" placeholder="Welkom thuis"></label>
+          <label>Verversinterval<select id="refresh_interval"><option value="30">30 seconden</option><option value="60">Iedere minuut</option><option value="120">Iedere 2 minuten</option><option value="300">Iedere 5 minuten</option></select></label>
+          <label class="switch"><input id="show_household_status" type="checkbox"> Toon aanwezigheid van gezinsleden</label>
         </article>
-        <article class="card"><h2>Gedrag</h2><p>Algemene instellingen voor het wanddisplay.</p>
-          <label>Verversinterval<select id="refresh_interval"><option value="60">Iedere minuut</option><option value="120">Iedere 2 minuten</option><option value="300">Iedere 5 minuten</option><option value="600">Iedere 10 minuten</option></select></label>
-          <label>Max. taken per persoon<input id="max_tasks_per_member" type="number" min="1" max="12"></label>
-          <label class="switch"><input id="show_household_status" type="checkbox"> Toon aanwezigheid onderaan</label>
+        <article class="card"><h2>Screensaver / fotolijst</h2><p>Na inactiviteit schakelt Family Hub naar een rustige klok/fotoweergave.</p>
+          <label>Na hoeveel minuten?<input id="idle_minutes" type="number" min="0" max="120"></label>
+          <label class="switch"><input id="idle_show_clock" type="checkbox"> Toon klok en datum</label>
+          <label>Extra foto-URL's <textarea id="photos" rows="6" placeholder="Eén URL per regel. De ingestelde achtergrondfoto wordt automatisch ook gebruikt."></textarea></label>
         </article>
       </div>
     </section>
 
     <section id="tab-family" class="tab">
-      <div class="section-head"><div><h2>Gezinssamenstelling</h2><p>Voeg de gezinsleden toe die op de Family Hub moeten verschijnen.</p></div><button id="add-member" class="secondary">+ Gezinslid</button></div>
-      <div id="members" class="members"></div>
+      <div class="section-head"><div><h2>Gezinssamenstelling</h2><p>Persoon, agenda, taken en punten worden per gezinslid aan elkaar gekoppeld.</p></div><button id="add-member" class="secondary">+ Gezinslid</button></div>
+      <div id="members" class="cards-grid"></div>
     </section>
 
-    <section id="tab-links" class="tab">
+    <section id="tab-calendars" class="tab">
       <div class="grid two">
-        <article class="card"><h2>Algemene koppelingen</h2><p>Deze entiteiten worden rechtstreeks uit Home Assistant geladen.</p>
-          <label>Weer<select id="weather"></select></label>
-          <label>Boodschappenlijst<select id="shopping_list"></select></label>
+        <article class="card"><h2>Bestaande agenda's</h2><p>Koppel per gezinslid een bestaande Google-, Outlook-, CalDAV- of Home Assistant-agenda via het tabblad Gezin. Als je niets kiest maakt Family Hub automatisch een lokale agenda.</p><button id="reload-entities" class="secondary">Entiteiten opnieuw laden</button></article>
+        <article class="card"><h2>ICS / webcal toevoegen</h2><p>Voor bijvoorbeeld school, sportclub, afvalkalender of een gedeelde agenda met een publieke ICS-link.</p>
+          <label>Naam<input id="external_calendar_name" type="text" placeholder="Voetbal Fer"></label>
+          <label>ICS / webcal URL<input id="external_calendar_url" type="text" placeholder="https://.../calendar.ics"></label>
+          <button id="add-external-calendar" class="primary">Agenda toevoegen aan Home Assistant</button>
+          <div id="external-calendar-result" class="inline-status"></div>
         </article>
-        <article class="card"><h2>Home Assistant-entiteiten</h2><p>Per gezinslid koppel je een persoon, agenda en takenlijst.</p><button id="reload-entities" class="secondary">Entiteiten opnieuw laden</button></article>
+      </div>
+    </section>
+
+    <section id="tab-routines" class="tab">
+      <div class="section-head"><div><h2>Routines</h2><p>Visuele stappen die iedere dag automatisch opnieuw klaarstaan.</p></div><button id="add-routine" class="secondary">+ Routine</button></div>
+      <div id="routines" class="cards-grid"></div>
+      <div class="section-head spaced"><div><h2>Slimme taken</h2><p>Terugkerende taken met dagen, deadline en punten.</p></div><button id="add-smart-task" class="secondary">+ Slimme taak</button></div>
+      <div id="smart-tasks" class="cards-grid"></div>
+    </section>
+
+    <section id="tab-lists" class="tab">
+      <div class="section-head"><div><h2>Gedeelde lijstjes</h2><p>Boodschappen, vakantie, caravan, school, klusjes… ieder lijstje krijgt zijn eigen Home Assistant To-do.</p></div><button id="add-list" class="secondary">+ Lijst</button></div>
+      <div id="lists" class="cards-grid"></div>
+      <div class="grid two spaced">
+        <article class="card"><h2>Maaltijdplanner</h2><p>Family Hub maakt automatisch een lokale maaltijdenlijst. Op het scherm kunnen maaltijden per datum worden toegevoegd en ingrediënten naar de boodschappenlijst worden gestuurd.</p><label>Maaltijdenlijst<select id="meals_todo"></select></label></article>
+        <article class="card"><h2>Boodschappen</h2><p>Dit lijstje wordt ook gebruikt door de maaltijdplanner.</p><label>Boodschappenlijst<select id="shopping_list"></select></label></article>
+      </div>
+    </section>
+
+    <section id="tab-rewards" class="tab">
+      <div class="section-head"><div><h2>Beloningen</h2><p>Kinderen verdienen punten met taken en routines. Punten worden als Home Assistant helper opgeslagen.</p></div><button id="add-reward" class="secondary">+ Beloning</button></div>
+      <div id="rewards" class="cards-grid"></div>
+    </section>
+
+    <section id="tab-home" class="tab">
+      <div class="grid two">
+        <article class="card"><h2>Slim huisblok</h2><p>Kies entiteiten die op het Family Hub-scherm zichtbaar mogen zijn, zoals temperatuur, deur, auto, energie of wasmachine.</p><label>Home Assistant entiteiten<select id="home_entities" multiple size="12"></select></label></article>
+        <article class="card"><h2>Contextuele meldingen</h2><p>Geselecteerde entiteiten verschijnen als melding wanneer hun status actief of afwijkend is.</p><label>Melding-entiteiten<select id="notification_entities" multiple size="12"></select></label></article>
+      </div>
+      <div class="section-head spaced"><div><h2>Vertrekhulp</h2><p>Match een agenda-afspraak en toon automatisch een checklist vóór vertrek.</p></div><button id="add-departure" class="secondary">+ Vertrekregel</button></div>
+      <div id="departures" class="cards-grid"></div>
+    </section>
+
+    <section id="tab-screens" class="tab">
+      <div class="grid two">
+        <article class="card"><h2>Onderste navigatiebalk</h2><p>Bepaal welke Family Hub-schermen zichtbaar zijn en in welke volgorde.</p><div id="navigation-editor" class="reorder-list"></div></article>
+        <article class="card"><h2>Indeling Vandaag</h2><p>Bepaal welke blokken op het startscherm staan en in welke volgorde. Uitgeschakelde blokken verdwijnen volledig.</p><div id="home-sections-editor" class="reorder-list"></div></article>
       </div>
     </section>
 
     <section id="tab-appearance" class="tab">
       <div class="grid two">
-        <article class="card"><h2>Kleuren</h2><p>De standaard huisstijl gebruikt VANDEREIJT.COM blauw.</p>
+        <article class="card"><h2>Kleuren</h2>
           <label>Accentkleur<div class="color"><input id="accent_color" type="color"><input id="accent_color_text" type="text"></div></label>
           <label>Achtergronddekking <span id="overlay-label">82%</span><input id="background_overlay" type="range" min="0" max="100"></label>
         </article>
@@ -73,35 +127,20 @@
       </div>
     </section>
 
-    <section id="tab-install" class="tab">
+    <section id="tab-dashboard" class="tab">
       <div class="grid two">
-        <article class="card">
-          <h2>Family Hub dashboard</h2>
-          <p>Family Hub voegt automatisch een full-screen Family Hub-view toe aan je bestaande Overzicht. Optioneel kun je dezelfde Family Hub ook als apart item in de Home Assistant-zijbalk tonen.</p>
+        <article class="card"><h2>Family Hub dashboard</h2><p>Family Hub beheert zelf de kaart, de full-screen tab in Overzicht en optioneel een apart item in de Home Assistant-zijbalk.</p>
           <label>Naam in Home Assistant<input id="dashboard_title" type="text" value="Family Hub" maxlength="80"></label>
           <label class="switch"><input id="dashboard_show_sidebar" type="checkbox" checked> Ook apart tonen in de zijbalk</label>
-          <div class="dashboard-actions">
-            <button id="install-dashboard" class="primary">Dashboard installeren / bijwerken</button>
-            <button id="remove-dashboard" class="danger">Dashboard verwijderen</button>
-          </div>
+          <div class="dashboard-actions"><button id="install-dashboard" class="primary">Dashboard installeren / bijwerken</button><button id="remove-dashboard" class="danger">Dashboard verwijderen</button></div>
         </article>
-        <article class="card">
-          <h2>Automatisch geregeld</h2>
-          <p>Na installatie hoef je niets meer handmatig onder Dashboards of Resources te configureren.</p>
-          <ul class="feature-list">
-            <li>Family Hub registreert de JavaScript-kaart automatisch.</li>
-            <li>Er wordt automatisch een full-screen Family Hub-tab aan je bestaande Overzicht toegevoegd.</li>
-            <li>Als je dat aanvinkt, wordt daarnaast automatisch een apart Family Hub-item in de zijbalk gemaakt.</li>
-            <li>Na een Family Hub-update wordt de kaart-resource automatisch naar de nieuwe versie bijgewerkt.</li>
-          </ul>
-          <a id="open-dashboard" class="open-dashboard hidden" href="/lovelace/family" target="_top">Open Family Hub dashboard</a>
-        </article>
+        <article class="card"><h2>Automatische inrichting</h2><ul class="feature-list"><li>Kaart-resource automatisch geregistreerd.</li><li>Full-screen Family Hub-tab in Overzicht.</li><li>Optionele zijbalkkoppeling.</li><li>Updates en cache-versies automatisch bijgewerkt.</li><li>Agenda's, takenlijsten, routines en puntenhelpers automatisch aangemaakt waar nodig.</li></ul><button id="provision-now" class="secondary">Family Hub-entiteiten controleren</button><a id="open-dashboard" class="open-dashboard hidden" href="/lovelace/family" target="_top">Open Family Hub</a></article>
       </div>
-      <article class="card status"><h2>Installatiestatus</h2><div id="install-status" class="status-grid"></div></article>
+      <article class="card status spaced"><h2>Installatiestatus</h2><div id="install-status" class="status-grid"></div></article>
     </section>
   </main>
 </div>
 <div id="toast" class="toast"></div>
-<script src="static/app.js?v=0.5.3"></script>
+<script src="static/app.js?v=0.6.0"></script>
 </body>
 </html>
