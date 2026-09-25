@@ -153,11 +153,9 @@ def normalize_settings(data):
 
     valid_sections = set(DEFAULT_HOME_SECTIONS)
     home_sections = []
-    for section in src.get("home_sections") or DEFAULT_HOME_SECTIONS:
+    section_source = src.get("home_sections") if "home_sections" in src else DEFAULT_HOME_SECTIONS
+    for section in section_source or []:
         if section in valid_sections and section not in home_sections:
-            home_sections.append(section)
-    for section in DEFAULT_HOME_SECTIONS:
-        if section not in home_sections:
             home_sections.append(section)
     out["home_sections"] = home_sections
 
