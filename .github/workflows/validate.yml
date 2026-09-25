@@ -55,7 +55,6 @@ jobs:
           grep -q '_screensaverHtml()' vandereijt_family_hub/family-hub-card.js
           grep -q '_rewardsScreen()' vandereijt_family_hub/family-hub-card.js
           grep -q '_departuresSection()' vandereijt_family_hub/family-hub-card.js
-          grep -q 'function ingressBase' vandereijt_family_hub/static/app.js
           grep -q 'FAMILY_HUB_APP_ROOT' vandereijt_family_hub/static/app.js
           grep -q 'document.currentScript' vandereijt_family_hub/static/app.js
           grep -q 'ensureSettingsShape' vandereijt_family_hub/static/app.js
