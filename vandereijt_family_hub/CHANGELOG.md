@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3
+- Nieuwe gezinsleden krijgen automatisch een lokale Home Assistant-agenda en lokale takenlijst wanneer geen bestaande `calendar.*` of `todo.*` is gekozen.
+- Bestaande gezinsleden met lege agenda/taken-koppelingen worden na de App-update automatisch aangevuld.
+- De afspraak- en taakdialogen tonen voortaan altijd de gezinsleden; ontbrekende koppelingen worden duidelijk gemarkeerd in plaats van een lege **Voor wie**-lijst.
+- Na opslaan worden automatisch aangemaakte agenda's en takenlijsten direct opnieuw uit Home Assistant ingelezen.
+- Bestaande externe agenda's en takenlijsten blijven gewoon te selecteren en worden niet vervangen.
+
+
 ## 0.5.2
 - Fix: de Family Hub-view gebruikt nu de native Home Assistant `panel: true`-instelling in plaats van een ongeldig view-type.
 - Fix: de kaart uit de Home Assistant kaartkiezer vult automatisch `config_url: /local/family-hub/settings.json` in.
