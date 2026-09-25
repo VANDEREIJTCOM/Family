@@ -43,6 +43,10 @@ jobs:
           grep -q '"panel": True' vandereijt_family_hub/app.py
           grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
           grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
+          grep -q 'def ensure_local_calendar' vandereijt_family_hub/app.py
+          grep -q 'def ensure_local_todo' vandereijt_family_hub/app.py
+          grep -q 'local_calendar' vandereijt_family_hub/app.py
+          grep -q 'local_todo' vandereijt_family_hub/app.py
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.5.2 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.5.3 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
