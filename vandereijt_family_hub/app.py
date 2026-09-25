@@ -341,19 +341,25 @@ def ha_states():
 def grouped_entities():
     wanted = {"calendar", "todo", "person", "weather"}
     result = {domain: [] for domain in wanted}
+    result["all"] = []
     for state in ha_states():
         entity_id = state.get("entity_id", "")
         domain = entity_id.split(".", 1)[0] if "." in entity_id else ""
-        if domain not in wanted:
-            continue
         attrs = state.get("attributes") or {}
-        result[domain].append({
+        item = {
             "entity_id": entity_id,
             "name": attrs.get("friendly_name") or entity_id,
             "state": state.get("state", ""),
-        })
-    for domain in wanted:
-        result[domain].sort(key=lambda x: str(x["name"]).lower())
+            "domain": domain,
+            "unit": attrs.get("unit_of_measurement") or "",
+            "icon": attrs.get("icon") or "",
+        }
+        if domain in wanted:
+            result[domain].append(item)
+        if domain not in {"automation", "script", "scene", "update", "button"}:
+            result["all"].append(item)
+    for key in result:
+        result[key].sort(key=lambda x: str(x["name"]).lower())
     return result
 
 
@@ -1327,7 +1333,7 @@ class Handler(BaseHTTPRequestHandler):
                     settings = dict(settings)
                     settings["background_url"] = current.get("background_url", "")
                 incoming_members = settings.get("members", []) if isinstance(settings, dict) else []
-                settings, provisioned, provision_warnings = provision_member_lists(settings)
+                settings, provisioned, provision_warnings = provision_family_features(settings)
                 settings = save_settings(settings)
                 persisted = load_settings()
                 if len(persisted.get("members", [])) != len(settings.get("members", [])):
@@ -1349,6 +1355,35 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
+
+        if path == "/api/external-calendar":
+            try:
+                name = str(payload.get("name") or "Externe agenda").strip()
+                url = str(payload.get("url") or "").strip()
+                if not url:
+                    raise ValueError("Vul een ICS/webcal URL in")
+                result = create_remote_calendar(name, url)
+                return self._json(HTTPStatus.OK, {"ok": True, "result": result})
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+
+        if path == "/api/provision":
+            try:
+                current = load_settings()
+                updated, provisioned, warnings = provision_family_features(current)
+                updated = save_settings(updated)
+                sync_generated_content()
+                return self._json(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        "settings": updated,
+                        "provisioned": provisioned,
+                        "warnings": warnings,
+                    },
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
         if path == "/api/dashboard/install":
             try:
@@ -1392,7 +1427,7 @@ def main():
     save_settings(current)
     print(f"[Family Hub] v{APP_VERSION} listening on {PORT}", flush=True)
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
-    threading.Thread(target=sync_member_lists, daemon=True).start()
+    threading.Thread(target=family_scheduler_loop, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
