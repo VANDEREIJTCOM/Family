@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat build/fhcard06/part00.b64 build/fhcard06/part01.b64 build/fhcard06/part02.b64 | base64 -d | gzip -d > vandereijt_family_hub/family-hub-card.js
+          cat build/fhcard06/a0.b64 build/fhcard06/a1.b64 build/fhcard06/a2.b64 build/fhcard06/sub1.b64 build/fhcard06/sub2.b64 build/fhcard06/part01.b64 build/fhcard06/part02.b64 | base64 -d | gzip -d > vandereijt_family_hub/family-hub-card.js
           node --check vandereijt_family_hub/family-hub-card.js
           grep -q 'const FH_VERSION="0.6.0"' vandereijt_family_hub/family-hub-card.js
       - name: Commit card
