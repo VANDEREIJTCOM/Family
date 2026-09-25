@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2
+- Home Assistant Ingress-fix: API-root wordt nu afgeleid van het daadwerkelijk geladen `static/app.js`-bestand in plaats van de zichtbare browser-URL.
+- Hierdoor werken `/api/settings`, `/api/entities` en opslaan betrouwbaar vanuit de Home Assistant App-route.
+- **+ Gezinslid** gebruikt altijd een geldige settings-structuur en geeft direct visuele feedback.
+- Backend-calls krijgen een timeout met een duidelijke foutmelding in plaats van eindeloos laden.
+- De beheerinterface toont nu expliciet **Family Hub 0.6.2**, zodat eenvoudig te controleren is welke frontendversie actief is.
+
+
 ## 0.6.1
 - Fix voor de beheer-App wanneer Home Assistant Ingress de App zonder afsluitende slash opent.
 - API-calls gebruiken nu expliciet het actuele Ingress-basispad.
