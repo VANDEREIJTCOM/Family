@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.5.3"
+APP_VERSION = "0.6.0"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -32,16 +32,40 @@ CARD_SOURCE = BASE_DIR / "family-hub-card.js"
 CARD_TARGET = WWW_DIR / "family-hub-card.js"
 LEGACY_CARD_TARGET = HA_CONFIG / "www" / "family-hub-card.js"
 STATIC_DIR = BASE_DIR / "static"
+RUNTIME_FILE = DATA_DIR / "runtime.json"
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
+DEFAULT_NAVIGATION = [
+    {"id": "home", "label": "Vandaag", "icon": "mdi:home", "enabled": True},
+    {"id": "calendar", "label": "Agenda", "icon": "mdi:calendar-month", "enabled": True},
+    {"id": "tasks", "label": "Taken", "icon": "mdi:check-circle-outline", "enabled": True},
+    {"id": "routines", "label": "Routines", "icon": "mdi:progress-check", "enabled": True},
+    {"id": "lists", "label": "Lijsten", "icon": "mdi:format-list-checks", "enabled": True},
+    {"id": "meals", "label": "Eten", "icon": "mdi:silverware-fork-knife", "enabled": True},
+    {"id": "rewards", "label": "Punten", "icon": "mdi:star-circle", "enabled": True},
+    {"id": "profiles", "label": "Gezin", "icon": "mdi:account-group", "enabled": True},
+    {"id": "house", "label": "Huis", "icon": "mdi:home-automation", "enabled": True},
+]
+
+DEFAULT_HOME_SECTIONS = [
+    "departures",
+    "today",
+    "tasks",
+    "routines",
+    "meals",
+    "notifications",
+    "house_status",
+]
+
 DEFAULTS = {
-    "version": 1,
+    "version": 2,
     "title": "Familie",
     "subtitle": "",
     "weather": "",
     "shopping_list": "",
+    "meals_todo": "",
     "show_household_status": True,
-    "refresh_interval": 300,
+    "refresh_interval": 120,
     "max_tasks_per_member": 4,
     "background_url": "",
     "background_overlay": 82,
@@ -49,8 +73,21 @@ DEFAULTS = {
     "dashboard_managed": False,
     "dashboard_show_sidebar": True,
     "dashboard_title": "Family Hub",
+    "idle_minutes": 5,
+    "idle_show_clock": True,
     "members": [],
+    "navigation": DEFAULT_NAVIGATION,
+    "home_sections": DEFAULT_HOME_SECTIONS,
+    "routines": [],
+    "smart_tasks": [],
+    "rewards": [],
+    "lists": [],
+    "departure_rules": [],
+    "home_entities": [],
+    "notification_entities": [],
+    "photos": [],
 }
+
 
 
 def ensure_dirs():
@@ -62,53 +99,199 @@ def ensure_dirs():
             shutil.copy2(CARD_SOURCE, LEGACY_CARD_TARGET)
 
 
+def _clean_id(value, fallback):
+    value = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(value or "")).strip("_")
+    return (value or fallback)[:80]
+
+
 def normalize_settings(data):
+    src = data if isinstance(data, dict) else {}
     out = dict(DEFAULTS)
-    if isinstance(data, dict):
-        for key in DEFAULTS:
-            if key in data:
-                out[key] = data[key]
+    for key in DEFAULTS:
+        if key in src:
+            out[key] = src[key]
+
     members = []
-    for idx, member in enumerate(out.get("members") or []):
+    for idx, member in enumerate(src.get("members") or []):
         if not isinstance(member, dict):
             continue
-        name = str(member.get("name", "")).strip()
+        name = str(member.get("name") or "").strip()
         if not name:
             continue
         members.append({
-            "id": str(member.get("id") or f"member_{idx+1}"),
+            "id": _clean_id(member.get("id"), f"member_{idx+1}"),
             "name": name[:40],
             "color": str(member.get("color") or "#607d8b")[:20],
             "icon": str(member.get("icon") or "mdi:account")[:80],
             "calendar": str(member.get("calendar") or "")[:160],
             "todo": str(member.get("todo") or "")[:160],
             "person": str(member.get("person") or "")[:160],
+            "points_entity": str(member.get("points_entity") or "")[:160],
+            "role": "child" if str(member.get("role") or "").lower() == "child" else "adult",
         })
-    out["members"] = members[:12]
-    out["title"] = str(out.get("title") or "Familie")[:80]
-    out["subtitle"] = str(out.get("subtitle") or "")[:120]
-    out["weather"] = str(out.get("weather") or "")[:160]
-    out["shopping_list"] = str(out.get("shopping_list") or "")[:160]
-    out["accent_color"] = str(out.get("accent_color") or "#2E6CA5")[:20]
+    out["members"] = members[:16]
+
+    nav_by_id = {item["id"]: dict(item) for item in DEFAULT_NAVIGATION}
+    navigation = []
+    seen = set()
+    for item in src.get("navigation") or DEFAULT_NAVIGATION:
+        if not isinstance(item, dict):
+            continue
+        nav_id = str(item.get("id") or "")
+        if nav_id not in nav_by_id or nav_id in seen:
+            continue
+        base = nav_by_id[nav_id]
+        base["label"] = str(item.get("label") or base["label"])[:24]
+        base["icon"] = str(item.get("icon") or base["icon"])[:80]
+        base["enabled"] = bool(item.get("enabled", True))
+        navigation.append(base)
+        seen.add(nav_id)
+    for item in DEFAULT_NAVIGATION:
+        if item["id"] not in seen:
+            navigation.append(dict(item))
+    out["navigation"] = navigation
+
+    valid_sections = set(DEFAULT_HOME_SECTIONS)
+    home_sections = []
+    for section in src.get("home_sections") or DEFAULT_HOME_SECTIONS:
+        if section in valid_sections and section not in home_sections:
+            home_sections.append(section)
+    for section in DEFAULT_HOME_SECTIONS:
+        if section not in home_sections:
+            home_sections.append(section)
+    out["home_sections"] = home_sections
+
+    routines = []
+    for idx, routine in enumerate(src.get("routines") or []):
+        if not isinstance(routine, dict):
+            continue
+        title = str(routine.get("title") or "").strip()
+        if not title:
+            continue
+        steps = []
+        for step_idx, step in enumerate(routine.get("steps") or []):
+            if isinstance(step, str):
+                step = {"title": step}
+            if not isinstance(step, dict):
+                continue
+            step_title = str(step.get("title") or "").strip()
+            if not step_title:
+                continue
+            steps.append({
+                "id": _clean_id(step.get("id"), f"step_{step_idx+1}"),
+                "title": step_title[:80],
+                "icon": str(step.get("icon") or "mdi:check-circle-outline")[:80],
+                "points": max(0, min(100, int(step.get("points") or 0))),
+            })
+        routines.append({
+            "id": _clean_id(routine.get("id"), f"routine_{idx+1}"),
+            "title": title[:80],
+            "member_id": str(routine.get("member_id") or "")[:80],
+            "icon": str(routine.get("icon") or "mdi:progress-check")[:80],
+            "days": [int(x) for x in (routine.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
+            "time": str(routine.get("time") or "07:00")[:5],
+            "todo_entity": str(routine.get("todo_entity") or "")[:160],
+            "steps": steps[:20],
+        })
+    out["routines"] = routines[:40]
+
+    smart_tasks = []
+    for idx, task in enumerate(src.get("smart_tasks") or []):
+        if not isinstance(task, dict):
+            continue
+        title = str(task.get("title") or "").strip()
+        if not title:
+            continue
+        smart_tasks.append({
+            "id": _clean_id(task.get("id"), f"task_{idx+1}"),
+            "title": title[:100],
+            "member_id": str(task.get("member_id") or "")[:80],
+            "icon": str(task.get("icon") or "mdi:checkbox-marked-circle-outline")[:80],
+            "points": max(0, min(500, int(task.get("points") or 0))),
+            "days": [int(x) for x in (task.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
+            "due_time": str(task.get("due_time") or "")[:5],
+            "enabled": bool(task.get("enabled", True)),
+        })
+    out["smart_tasks"] = smart_tasks[:100]
+
+    rewards = []
+    for idx, reward in enumerate(src.get("rewards") or []):
+        if not isinstance(reward, dict):
+            continue
+        title = str(reward.get("title") or "").strip()
+        if not title:
+            continue
+        rewards.append({
+            "id": _clean_id(reward.get("id"), f"reward_{idx+1}"),
+            "title": title[:100],
+            "cost": max(1, min(100000, int(reward.get("cost") or 1))),
+            "icon": str(reward.get("icon") or "mdi:gift")[:80],
+            "member_id": str(reward.get("member_id") or "")[:80],
+        })
+    out["rewards"] = rewards[:100]
+
+    lists = []
+    for idx, item in enumerate(src.get("lists") or []):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        lists.append({
+            "id": _clean_id(item.get("id"), f"list_{idx+1}"),
+            "title": title[:80],
+            "icon": str(item.get("icon") or "mdi:format-list-checks")[:80],
+            "color": str(item.get("color") or "#2E6CA5")[:20],
+            "todo_entity": str(item.get("todo_entity") or "")[:160],
+        })
+    out["lists"] = lists[:30]
+
+    rules = []
+    for idx, rule in enumerate(src.get("departure_rules") or []):
+        if not isinstance(rule, dict):
+            continue
+        match = str(rule.get("match") or "").strip()
+        if not match:
+            continue
+        checklist = [str(x).strip()[:80] for x in (rule.get("checklist") or []) if str(x).strip()]
+        rules.append({
+            "id": _clean_id(rule.get("id"), f"departure_{idx+1}"),
+            "match": match[:80],
+            "lead_minutes": max(0, min(360, int(rule.get("lead_minutes") or 45))),
+            "checklist": checklist[:20],
+            "icon": str(rule.get("icon") or "mdi:bag-personal")[:80],
+        })
+    out["departure_rules"] = rules[:30]
+
+    out["home_entities"] = [str(x)[:160] for x in (src.get("home_entities") or []) if str(x).strip()][:40]
+    out["notification_entities"] = [str(x)[:160] for x in (src.get("notification_entities") or []) if str(x).strip()][:40]
+    out["photos"] = [str(x)[:300] for x in (src.get("photos") or []) if str(x).strip()][:50]
+
+    out["title"] = str(src.get("title") or "Familie")[:80]
+    out["subtitle"] = str(src.get("subtitle") or "")[:120]
+    out["weather"] = str(src.get("weather") or "")[:160]
+    out["shopping_list"] = str(src.get("shopping_list") or "")[:160]
+    out["meals_todo"] = str(src.get("meals_todo") or "")[:160]
+    out["accent_color"] = str(src.get("accent_color") or "#2E6CA5")[:20]
     if out["accent_color"].lower() == "#08a5c8":
         out["accent_color"] = "#2E6CA5"
-    try:
-        out["background_overlay"] = max(0, min(100, int(out.get("background_overlay", 82))))
-    except (TypeError, ValueError):
-        out["background_overlay"] = 82
-    try:
-        out["refresh_interval"] = max(60, min(3600, int(out.get("refresh_interval", 300))))
-    except (TypeError, ValueError):
-        out["refresh_interval"] = 300
-    try:
-        out["max_tasks_per_member"] = max(1, min(12, int(out.get("max_tasks_per_member", 4))))
-    except (TypeError, ValueError):
-        out["max_tasks_per_member"] = 4
-    out["show_household_status"] = bool(out.get("show_household_status", True))
-    out["dashboard_managed"] = bool(out.get("dashboard_managed", False))
-    out["dashboard_show_sidebar"] = bool(out.get("dashboard_show_sidebar", True))
-    out["dashboard_title"] = str(out.get("dashboard_title") or "Family Hub")[:80]
-    out["version"] = 1
+    for key, default, low, high in (
+        ("background_overlay", 82, 0, 100),
+        ("refresh_interval", 120, 30, 3600),
+        ("max_tasks_per_member", 4, 1, 20),
+        ("idle_minutes", 5, 0, 120),
+    ):
+        try:
+            out[key] = max(low, min(high, int(src.get(key, default))))
+        except (TypeError, ValueError):
+            out[key] = default
+
+    out["show_household_status"] = bool(src.get("show_household_status", True))
+    out["idle_show_clock"] = bool(src.get("idle_show_clock", True))
+    out["dashboard_managed"] = bool(src.get("dashboard_managed", False))
+    out["dashboard_show_sidebar"] = bool(src.get("dashboard_show_sidebar", True))
+    out["dashboard_title"] = str(src.get("dashboard_title") or "Family Hub")[:80]
+    out["version"] = 2
     return out
 
 
