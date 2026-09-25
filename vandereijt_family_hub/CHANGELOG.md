@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1
+- Fix voor de beheer-App wanneer Home Assistant Ingress de App zonder afsluitende slash opent.
+- API-calls gebruiken nu expliciet het actuele Ingress-basispad.
+- Instellingen worden eerst geladen voordat bewerken wordt vrijgegeven.
+- **+ Gezinslid** kan niet meer crashen op een nog niet geladen/null configuratie.
+- Opslaan gebruikt een veilige lokale basisconfiguratie als bescherming tegen een onvolledige init.
+- Het laden van instellingen en Home Assistant-entiteiten is gescheiden, zodat een trage entitylijst de gezinsconfiguratie niet blokkeert.
+- Duidelijkere verbindingsstatus in de beheer-App.
+
+
 ## 0.6.0 — Full Family Hub
 - Volledig nieuwe touch-first Family Hub-interface met een vaste, configureerbare navigatiebalk onderaan.
 - Admin bepaalt welke schermen zichtbaar zijn en in welke volgorde ze in de navigatie staan.
