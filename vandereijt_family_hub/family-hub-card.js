@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.5.2
+ * v0.5.3
  */
-const FH_VERSION="0.5.2";
+const FH_VERSION="0.5.3";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -309,15 +309,18 @@ class FamilyHubCard extends HTMLElement{
   _open(kind,date){
     const members=this._config.members||[];
     if(kind==="event"){
-      const choices=members.filter(m=>m.calendar);
       this._modal={
         title:"Nieuwe afspraak",
         kind:"event",
         date:date||this._dateISO(new Date()),
-        choices:choices
+        choices:members.map(m=>({name:m.name,target:m.calendar||"",available:!!m.calendar}))
       };
     }else if(kind==="task"){
-      this._modal={title:"Nieuwe taak",kind:"task",choices:members.filter(m=>m.todo)};
+      this._modal={
+        title:"Nieuwe taak",
+        kind:"task",
+        choices:members.map(m=>({name:m.name,target:m.todo||"",available:!!m.todo}))
+      };
     }else{
       this._modal={title:"Boodschap toevoegen",kind:"shopping",choices:[]};
     }
@@ -329,12 +332,16 @@ class FamilyHubCard extends HTMLElement{
     const m=this._modal;
     let body="";
     if(m.kind==="event"){
-      body='<label>Voor<select id="fh-who">'+m.choices.map(x=>'<option value="'+this._esc(x.calendar)+'">'+this._esc(x.name)+'</option>').join("")+'</select></label>'+
+      const hasTarget=m.choices.some(x=>x.available);
+      body='<label>Voor<select id="fh-who">'+m.choices.map(x=>'<option value="'+this._esc(x.target)+'" '+(!x.available?'disabled':'')+'>'+this._esc(x.name)+(x.available?'':' — agenda wordt automatisch aangemaakt')+'</option>').join("")+'</select></label>'+
+           (!hasTarget?'<div class="setupnote">De agenda’s worden automatisch door Family Hub aangemaakt. Sluit dit venster en probeer het over enkele seconden opnieuw.</div>':'')+
            '<label>Afspraak<input id="fh-summary" type="text"></label>'+
            '<div class="row"><label>Datum<input id="fh-date" type="date" value="'+this._esc(m.date)+'"></label><label>Tijd<input id="fh-time" type="time" value="18:00"></label></div>'+
            '<label class="check"><input id="fh-all" type="checkbox"> Hele dag</label>';
     }else if(m.kind==="task"){
-      body='<label>Voor<select id="fh-who">'+m.choices.map(x=>'<option value="'+this._esc(x.todo)+'">'+this._esc(x.name)+'</option>').join("")+'</select></label>'+
+      const hasTarget=m.choices.some(x=>x.available);
+      body='<label>Voor<select id="fh-who">'+m.choices.map(x=>'<option value="'+this._esc(x.target)+'" '+(!x.available?'disabled':'')+'>'+this._esc(x.name)+(x.available?'':' — takenlijst wordt automatisch aangemaakt')+'</option>').join("")+'</select></label>'+
+           (!hasTarget?'<div class="setupnote">De takenlijsten worden automatisch door Family Hub aangemaakt. Sluit dit venster en probeer het over enkele seconden opnieuw.</div>':'')+
            '<label>Taak<input id="fh-summary" type="text"></label>';
     }else{
       body='<label>Product<input id="fh-summary" type="text"></label>';
@@ -362,7 +369,7 @@ class FamilyHubCard extends HTMLElement{
       '.member{border-top:1px solid var(--line);padding:12px 0}.memberhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--member);color:#fff;overflow:hidden;font-weight:900;font-size:11px}.avatar img{width:100%;height:100%;object-fit:cover}.memberhead strong{font-size:13px}.memberhead button{margin-left:auto;border:0;background:transparent;color:var(--blue);font-size:18px;cursor:pointer}',
       '.task,.shop{width:100%;display:flex;gap:8px;align-items:center;border:0;background:transparent;padding:6px 2px;text-align:left;color:inherit;cursor:pointer;border-radius:8px}.task:hover,.shop:hover{background:#E3ECF6}.box{width:20px;height:20px;border:1.5px solid var(--line);border-radius:6px;display:grid;place-items:center;flex:0 0 auto}.task span:last-child,.shop span:last-child{font-size:11px}.none{font-size:11px;color:var(--muted);padding:8px 0}',
       'footer{height:68px;flex:0 0 68px;border-top:1px solid var(--line);background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:space-between;padding:10px 18px}.presence{display:flex;gap:6px;align-items:center;overflow:hidden}.chip{display:flex;gap:5px;align-items:center;background:#F3F6F8;padding:4px 9px 4px 4px;border-radius:18px;font-size:9px;font-weight:900;white-space:nowrap}.chip.away{opacity:.45}.chip .avatar{width:23px;height:23px;font-size:8px}.actions{display:flex;gap:8px}.actions button{border:1px solid var(--line);background:#F5F7F9;padding:10px 13px;border-radius:11px;font-weight:900;cursor:pointer}.actions .primary{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;border:0}',
-      '.modal-wrap{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#0007;backdrop-filter:blur(3px);padding:18px}.modal{width:min(440px,95vw);background:#fff;border-radius:20px;padding:20px;color:#111}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}.modal-head small{display:block;color:var(--blue);font-size:9px;font-weight:900}.modal-head strong{display:block;font-size:21px;margin-top:3px}.modal-head button{border:0;background:transparent;font-size:28px;color:var(--muted);cursor:pointer}.modal label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:10px;font-weight:900;margin:11px 0}.modal input,.modal select{border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit;color:#111;background:#fff}.modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.modal .check{flex-direction:row;align-items:center}.modal .check input{width:auto}.save{width:100%;border:0;border-radius:11px;padding:12px;background:var(--blue);color:#fff;font-weight:900;cursor:pointer}',
+      '.modal-wrap{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#0007;backdrop-filter:blur(3px);padding:18px}.modal{width:min(440px,95vw);background:#fff;border-radius:20px;padding:20px;color:#111}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}.modal-head small{display:block;color:var(--blue);font-size:9px;font-weight:900}.modal-head strong{display:block;font-size:21px;margin-top:3px}.modal-head button{border:0;background:transparent;font-size:28px;color:var(--muted);cursor:pointer}.modal label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:10px;font-weight:900;margin:11px 0}.modal input,.modal select{border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit;color:#111;background:#fff}.modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.modal .check{flex-direction:row;align-items:center}.modal .check input{width:auto}.setupnote{margin:10px 0;padding:10px 12px;border-radius:10px;background:#E3ECF6;color:var(--blue2);font-size:10px;line-height:1.4}.save{width:100%;border:0;border-radius:11px;padding:12px;background:var(--blue);color:#fff;font-weight:900;cursor:pointer}',
       '@media(max-width:900px){ha-card{height:auto;min-height:100vh}header{grid-template-columns:1fr auto}.clock{display:none}main{grid-template-columns:1fr}.agenda{height:610px}.side{border-left:0;border-top:1px solid var(--line)}.presence{display:none}.actions{width:100%}.actions button{flex:1}}',
       '@media(max-width:600px){header{padding:0 13px}.brand strong{font-size:11px}.brand span{font-size:15px}.agenda{padding:12px 5px;height:560px}.weekhead,.weekgrid{gap:3px}.daycol{padding:3px}.event{border-left-width:3px;padding:5px 3px}.event strong{font-size:9px}.event span{display:none}.actions button{font-size:9px;padding:9px 5px}}'
     ].join("");
@@ -477,9 +484,13 @@ class FamilyHubCard extends HTMLElement{
           const summary=(q("#fh-summary")&&q("#fh-summary").value||"").trim();
           if(!summary) return;
           if(this._modal.kind==="event"){
-            await this._addEvent(q("#fh-who").value,summary,q("#fh-date").value,q("#fh-time").value,q("#fh-all").checked);
+            const target=q("#fh-who")&&q("#fh-who").value;
+            if(!target) return;
+            await this._addEvent(target,summary,q("#fh-date").value,q("#fh-time").value,q("#fh-all").checked);
           }else if(this._modal.kind==="task"){
-            await this._addTodo(q("#fh-who").value,summary);
+            const target=q("#fh-who")&&q("#fh-who").value;
+            if(!target) return;
+            await this._addTodo(target,summary);
           }else{
             await this._addTodo(this._config.shopping_list,summary);
           }
