@@ -10,7 +10,16 @@ const CLIENT_DEFAULTS={
   home_entities:[],notification_entities:[],photos:[]
 };
 function freshSettings(){return JSON.parse(JSON.stringify(CLIENT_DEFAULTS))}
-let settings=freshSettings();
+function ensureSettingsShape(value=settings){
+  const base=freshSettings();
+  const src=(value&&typeof value==="object")?value:{};
+  const out={...base,...src};
+  for(const key of ["members","navigation","home_sections","routines","smart_tasks","rewards","lists","departure_rules","home_entities","notification_entities","photos"]){
+    if(!Array.isArray(out[key]))out[key]=[];
+  }
+  return out;
+}
+let settings=ensureSettingsShape();
 let entities={calendar:[],todo:[],person:[],weather:[],all:[]};
 let pendingBackground=null;
 let dirty=false;
@@ -22,18 +31,27 @@ const HOME_SECTION_META={
   departures:["Vertrekhulp","mdi:bag-personal"],today:["Vandaag / agenda","mdi:calendar-today"],tasks:["Taken","mdi:check-circle-outline"],routines:["Routines","mdi:progress-check"],meals:["Maaltijden","mdi:silverware-fork-knife"],notifications:["Meldingen","mdi:bell-outline"],house_status:["Huisstatus","mdi:home-automation"]
 };
 
-function ingressBase(){
-  const path=window.location.pathname||"/";
-  return path.endsWith("/")?path:(path+"/");
-}
+const FAMILY_HUB_SCRIPT_URL=(document.currentScript&&document.currentScript.src)||window.location.href;
+const FAMILY_HUB_APP_ROOT=new URL("../",FAMILY_HUB_SCRIPT_URL);
+
 function api(path,opts={}){
   const clean=String(path||"").replace(/^\.\//,"").replace(/^\//,"");
-  const url=new URL(clean,window.location.origin+ingressBase()).toString();
-  return fetch(url,{cache:"no-store",headers:{"Content-Type":"application/json",...(opts.headers||{})},...opts}).then(async r=>{
+  const url=new URL(clean,FAMILY_HUB_APP_ROOT).toString();
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),10000);
+  return fetch(url,{
+    cache:"no-store",
+    signal:opts.signal||controller.signal,
+    headers:{"Content-Type":"application/json",...(opts.headers||{})},
+    ...opts
+  }).then(async r=>{
     let d={};try{d=await r.json()}catch{}
     if(!r.ok||d.ok===false)throw new Error(d.error||("HTTP "+r.status));
     return d;
-  });
+  }).catch(err=>{
+    if(err&&err.name==="AbortError")throw new Error("Family Hub backend reageert niet binnen 10 seconden");
+    throw err;
+  }).finally(()=>clearTimeout(timer));
 }
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),2800)}
@@ -79,7 +97,7 @@ function collectDynamic(){
 function collect(){collectDynamic();settings.title=$("title").value.trim()||"Familie";settings.subtitle=$("subtitle").value.trim();settings.refresh_interval=Number($("refresh_interval").value||120);settings.show_household_status=$("show_household_status").checked;settings.idle_minutes=Number($("idle_minutes").value||0);settings.idle_show_clock=$("idle_show_clock").checked;settings.photos=$("photos").value.split(/\n+/).map(x=>x.trim()).filter(Boolean);settings.shopping_list=$("shopping_list").value;settings.meals_todo=$("meals_todo").value;settings.accent_color=$("accent_color_text").value||$("accent_color").value;settings.background_overlay=Number($("background_overlay").value||82);settings.home_entities=selectedValues("home_entities");settings.notification_entities=selectedValues("notification_entities");return settings}
 async function loadEntities(){try{const d=await api("api/entities");entities=d.entities;$("connection").textContent="Verbonden met Home Assistant";if(settings)fill()}catch(e){$("connection").textContent="Entiteiten konden niet worden geladen";toast(e.message)}}
 async function loadStatus(){try{const d=await api("api/status"),h=d.dashboard||{},err=h.error?esc(h.error):"";$("install-status").innerHTML=`<div class="status-item"><strong>Family Hub</strong><span class="ok">v${esc(d.version)} actief</span></div><div class="status-item"><strong>Overzicht</strong><span class="${h.overview_installed?"ok":"warn"}">${h.overview_installed?"Family Hub-tab toegevoegd":"Nog niet toegevoegd"}</span></div><div class="status-item"><strong>Zijbalk</strong><span class="${h.sidebar_installed&&h.show_in_sidebar?"ok":""}">${h.sidebar_installed&&h.show_in_sidebar?"Apart item zichtbaar":"Niet toegevoegd"}</span></div><div class="status-item"><strong>Dashboardkaart</strong><span class="${h.resource_registered?"ok":"warn"}">${h.resource_registered?"Automatisch geregistreerd":"Nog niet geregistreerd"}</span></div><div class="status-item"><strong>Home Assistant API</strong><span class="${d.homeassistant_api&&h.available?"ok":"warn"}">${d.homeassistant_api&&h.available?"Verbonden":"Niet beschikbaar"}</span></div>${err?`<div class="status-item wide-status"><strong>Detail</strong><span class="warn">${err}</span></div>`:""}`;const open=$("open-dashboard");open.classList.toggle("hidden",!h.overview_installed);open.href=h.url||"/lovelace/family"}catch(e){toast("Status kon niet worden geladen: "+e.message)}}
-async function save(){try{if(!settings||typeof settings!=="object")settings=freshSettings();collect();const p={settings};if(pendingBackground!==null)p.background_data=pendingBackground;$("save-state").textContent="Opslaan…";const d=await api("api/settings",{method:"POST",body:JSON.stringify(p)});settings=d.settings;pendingBackground=null;dirty=false;await loadEntities();$("save-state").textContent="Opgeslagen";if(d.warnings?.length)toast("Opgeslagen; enkele automatische koppelingen vragen aandacht");else if(d.provisioned?.length)toast(`${d.provisioned.length} Family Hub-koppeling${d.provisioned.length===1?"":"en"} automatisch aangemaakt`);else toast("Instellingen opgeslagen")}catch(e){$("save-state").textContent="Opslaan mislukt";toast(e.message)}}
+async function save(){try{settings=ensureSettingsShape(settings);collect();const p={settings};if(pendingBackground!==null)p.background_data=pendingBackground;$("save-state").textContent="Opslaan…";const d=await api("api/settings",{method:"POST",body:JSON.stringify(p)});settings=d.settings;pendingBackground=null;dirty=false;await loadEntities();$("save-state").textContent="Opgeslagen";if(d.warnings?.length)toast("Opgeslagen; enkele automatische koppelingen vragen aandacht");else if(d.provisioned?.length)toast(`${d.provisioned.length} Family Hub-koppeling${d.provisioned.length===1?"":"en"} automatisch aangemaakt`);else toast("Instellingen opgeslagen")}catch(e){$("save-state").textContent="Opslaan mislukt";toast(e.message)}}
 async function installDashboard(){const b=$("install-dashboard");try{b.disabled=true;b.textContent="Installeren…";await save();const d=await api("api/dashboard/install",{method:"POST",body:JSON.stringify({title:$("dashboard_title").value.trim()||"Family Hub",show_in_sidebar:$("dashboard_show_sidebar").checked})});settings=d.settings;fill();await loadStatus();toast("Family Hub is bijgewerkt in Home Assistant")}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="Dashboard installeren / bijwerken"}}
 async function removeDashboard(){if(!confirm("Family Hub uit Overzicht en eventueel de zijbalk verwijderen? Je instellingen blijven bewaard."))return;try{const d=await api("api/dashboard/remove",{method:"POST",body:"{}"});settings=d.settings;fill();await loadStatus();toast("Family Hub dashboard verwijderd")}catch(e){toast(e.message)}}
 async function provisionNow(){const b=$("provision-now");try{b.disabled=true;b.textContent="Controleren…";const d=await api("api/provision",{method:"POST",body:"{}"});settings=d.settings;await loadEntities();toast(d.provisioned?.length?`${d.provisioned.length} koppelingen aangemaakt`:"Alles is al in orde")}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="Family Hub-entiteiten controleren"}}
@@ -88,7 +106,7 @@ function move(arr,from,to){if(to<0||to>=arr.length)return;const [x]=arr.splice(f
 function bind(){
  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$("tab-"+b.dataset.tab).classList.add("active");$("page-title").textContent=b.textContent.trim();if(b.dataset.tab==="dashboard")loadStatus()});
  $("save").onclick=save;$("reload-entities").onclick=loadEntities;$("install-dashboard").onclick=installDashboard;$("remove-dashboard").onclick=removeDashboard;$("provision-now").onclick=provisionNow;$("add-external-calendar").onclick=addExternalCalendar;
- $("add-member").onclick=()=>{if(!settings||typeof settings!=="object")settings=freshSettings();if(!Array.isArray(settings.members))settings.members=[];settings.members.push({id:uid("member"),name:"",role:"adult",color:palette[settings.members.length%palette.length],icon:"mdi:account",calendar:"",todo:"",person:"",points_entity:""});renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty()};
+ $("add-member").onclick=e=>{e?.preventDefault?.();settings=ensureSettingsShape(settings);settings.members.push({id:uid("member"),name:"",role:"adult",color:palette[settings.members.length%palette.length],icon:"mdi:account",calendar:"",todo:"",person:"",points_entity:""});renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();toast("Gezinslid toegevoegd — vul de naam in en klik Opslaan")};
  $("add-routine").onclick=()=>{settings.routines.push({id:uid("routine"),title:"",member_id:"",icon:"mdi:progress-check",days:[0,1,2,3,4,5,6],time:"07:00",todo_entity:"",steps:[]});renderRoutines();markDirty()};
  $("add-smart-task").onclick=()=>{settings.smart_tasks.push({id:uid("task"),title:"",member_id:"",icon:"mdi:checkbox-marked-circle-outline",points:5,days:[0,1,2,3,4],due_time:"",enabled:true});renderSmartTasks();markDirty()};
  $("add-list").onclick=()=>{settings.lists.push({id:uid("list"),title:"",icon:"mdi:format-list-checks",color:palette[settings.lists.length%palette.length],todo_entity:""});renderLists();markDirty()};
@@ -111,10 +129,7 @@ function bind(){
     if(addMember)addMember.disabled=true;
     $("connection").textContent="Instellingen laden…";
     const d=await api("api/settings");
-    settings={...freshSettings(),...(d.settings||{})};
-    for(const key of ["members","navigation","home_sections","routines","smart_tasks","rewards","lists","departure_rules","home_entities","notification_entities","photos"]){
-      if(!Array.isArray(settings[key]))settings[key]=[];
-    }
+    settings=ensureSettingsShape(d.settings);
     settingsLoaded=true;
     fill();
     $("save-state").textContent="Opgeslagen";
