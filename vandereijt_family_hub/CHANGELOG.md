@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4
+- Beheerinterface-assets worden nu expliciet met `no-store` geserveerd.
+- Nieuwe assetversie voorkomt dat Home Assistant/Chrome een eerdere 0.6.3 `app.js` blijft uitvoeren.
+- De beheerinterface meldt in de console expliciet `Family Hub beheerinterface 0.6.4 start`.
+- Script wordt met `defer` geladen zodat de DOM volledig beschikbaar is vóór initialisatie.
+- Dit lost de resterende `addEventListener`- en `settings.members`-fouten uit een oude gecachte admin-JS op.
+
+
 ## 0.6.3
 - Fix voor de beheerinterface waarbij één ontbrekend DOM-element de volledige initialisatie kon afbreken met `Cannot read properties of null (reading 'addEventListener')`.
 - Eventbinding is nu fouttolerant: ontbrekende velden worden gelogd maar blokkeren het laden van opgeslagen gezinsleden niet meer.
