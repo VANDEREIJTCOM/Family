@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const FH_ADMIN_VERSION="0.7.1";
+const FH_ADMIN_VERSION="0.8.0";
 let versionWatchTimer=null;
 let updateReloading=false;
 
@@ -191,89 +191,109 @@ function dayChecks(values,name){
  const set=new Set((values||[]).map(Number));
  return `<div class="day-checks">${DAYS.map((d,i)=>`<label><input type="checkbox" data-day="${i}" data-day-group="${name}" ${set.has(i)?"checked":""}><span>${d}</span></label>`).join("")}</div>`;
 }
-function renderRoutines(){
- const root=$("routines");
- root.innerHTML=(settings.routines||[]).map((r,i)=>`
- <article class="config-card friendly-card" data-routine="${i}">
-  <div class="config-head"><div><strong>${esc(r.title||"Nieuwe routine")}</strong><small>${r.member_id?esc((settings.members||[]).find(m=>m.id===r.member_id)?.name||"Gezin"):"Kies voor wie deze routine is"}</small></div><button class="remove" data-remove-routine="${i}">×</button></div>
-  <div class="form-grid">
-   <label class="span2">Naam van de routine<input data-routine-key="title" value="${esc(r.title||"")}" placeholder="Bijv. Opstaan en naar school"></label>
-   <label>Voor wie?<select data-routine-key="member_id">${memberOptions(r.member_id)}</select></label>
-   <label>Start rond<input data-routine-key="time" type="time" value="${esc(r.time||"07:00")}"></label>
-   <label class="span2">Op welke dagen?${dayChecks(r.days,"routine-"+i)}</label>
-   <div class="span2"><label>Icoon van de routine</label>${iconPicker(r.icon||"mdi:progress-check",'data-routine-key="icon"',true)}</div>
-   <div class="span2 routine-builder">
-    <div class="builder-head"><div><strong>Stappen</strong><p>Voeg de stappen één voor één toe. Punten zijn optioneel.</p></div><button type="button" class="secondary small-btn" data-add-step>+ Stap toevoegen</button></div>
-    <div class="steps-editor">${(r.steps||[]).map((st,si)=>stepEditorHtml(st,si)).join("")||'<div class="builder-empty">Nog geen stappen. Voeg bijvoorbeeld “Aankleden” of “Tandenpoetsen” toe.</div>'}</div>
-   </div>
-   <details class="advanced span2"><summary>Technische koppeling <span>optioneel</span></summary><p>Family Hub maakt automatisch een takenlijst voor deze routine. Alleen aanpassen als je zelf een bestaande Home Assistant-lijst wilt gebruiken.</p><label>Bestaande takenlijst<select data-routine-key="todo_entity">${options("todo",r.todo_entity)}</select></label></details>
-  </div>
- </article>`).join("")||'<article class="card empty-card"><p>Nog geen routines. Maak bijvoorbeeld een ochtendroutine of bedtijd-routine.</p></article>';
-}
-function renderSmartTasks(){
- const root=$("smart-tasks");
- root.innerHTML=(settings.smart_tasks||[]).map((t,i)=>`
- <article class="config-card friendly-card" data-smart-task="${i}">
-  <div class="config-head"><div><strong>${esc(t.title||"Nieuwe taak")}</strong><small>${Number(t.points||0)?Number(t.points||0)+" punten":"Geen punten"}</small></div><button class="remove" data-remove-smart-task="${i}">×</button></div>
-  <div class="form-grid">
-   <label class="span2">Wat moet er gebeuren?<input data-task-key="title" value="${esc(t.title||"")}" placeholder="Bijv. kamer opruimen"></label>
-   <label>Voor wie?<select data-task-key="member_id">${memberOptions(t.member_id)}</select></label>
-   <label>Wanneer klaar?<input data-task-key="due_time" type="time" value="${esc(t.due_time||"")}"><small>Laat leeg als er geen vaste tijd is.</small></label>
-   <label>Punten voor afronden<input data-task-key="points" type="number" min="0" max="500" value="${Number(t.points||0)}"><small>0 = geen punten.</small></label>
-   <label class="switch"><input data-task-key="enabled" type="checkbox" ${t.enabled!==false?"checked":""}> Deze taak automatisch klaarzetten</label>
-   <label class="span2">Op welke dagen?${dayChecks(t.days,"task-"+i)}</label>
-   <div class="span2"><label>Icoon</label>${iconPicker(t.icon||"mdi:checkbox-marked-circle-outline",'data-task-key="icon"',true)}</div>
-  </div>
- </article>`).join("")||'<article class="card empty-card"><p>Nog geen slimme taken. Hiermee kun je bijvoorbeeld iedere maandag “papier buiten zetten” klaarzetten.</p></article>';
-}
-function renderLists(){
- const root=$("lists");
- root.innerHTML=(settings.lists||[]).map((l,i)=>`
- <article class="config-card friendly-card" data-list="${i}">
-  <div class="config-head"><div><strong>${esc(l.title||"Nieuwe lijst")}</strong><small>Gedeeld lijstje</small></div><button class="remove" data-remove-list="${i}" ${l.id==="shopping"?"disabled title='Boodschappenlijst is gekoppeld aan de maaltijdplanner'":""}>×</button></div>
-  <div class="form-grid">
-   <label class="span2">Naam<input data-list-key="title" value="${esc(l.title||"")}" placeholder="Bijv. Vakantie of School"></label>
-   <label>Kleur<input data-list-key="color" type="color" value="${esc(l.color||"#2E6CA5")}"></label>
-   <div><label>Icoon</label>${iconPicker(l.icon||"mdi:format-list-checks",'data-list-key="icon"',true)}</div>
-   <details class="advanced span2"><summary>Home Assistant-koppeling <span>optioneel</span></summary><p>Family Hub maakt vanzelf een lijst aan. Kies alleen iets als je al een bestaande takenlijst wilt gebruiken.</p><label>Bestaande takenlijst<select data-list-key="todo_entity">${options("todo",l.todo_entity)}</select></label></details>
-  </div>
- </article>`).join("")||'<article class="card empty-card"><p>Nog geen extra lijstjes. De boodschappenlijst wordt automatisch geregeld.</p></article>';
-}
-function renderRewards(){
- const root=$("rewards");
- root.innerHTML=(settings.rewards||[]).map((r,i)=>`
- <article class="config-card friendly-card" data-reward="${i}">
-  <div class="config-head"><div><strong>${esc(r.title||"Nieuwe beloning")}</strong><small>${Number(r.cost||0)} punten nodig</small></div><button class="remove" data-remove-reward="${i}">×</button></div>
-  <div class="form-grid">
-   <label class="span2">Welke beloning?<input data-reward-key="title" value="${esc(r.title||"")}" placeholder="Bijv. film kiezen"></label>
-   <label>Hoeveel punten zijn nodig?<input data-reward-key="cost" type="number" min="1" value="${Number(r.cost||50)}"></label>
-   <label>Voor wie?<select data-reward-key="member_id">${memberOptions(r.member_id,"Iedereen")}</select></label>
-   <div class="span2"><label>Icoon</label>${iconPicker(r.icon||"mdi:gift",'data-reward-key="icon"',true)}</div>
-  </div>
- </article>`).join("")||'<article class="card empty-card"><p>Nog geen beloningen. Bijvoorbeeld “film kiezen” voor 50 punten.</p></article>';
-}
-function renderDepartures(){
- const root=$("departures");
- root.innerHTML=(settings.departure_rules||[]).map((r,i)=>`
- <article class="config-card friendly-card" data-departure="${i}">
-  <div class="config-head"><div><strong>${esc(r.match||"Nieuwe vertrekhulp")}</strong><small>Verschijnt ${Number(r.lead_minutes||45)} minuten vooraf</small></div><button class="remove" data-remove-departure="${i}">×</button></div>
-  <div class="form-grid">
-   <label class="span2">Wanneer moet deze checklist verschijnen?<input data-departure-key="match" value="${esc(r.match||"")}" placeholder="Bijv. voetbal"><small>Family Hub kijkt of dit woord in een agenda-afspraak staat.</small></label>
-   <label>Hoe lang van tevoren?<select data-departure-key="lead_minutes">${[15,30,45,60,90,120].map(v=>`<option value="${v}" ${Number(r.lead_minutes||45)===v?"selected":""}>${v<60?v+" minuten":v===60?"1 uur":v===90?"1,5 uur":"2 uur"}</option>`).join("")}</select></label>
-   <div><label>Icoon</label>${iconPicker(r.icon||"mdi:bag-personal",'data-departure-key="icon"',true)}</div>
-   <div class="span2 routine-builder">
-    <div class="builder-head"><div><strong>Wat moet mee of klaar zijn?</strong><p>Maak een korte afvinklijst voor vertrek.</p></div><button type="button" class="secondary small-btn" data-add-check>+ Checklistregel</button></div>
-    <div class="checklist-editor">${(r.checklist||[]).map((x,ci)=>checklistRowHtml(x,ci)).join("")||'<div class="builder-empty">Nog geen checklistregels.</div>'}</div>
-   </div>
-  </div>
- </article>`).join("")||'<article class="card empty-card"><p>Nog geen vertrekhulp. Maak bijvoorbeeld een checklist voor voetbal of school.</p></article>';
-}
+const ROUTINE_TEMPLATES=[
+ {id:"morning",emoji:"🌅",title:"Ochtendroutine",description:"Rustig opstarten en klaar voor school of werk.",data:{title:"Opstaan en naar school",icon:"mdi:weather-sunset-up",days:[0,1,2,3,4],time:"07:00",duration_minutes:45,show_in_calendar:true,show_in_tasks:true,enabled:true,steps:[{title:"Aankleden",icon:"mdi:tshirt-crew",points:1},{title:"Ontbijten",icon:"mdi:food",points:1},{title:"Tandenpoetsen",icon:"mdi:toothbrush",points:1},{title:"Tas pakken",icon:"mdi:bag-personal",points:1}]}},
+ {id:"bedtime",emoji:"🌙",title:"Bedtijdroutine",description:"Een vaste rustige volgorde voor het slapen.",data:{title:"Klaarmaken voor bed",icon:"mdi:bed",days:[0,1,2,3,4,5,6],time:"19:30",duration_minutes:30,show_in_calendar:true,show_in_tasks:true,enabled:true,steps:[{title:"Opruimen",icon:"mdi:broom",points:1},{title:"Pyjama aan",icon:"mdi:tshirt-crew",points:1},{title:"Tandenpoetsen",icon:"mdi:toothbrush",points:1},{title:"Lezen",icon:"mdi:book-open-page-variant",points:1}]}},
+ {id:"school",emoji:"🎒",title:"Na school",description:"Thuiskomen zonder losse reminders.",data:{title:"Uit school",icon:"mdi:school",days:[0,1,2,3,4],time:"15:15",duration_minutes:30,show_in_calendar:false,show_in_tasks:true,enabled:true,steps:[{title:"Tas leegmaken",icon:"mdi:bag-personal",points:1},{title:"Drinkbeker opruimen",icon:"mdi:cup-water",points:1},{title:"Huiswerk bekijken",icon:"mdi:book-open-page-variant",points:1}]}},
+ {id:"sport",emoji:"⚽",title:"Voor de sport",description:"Alles klaar voor training of wedstrijd.",data:{title:"Klaar voor sport",icon:"mdi:soccer",days:[0,1,2,3,4,5,6],time:"17:30",duration_minutes:20,show_in_calendar:false,show_in_tasks:true,enabled:true,steps:[{title:"Sportkleding aan",icon:"mdi:tshirt-crew",points:0},{title:"Bidon vullen",icon:"mdi:cup-water",points:0},{title:"Tas controleren",icon:"mdi:bag-personal",points:0}]}}
+];
+let suggestions=[];
 
+function deepClone(v){return JSON.parse(JSON.stringify(v))}
+function memberName(id){return (settings.members||[]).find(m=>m.id===id)?.name||"Onbekend"}
+function routineMemberIds(r){const a=Array.isArray(r.member_ids)&&r.member_ids.length?r.member_ids:(r.member_id?[r.member_id]:[]);return [...new Set(a.filter(Boolean))]}
+function daySummary(days){
+ const a=[...(days||[])].map(Number).sort();
+ if(a.length===7)return "Elke dag";
+ if(JSON.stringify(a)===JSON.stringify([0,1,2,3,4]))return "Ma–vr";
+ if(JSON.stringify(a)===JSON.stringify([5,6]))return "Weekend";
+ return a.map(i=>DAYS[i]).join(", ")||"Geen dagen";
+}
+function managementEmpty(text){return `<article class="manage-empty"><span>✨</span><strong>${esc(text)}</strong><small>Gebruik de knop rechtsboven om te beginnen.</small></article>`}
+function actionButtons(kind,index,canDelete=true){
+ return `<div class="manage-actions"><button type="button" data-edit-${kind}="${index}">Bewerken</button><button type="button" data-copy-${kind}="${index}">Kopiëren</button>${canDelete?`<button type="button" class="danger-text" data-remove-${kind}="${index}">Verwijderen</button>`:""}</div>`;
+}
+function memberPills(ids){
+ return `<div class="member-pills">${(ids||[]).map(id=>{const m=(settings.members||[]).find(x=>x.id===id);return m?`<span style="--pill:${esc(m.color||"#607d8b")}"><i></i>${esc(m.name)}</span>`:""}).join("")||"<span>Niemand gekozen</span>"}</div>`;
+}
+function editorShell(title,subtitle,body,saveLabel="Opslaan"){
+ closeEditor();
+ const el=document.createElement("div");el.id="admin-editor";el.className="admin-editor-overlay";
+ el.innerHTML=`<div class="admin-editor"><header><div><small>VANDEREIJT.COM FAMILY HUB</small><h2>${esc(title)}</h2><p>${esc(subtitle||"")}</p></div><button type="button" class="editor-close" data-editor-close>×</button></header><div class="editor-body">${body}</div><footer><button type="button" class="secondary" data-editor-cancel>Annuleren</button><button type="button" class="primary" data-editor-save>${esc(saveLabel)}</button></footer></div>`;
+ document.body.appendChild(el);document.body.classList.add("editor-open");
+ el.querySelector("[data-editor-close]").onclick=closeEditor;el.querySelector("[data-editor-cancel]").onclick=closeEditor;
+ return el;
+}
+function closeEditor(){document.getElementById("admin-editor")?.remove();document.body.classList.remove("editor-open")}
+function memberCheckboxes(selected=[]){
+ const set=new Set(selected||[]);
+ return `<div class="people-chooser">${(settings.members||[]).map(m=>`<label style="--person:${esc(m.color||"#607d8b")}"><input type="checkbox" data-editor-member value="${esc(m.id)}" ${set.has(m.id)?"checked":""}><span>${esc((m.name||"?").charAt(0).toUpperCase())}</span><strong>${esc(m.name)}</strong></label>`).join("")}</div>`;
+}
+function editorDays(days){
+ const set=new Set((days||[]).map(Number));
+ return `<div class="editor-day-presets"><button type="button" data-day-preset="week">Ma–vr</button><button type="button" data-day-preset="all">Elke dag</button><button type="button" data-day-preset="weekend">Weekend</button></div><div class="day-checks editor-days">${DAYS.map((d,i)=>`<label><input type="checkbox" data-editor-day value="${i}" ${set.has(i)?"checked":""}><span>${d}</span></label>`).join("")}</div>`;
+}
+function collectEditorSteps(el){
+ return [...el.querySelectorAll("[data-routine-step]")].map((row,idx)=>{const q=k=>row.querySelector(`[data-step-key="${k}"]`),title=(q("title")?.value||"").trim();return title?{id:row.dataset.stepId||uid("step"),title,icon:q("icon")?.value||"mdi:check-circle-outline",points:Number(q("points")?.value||0)}:null}).filter(Boolean);
+}
+function openRoutineTemplates(){
+ const cards=ROUTINE_TEMPLATES.map(t=>`<button class="template-card" type="button" data-routine-template="${t.id}"><span>${t.emoji}</span><strong>${esc(t.title)}</strong><small>${esc(t.description)}</small></button>`).join("");
+ const el=editorShell("Nieuwe routine","Kies een voorbeeld of begin leeg.",`<div class="template-grid">${cards}<button class="template-card blank" type="button" data-routine-template="blank"><span>＋</span><strong>Lege routine</strong><small>Helemaal zelf opbouwen.</small></button></div>`,"Verder");
+ el.querySelector("[data-editor-save]").style.display="none";
+}
+function openRoutineEditor(index=null,seed=null){
+ const old=index==null?null:settings.routines[index];
+ const r=deepClone(seed||old||{title:"",member_ids:[],icon:"mdi:progress-check",days:[0,1,2,3,4],time:"07:00",duration_minutes:30,show_in_calendar:true,show_in_tasks:true,enabled:true,steps:[]});
+ const ids=Array.isArray(r.member_ids)&&r.member_ids.length?r.member_ids:(r.member_id?[r.member_id]:[]);
+ const body=`<div class="editor-grid" data-routine="editor">
+  <section class="editor-section span2"><h3>1. Voor wie en wanneer?</h3><label>Naam<input id="ed-routine-title" value="${esc(r.title||"")}" placeholder="Bijv. Opstaan en naar school"></label><label>Voor wie?</label>${memberCheckboxes(ids)}
+   <div class="editor-two"><label>Starttijd<input id="ed-routine-time" type="time" value="${esc(r.time||"07:00")}"></label><label>Duur<select id="ed-routine-duration">${[15,20,30,45,60,90].map(v=>`<option value="${v}" ${Number(r.duration_minutes||30)===v?"selected":""}>${v} minuten</option>`).join("")}</select></label></div>
+   <label>Dagen</label>${editorDays(r.days||[0,1,2,3,4])}
+  </section>
+  <section class="editor-section span2"><div class="builder-head"><div><h3>2. Wat moet er gebeuren?</h3><p>Maak alleen de stappen die echt helpen. Kort is meestal beter.</p></div><button type="button" class="secondary small-btn" data-add-step>+ Stap</button></div><div class="steps-editor">${(r.steps||[]).map((x,i)=>stepEditorHtml(x,i)).join("")||'<div class="builder-empty">Nog geen stappen.</div>'}</div></section>
+  <section class="editor-section"><h3>3. Waar moet hij verschijnen?</h3><label class="switch"><input id="ed-routine-calendar" type="checkbox" ${r.show_in_calendar!==false?"checked":""}> In de agenda van iedere gekozen persoon</label><label class="switch"><input id="ed-routine-tasks" type="checkbox" ${r.show_in_tasks!==false?"checked":""}> Stappen in de takenlijst</label><label class="switch"><input id="ed-routine-enabled" type="checkbox" ${r.enabled!==false?"checked":""}> Routine actief</label></section>
+  <section class="editor-section"><h3>4. Icoon</h3>${iconPicker(r.icon||"mdi:progress-check",'id="ed-routine-icon"',true)}</section>
+ </div>`;
+ const el=editorShell(index==null?"Routine maken":"Routine bewerken","Compact instellen; Family Hub regelt agenda en taken automatisch.",body,"Routine opslaan");
+ el.querySelectorAll("[data-day-preset]").forEach(b=>b.onclick=()=>{const sets={week:[0,1,2,3,4],all:[0,1,2,3,4,5,6],weekend:[5,6]},set=new Set(sets[b.dataset.dayPreset]);el.querySelectorAll("[data-editor-day]").forEach(x=>x.checked=set.has(Number(x.value)))});
+ el.querySelector("[data-editor-save]").onclick=async()=>{
+  const title=el.querySelector("#ed-routine-title").value.trim(),member_ids=[...el.querySelectorAll("[data-editor-member]:checked")].map(x=>x.value),days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value)),steps=collectEditorSteps(el);
+  if(!title)return toast("Geef de routine een naam.");
+  if(!member_ids.length)return toast("Kies minimaal één gezinslid.");
+  if(!days.length)return toast("Kies minimaal één dag.");
+  if(!steps.length)return toast("Voeg minimaal één stap toe.");
+  const next={...r,id:r.id||uid("routine"),title,member_ids,member_id:member_ids[0],time:el.querySelector("#ed-routine-time").value||"07:00",duration_minutes:Number(el.querySelector("#ed-routine-duration").value||30),days,steps,icon:el.querySelector("#ed-routine-icon").value||"mdi:progress-check",show_in_calendar:el.querySelector("#ed-routine-calendar").checked,show_in_tasks:el.querySelector("#ed-routine-tasks").checked,enabled:el.querySelector("#ed-routine-enabled").checked};
+  if(index==null)settings.routines.push(next);else settings.routines[index]=next;
+  closeEditor();renderRoutines();markDirty();await save();loadSuggestions();
+ };
+}
+function copyRoutine(index){const copy=deepClone(settings.routines[index]);copy.id=uid("routine");copy.title="Kopie van "+copy.title;copy.steps=(copy.steps||[]).map(x=>({...x,id:uid("step")}));settings.routines.splice(index+1,0,copy);renderRoutines();markDirty();toast("Routine gekopieerd");}
+function renderRoutines(){
+ const root=$("routines"),items=settings.routines||[];
+ root.className="manage-grid";
+ root.innerHTML=items.length?items.map((r,i)=>{const ids=routineMemberIds(r),icon=iconInfo(r.icon),points=(r.steps||[]).reduce((n,x)=>n+Number(x.points||0),0);return `<article class="manage-card ${r.enabled===false?"disabled-card":""}"><div class="manage-icon">${icon[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(r.title)}</strong>${r.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills(ids)}<div class="manage-meta"><span>🕒 ${esc(r.time||"")} · ${Number(r.duration_minutes||30)} min</span><span>📅 ${esc(daySummary(r.days))}</span><span>☑ ${(r.steps||[]).length} stappen</span>${points?`<span>⭐ ${points} p/dag</span>`:""}</div><div class="manage-flags">${r.show_in_calendar!==false?"<span>Agenda</span>":""}${r.show_in_tasks!==false?"<span>Taken</span>":""}</div></div>${actionButtons("routine",i)}</article>`}).join(""):managementEmpty("Nog geen routines");
+}
+function openTaskEditor(index=null){
+ const t=deepClone(index==null?{title:"",member_id:"",icon:"mdi:checkbox-marked-circle-outline",points:0,days:[0,1,2,3,4],due_time:"",enabled:true}:settings.smart_tasks[index]);
+ const body=`<div class="editor-grid"><section class="editor-section span2"><h3>Terugkerende taak</h3><label>Wat moet er gebeuren?<input id="ed-task-title" value="${esc(t.title||"")}"></label><div class="editor-two"><label>Voor wie?<select id="ed-task-member">${memberOptions(t.member_id)}</select></label><label>Tijd<input id="ed-task-time" type="time" value="${esc(t.due_time||"")}"></label></div><label>Dagen</label>${editorDays(t.days||[0,1,2,3,4])}</section><section class="editor-section"><h3>Beloning</h3><label>Punten<input id="ed-task-points" type="number" min="0" value="${Number(t.points||0)}"><small>0 = geen punten</small></label><label class="switch"><input id="ed-task-enabled" type="checkbox" ${t.enabled!==false?"checked":""}> Automatisch klaarzetten</label></section><section class="editor-section"><h3>Icoon</h3>${iconPicker(t.icon||"mdi:checkbox-marked-circle-outline",'id="ed-task-icon"',true)}</section></div>`;
+ const el=editorShell(index==null?"Terugkerende taak maken":"Taak bewerken","Voor dingen die op vaste dagen terugkomen.",body,"Taak opslaan");
+ el.querySelectorAll("[data-day-preset]").forEach(b=>b.onclick=()=>{const sets={week:[0,1,2,3,4],all:[0,1,2,3,4,5,6],weekend:[5,6]},set=new Set(sets[b.dataset.dayPreset]);el.querySelectorAll("[data-editor-day]").forEach(x=>x.checked=set.has(Number(x.value)))});
+ el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-task-title").value.trim(),member_id=el.querySelector("#ed-task-member").value,days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value));if(!title||!member_id||!days.length)return toast("Vul naam, persoon en dagen in.");const next={...t,id:t.id||uid("task"),title,member_id,days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};if(index==null)settings.smart_tasks.push(next);else settings.smart_tasks[index]=next;closeEditor();renderSmartTasks();markDirty();await save();loadSuggestions()};
+}
+function renderSmartTasks(){const root=$("smart-tasks"),items=settings.smart_tasks||[];root.className="manage-grid";root.innerHTML=items.length?items.map((t,i)=>`<article class="manage-card ${t.enabled===false?"disabled-card":""}"><div class="manage-icon">${iconInfo(t.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(t.title)}</strong>${t.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills([t.member_id])}<div class="manage-meta"><span>📅 ${esc(daySummary(t.days))}</span>${t.due_time?`<span>🕒 ${esc(t.due_time)}</span>`:""}${Number(t.points||0)?`<span>⭐ ${Number(t.points)} punten</span>`:""}</div></div>${actionButtons("smart-task",i)}</article>`).join(""):managementEmpty("Nog geen terugkerende taken")}
+function openListEditor(index=null){const l=deepClone(index==null?{title:"",icon:"mdi:format-list-checks",color:"#2E6CA5",todo_entity:""}:settings.lists[index]);const body=`<div class="editor-grid"><section class="editor-section span2"><label>Naam<input id="ed-list-title" value="${esc(l.title||"")}"></label><div class="editor-two"><label>Kleur<input id="ed-list-color" type="color" value="${esc(l.color||"#2E6CA5")}"></label><div><label>Icoon</label>${iconPicker(l.icon||"mdi:format-list-checks",'id="ed-list-icon"',true)}</div></div></section></div>`;const el=editorShell(index==null?"Lijst maken":"Lijst bewerken","Family Hub maakt de Home Assistant-lijst op de achtergrond.",body,"Lijst opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-list-title").value.trim();if(!title)return toast("Geef de lijst een naam.");const next={...l,id:l.id||uid("list"),title,color:el.querySelector("#ed-list-color").value,icon:el.querySelector("#ed-list-icon").value};if(index==null)settings.lists.push(next);else settings.lists[index]=next;closeEditor();renderLists();markDirty();await save()}}
+function renderLists(){const root=$("lists"),items=settings.lists||[];root.className="manage-grid";root.innerHTML=items.length?items.map((l,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(l.icon)[1]}</div><div class="manage-main"><strong>${esc(l.title)}</strong><div class="manage-meta"><span><i class="color-dot" style="background:${esc(l.color||"#2E6CA5")}"></i> Gedeelde lijst</span></div></div>${actionButtons("list",i,l.id!=="shopping")}</article>`).join(""):managementEmpty("Nog geen extra lijstjes")}
+function openRewardEditor(index=null){const r=deepClone(index==null?{title:"",cost:50,icon:"mdi:gift",member_id:""}:settings.rewards[index]);const body=`<div class="editor-grid"><section class="editor-section span2"><label>Beloning<input id="ed-reward-title" value="${esc(r.title||"")}" placeholder="Bijv. film kiezen"></label><div class="editor-two"><label>Punten nodig<input id="ed-reward-cost" type="number" min="1" value="${Number(r.cost||50)}"></label><label>Voor wie?<select id="ed-reward-member">${memberOptions(r.member_id,"Iedereen")}</select></label></div><label>Icoon</label>${iconPicker(r.icon||"mdi:gift",'id="ed-reward-icon"',true)}</section></div>`;const el=editorShell(index==null?"Beloning maken":"Beloning bewerken","Maak duidelijk waar punten voor gespaard kunnen worden.",body,"Beloning opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-reward-title").value.trim();if(!title)return toast("Geef de beloning een naam.");const next={...r,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-reward-cost").value||1),member_id:el.querySelector("#ed-reward-member").value,icon:el.querySelector("#ed-reward-icon").value};if(index==null)settings.rewards.push(next);else settings.rewards[index]=next;closeEditor();renderRewards();markDirty();await save()}}
+function renderRewards(){const root=$("rewards"),items=settings.rewards||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(r.icon)[1]}</div><div class="manage-main"><strong>${esc(r.title)}</strong><div class="manage-meta"><span>⭐ ${Number(r.cost||0)} punten</span><span>👤 ${r.member_id?esc(memberName(r.member_id)):"Iedereen"}</span></div></div>${actionButtons("reward",i)}</article>`).join(""):managementEmpty("Nog geen beloningen")}
+function openDepartureEditor(index=null){const r=deepClone(index==null?{match:"",lead_minutes:45,icon:"mdi:bag-personal",checklist:[]}:settings.departure_rules[index]);const body=`<div class="editor-grid" data-departure="editor"><section class="editor-section span2"><label>Bij welke afspraak?<input id="ed-depart-match" value="${esc(r.match||"")}" placeholder="Bijv. voetbal"><small>Family Hub kijkt of dit woord in de afspraak staat.</small></label><div class="editor-two"><label>Hoe lang vooraf?<select id="ed-depart-lead">${[15,30,45,60,90,120].map(v=>`<option value="${v}" ${Number(r.lead_minutes||45)===v?"selected":""}>${v<60?v+" min":v===60?"1 uur":v===90?"1,5 uur":"2 uur"}</option>`).join("")}</select></label><div><label>Icoon</label>${iconPicker(r.icon||"mdi:bag-personal",'id="ed-depart-icon"',true)}</div></div></section><section class="editor-section span2"><div class="builder-head"><div><h3>Checklist</h3><p>Wat moet mee of klaar zijn?</p></div><button type="button" class="secondary small-btn" data-add-check>+ Regel</button></div><div class="checklist-editor">${(r.checklist||[]).map((x,i)=>checklistRowHtml(x,i)).join("")||'<div class="builder-empty">Nog geen regels.</div>'}</div></section></div>`;const el=editorShell(index==null?"Vertrekhulp maken":"Vertrekhulp bewerken","Family Hub toont deze checklist automatisch voor vertrek.",body,"Vertrekhulp opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const match=el.querySelector("#ed-depart-match").value.trim(),checklist=[...el.querySelectorAll("[data-checklist-text]")].map(x=>x.value.trim()).filter(Boolean);if(!match)return toast("Vul in bij welke afspraak dit hoort.");const next={...r,id:r.id||uid("departure"),match,lead_minutes:Number(el.querySelector("#ed-depart-lead").value||45),icon:el.querySelector("#ed-depart-icon").value,checklist};if(index==null)settings.departure_rules.push(next);else settings.departure_rules[index]=next;closeEditor();renderDepartures();markDirty();await save()}}
+function renderDepartures(){const root=$("departures"),items=settings.departure_rules||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(r.icon)[1]}</div><div class="manage-main"><strong>${esc(r.match)}</strong><div class="manage-meta"><span>⏱ ${Number(r.lead_minutes||45)} min vooraf</span><span>☑ ${(r.checklist||[]).length} checklistregels</span></div></div>${actionButtons("departure",i)}</article>`).join(""):managementEmpty("Nog geen vertrekhulp")}
+async function loadSuggestions(){try{const d=await api("api/suggestions");suggestions=d.suggestions||[];renderSuggestions()}catch(e){console.warn("[Family Hub] aanbevelingen laden mislukt",e)}}
+function renderSuggestions(){const root=$("suggestions");if(!root)return;root.innerHTML=suggestions.length?suggestions.map(x=>`<article class="suggestion-card"><span>✨</span><div><strong>${esc(x.title)}</strong><p>${esc(x.reason)}</p></div><button type="button" data-apply-suggestion="${esc(x.id)}">${esc(x.action_label||"Toepassen")}</button></article>`).join(""):'<div class="suggestions-ok"><span>✓</span><div><strong>Alles ziet er logisch uit</strong><p>Als Family Hub een patroon herkent, verschijnt hier vanzelf een voorstel.</p></div></div>'}
 function renderNavigation(){const root=$("navigation-editor");root.innerHTML=(settings.navigation||[]).map((n,i)=>`<div class="reorder-row" data-nav="${i}"><label class="switch compact"><input data-nav-key="enabled" type="checkbox" ${n.enabled!==false?"checked":""}><span></span></label><div class="reorder-main"><strong>${esc(n.label)}</strong><small>${esc(n.id)} · ${esc(n.icon)}</small></div><button data-nav-up="${i}" ${i===0?"disabled":""}>↑</button><button data-nav-down="${i}" ${i===(settings.navigation.length-1)?"disabled":""}>↓</button></div>`).join("")}
 function renderHomeSections(){const visible=settings.home_sections||[];const hidden=Object.keys(HOME_SECTION_META).filter(id=>!visible.includes(id));const order=[...visible,...hidden];$("home-sections-editor").innerHTML=order.map(id=>{const enabled=visible.includes(id),meta=HOME_SECTION_META[id]||[id,""],visibleIndex=visible.indexOf(id);return `<div class="reorder-row" data-section="${esc(id)}"><label class="switch compact"><input data-section-enable="${esc(id)}" type="checkbox" ${enabled?"checked":""}><span></span></label><div class="reorder-main"><strong>${esc(meta[0])}</strong><small>${esc(id)}</small></div><button data-section-up="${esc(id)}" ${!enabled||visibleIndex<=0?"disabled":""}>↑</button><button data-section-down="${esc(id)}" ${!enabled||visibleIndex<0||visibleIndex===visible.length-1?"disabled":""}>↓</button></div>`}).join("")}
 function renderEntitySelects(){const all=entities.all||[];const html=all.map(e=>`<option value="${esc(e.entity_id)}">${esc(e.name)} — ${esc(e.state)}</option>`).join("");$("home_entities").innerHTML=html;$("notification_entities").innerHTML=html;fillMulti("home_entities",settings.home_entities);fillMulti("notification_entities",settings.notification_entities)}
 function fill(){
-  $("title").value=settings.title||"";$("subtitle").value=settings.subtitle||"";$("refresh_interval").value=String(settings.refresh_interval||120);$("show_household_status").checked=settings.show_household_status!==false;$("idle_minutes").value=settings.idle_minutes??5;$("idle_show_clock").checked=settings.idle_show_clock!==false;$("photos").value=(settings.photos||[]).join("\n");$("shopping_list").innerHTML=options("todo",settings.shopping_list);$("meals_todo").innerHTML=options("todo",settings.meals_todo);$("accent_color").value=settings.accent_color||"#2E6CA5";$("accent_color_text").value=settings.accent_color||"#2E6CA5";$("background_overlay").value=settings.background_overlay??82;$("overlay-label").textContent=(settings.background_overlay??82)+"%";$("dashboard_title").value=settings.dashboard_title||"Family Hub";$("dashboard_show_sidebar").checked=settings.dashboard_show_sidebar!==false;preview(settings.background_url);renderMembers();renderRoutines();renderSmartTasks();renderLists();renderRewards();renderDepartures();renderNavigation();renderHomeSections();renderEntitySelects();
+  $("title").value=settings.title||"";$("subtitle").value=settings.subtitle||"";$("refresh_interval").value=String(settings.refresh_interval||120);$("show_household_status").checked=settings.show_household_status!==false;$("idle_minutes").value=settings.idle_minutes??5;$("idle_show_clock").checked=settings.idle_show_clock!==false;$("photos").value=(settings.photos||[]).join("\n");$("shopping_list").innerHTML=options("todo",settings.shopping_list);$("meals_todo").innerHTML=options("todo",settings.meals_todo);$("accent_color").value=settings.accent_color||"#2E6CA5";$("accent_color_text").value=settings.accent_color||"#2E6CA5";$("background_overlay").value=settings.background_overlay??82;$("overlay-label").textContent=(settings.background_overlay??82)+"%";$("dashboard_title").value=settings.dashboard_title||"Family Hub";$("dashboard_show_sidebar").checked=settings.dashboard_show_sidebar!==false;preview(settings.background_url);renderMembers();renderRoutines();renderSmartTasks();renderLists();renderRewards();renderDepartures();renderNavigation();renderHomeSections();renderEntitySelects();renderSuggestions();
 }
 function readDays(card,prefix){return [...card.querySelectorAll(`[data-day-group^="${prefix}"]`)].filter(x=>x.checked).map(x=>Number(x.dataset.day))}
 function collectDynamic(){
@@ -284,25 +304,6 @@ function collectDynamic(){
   return {...old,id:old.id||uid("member"),name:(get("name")?.value||"").trim(),role:get("role")?.value||"adult",color,icon:(get("icon")?.value||"mdi:account").trim(),person:get("person")?.value||"",calendar:get("calendar")?.value||"",todo:get("todo")?.value||"",points_entity:old.points_entity||""};
  });
  const nameless=settings.members.findIndex(m=>!m.name);if(nameless>=0)throw new Error(`Vul een naam in voor gezinslid ${nameless+1}`);
-
- settings.routines=[...document.querySelectorAll("[data-routine]")].map((card,i)=>{
-  const old=settings.routines[i]||{},get=k=>card.querySelector(`[data-routine-key="${k}"]`);
-  const steps=[...card.querySelectorAll("[data-routine-step]")].map((row,idx)=>{
-    const field=k=>row.querySelector(`[data-step-key="${k}"]`),title=(field("title")?.value||"").trim();
-    if(!title)return null;
-    return {id:row.dataset.stepId||old.steps?.[idx]?.id||uid("step"),title,icon:(field("icon")?.value||"mdi:check-circle-outline").trim(),points:Number(field("points")?.value||0)};
-  }).filter(Boolean);
-  return {...old,id:old.id||uid("routine"),title:(get("title")?.value||"").trim(),member_id:get("member_id")?.value||"",icon:(get("icon")?.value||old.icon||"mdi:progress-check").trim(),time:get("time")?.value||"07:00",days:readDays(card,"routine-"),todo_entity:get("todo_entity")?.value||old.todo_entity||"",steps};
- }).filter(x=>x.title);
-
- settings.smart_tasks=[...document.querySelectorAll("[data-smart-task]")].map((card,i)=>{const old=settings.smart_tasks[i]||{},get=k=>card.querySelector(`[data-task-key="${k}"]`);return {...old,id:old.id||uid("task"),title:(get("title")?.value||"").trim(),member_id:get("member_id")?.value||"",points:Number(get("points")?.value||0),due_time:get("due_time")?.value||"",icon:(get("icon")?.value||"mdi:checkbox-marked-circle-outline").trim(),days:readDays(card,"task-"),enabled:!!get("enabled")?.checked}}).filter(x=>x.title);
- settings.lists=[...document.querySelectorAll("[data-list]")].map((card,i)=>{const old=settings.lists[i]||{},get=k=>card.querySelector(`[data-list-key="${k}"]`);return {...old,id:old.id||uid("list"),title:(get("title")?.value||"").trim(),color:get("color")?.value||"#2E6CA5",icon:(get("icon")?.value||"mdi:format-list-checks").trim(),todo_entity:get("todo_entity")?.value||""}}).filter(x=>x.title);
- settings.rewards=[...document.querySelectorAll("[data-reward]")].map((card,i)=>{const old=settings.rewards[i]||{},get=k=>card.querySelector(`[data-reward-key="${k}"]`);return {...old,id:old.id||uid("reward"),title:(get("title")?.value||"").trim(),cost:Number(get("cost")?.value||1),member_id:get("member_id")?.value||"",icon:(get("icon")?.value||"mdi:gift").trim()}}).filter(x=>x.title);
- settings.departure_rules=[...document.querySelectorAll("[data-departure]")].map((card,i)=>{
-  const old=settings.departure_rules[i]||{},get=k=>card.querySelector(`[data-departure-key="${k}"]`);
-  const checklist=[...card.querySelectorAll("[data-checklist-text]")].map(x=>x.value.trim()).filter(Boolean);
-  return {...old,id:old.id||uid("departure"),match:(get("match")?.value||"").trim(),lead_minutes:Number(get("lead_minutes")?.value||45),icon:(get("icon")?.value||"mdi:bag-personal").trim(),checklist};
- }).filter(x=>x.match);
 }
 function collect(){collectDynamic();settings.title=$("title").value.trim()||"Familie";settings.subtitle=$("subtitle").value.trim();settings.refresh_interval=Number($("refresh_interval").value||120);settings.show_household_status=$("show_household_status").checked;settings.idle_minutes=Number($("idle_minutes").value||0);settings.idle_show_clock=$("idle_show_clock").checked;settings.photos=$("photos").value.split(/\n+/).map(x=>x.trim()).filter(Boolean);settings.shopping_list=$("shopping_list").value;settings.meals_todo=$("meals_todo").value;settings.accent_color=$("accent_color_text").value||$("accent_color").value;settings.background_overlay=Number($("background_overlay").value||82);settings.home_entities=selectedValues("home_entities");settings.notification_entities=selectedValues("notification_entities");return settings}
 async function loadEntities(){try{const d=await api("api/entities");entities=d.entities;$("connection").textContent="Verbonden met Home Assistant";if(settings)fill()}catch(e){$("connection").textContent="Entiteiten konden niet worden geladen";toast(e.message)}}
@@ -317,13 +318,26 @@ function bind(){
  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");const tab=$("tab-"+b.dataset.tab);if(tab)tab.classList.add("active");const title=$("page-title");if(title)title.textContent=b.textContent.trim();if(b.dataset.tab==="dashboard")loadStatus()});
  click("save",save);click("reload-entities",loadEntities);click("install-dashboard",installDashboard);click("remove-dashboard",removeDashboard);click("provision-now",provisionNow);click("add-external-calendar",addExternalCalendar);
  click("add-member",e=>{e?.preventDefault?.();settings=ensureSettingsShape(settings);settings.members.push({id:uid("member"),name:"",role:"adult",color:palette[settings.members.length%palette.length],icon:"mdi:account",calendar:"",todo:"",person:"",points_entity:""});renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();toast("Gezinslid toegevoegd — vul de naam in en klik Opslaan")});
- click("add-routine",()=>{settings=ensureSettingsShape(settings);settings.routines.push({id:uid("routine"),title:"",member_id:"",icon:"mdi:progress-check",days:[0,1,2,3,4,5,6],time:"07:00",todo_entity:"",steps:[]});renderRoutines();markDirty()});
- click("add-smart-task",()=>{settings=ensureSettingsShape(settings);settings.smart_tasks.push({id:uid("task"),title:"",member_id:"",icon:"mdi:checkbox-marked-circle-outline",points:5,days:[0,1,2,3,4],due_time:"",enabled:true});renderSmartTasks();markDirty()});
- click("add-list",()=>{settings=ensureSettingsShape(settings);settings.lists.push({id:uid("list"),title:"",icon:"mdi:format-list-checks",color:palette[settings.lists.length%palette.length],todo_entity:""});renderLists();markDirty()});
- click("add-reward",()=>{settings=ensureSettingsShape(settings);settings.rewards.push({id:uid("reward"),title:"",cost:50,icon:"mdi:gift",member_id:""});renderRewards();markDirty()});
- click("add-departure",()=>{settings=ensureSettingsShape(settings);settings.departure_rules.push({id:uid("departure"),match:"",lead_minutes:45,icon:"mdi:bag-personal",checklist:[]});renderDepartures();markDirty()});
+ click("add-routine",()=>openRoutineTemplates());
+ click("add-smart-task",()=>openTaskEditor());
+ click("add-list",()=>openListEditor());
+ click("add-reward",()=>openRewardEditor());
+ click("add-departure",()=>openDepartureEditor());
  document.body.addEventListener("click",e=>{
-  let b=e.target.closest("[data-icon-value]");
+  let b=e.target.closest("[data-routine-template]");
+  if(b){const t=ROUTINE_TEMPLATES.find(x=>x.id===b.dataset.routineTemplate);openRoutineEditor(null,t?deepClone(t.data):null);return}
+  b=e.target.closest("[data-edit-routine]");if(b){openRoutineEditor(Number(b.dataset.editRoutine));return}
+  b=e.target.closest("[data-copy-routine]");if(b){copyRoutine(Number(b.dataset.copyRoutine));return}
+  b=e.target.closest("[data-edit-smart-task]");if(b){openTaskEditor(Number(b.dataset.editSmartTask));return}
+  b=e.target.closest("[data-copy-smart-task]");if(b){const i=Number(b.dataset.copySmartTask),x=deepClone(settings.smart_tasks[i]);x.id=uid("task");x.title="Kopie van "+x.title;settings.smart_tasks.splice(i+1,0,x);renderSmartTasks();markDirty();return}
+  b=e.target.closest("[data-edit-list]");if(b){openListEditor(Number(b.dataset.editList));return}
+  b=e.target.closest("[data-copy-list]");if(b){const i=Number(b.dataset.copyList),x=deepClone(settings.lists[i]);x.id=uid("list");x.title="Kopie van "+x.title;x.todo_entity="";settings.lists.splice(i+1,0,x);renderLists();markDirty();return}
+  b=e.target.closest("[data-edit-reward]");if(b){openRewardEditor(Number(b.dataset.editReward));return}
+  b=e.target.closest("[data-copy-reward]");if(b){const i=Number(b.dataset.copyReward),x=deepClone(settings.rewards[i]);x.id=uid("reward");x.title="Kopie van "+x.title;settings.rewards.splice(i+1,0,x);renderRewards();markDirty();return}
+  b=e.target.closest("[data-edit-departure]");if(b){openDepartureEditor(Number(b.dataset.editDeparture));return}
+  b=e.target.closest("[data-copy-departure]");if(b){const i=Number(b.dataset.copyDeparture),x=deepClone(settings.departure_rules[i]);x.id=uid("departure");settings.departure_rules.splice(i+1,0,x);renderDepartures();markDirty();return}
+  b=e.target.closest("[data-apply-suggestion]");if(b){const btn=b;btn.disabled=true;btn.textContent="Bezig…";api("api/suggestions/apply",{method:"POST",body:JSON.stringify({id:btn.dataset.applySuggestion})}).then(d=>{settings=ensureSettingsShape(d.settings);fill();suggestions=d.suggestions||[];renderSuggestions();toast("Aanbeveling toegepast")}).catch(e=>toast(e.message)).finally(()=>{btn.disabled=false});return}
+  b=e.target.closest("[data-icon-value]");
   if(b){
     const picker=b.closest("[data-icon-picker]"),hidden=picker?.querySelector('input[type="hidden"]');
     if(hidden)hidden.value=b.dataset.iconValue;
@@ -361,7 +375,7 @@ function bind(){
   if(b){const row=b.closest("[data-checklist-row]"),prev=row?.previousElementSibling;if(row&&prev&&prev.matches("[data-checklist-row]")){row.parentElement.insertBefore(row,prev);renumberRows(row.parentElement,"[data-checklist-row]");markDirty()}return}
   b=e.target.closest("[data-check-down]");
   if(b){const row=b.closest("[data-checklist-row]"),next=row?.nextElementSibling;if(row&&next&&next.matches("[data-checklist-row]")){row.parentElement.insertBefore(next,row);renumberRows(row.parentElement,"[data-checklist-row]");markDirty()}return}
-  b=e.target.closest("[data-remove-member]");if(b){settings.members.splice(Number(b.dataset.removeMember),1);renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();return}b=e.target.closest("[data-remove-routine]");if(b){settings.routines.splice(Number(b.dataset.removeRoutine),1);renderRoutines();markDirty();return}b=e.target.closest("[data-remove-smart-task]");if(b){settings.smart_tasks.splice(Number(b.dataset.removeSmartTask),1);renderSmartTasks();markDirty();return}b=e.target.closest("[data-remove-list]");if(b&&!b.disabled){settings.lists.splice(Number(b.dataset.removeList),1);renderLists();markDirty();return}b=e.target.closest("[data-remove-reward]");if(b){settings.rewards.splice(Number(b.dataset.removeReward),1);renderRewards();markDirty();return}b=e.target.closest("[data-remove-departure]");if(b){settings.departure_rules.splice(Number(b.dataset.removeDeparture),1);renderDepartures();markDirty();return}b=e.target.closest("[data-nav-up]");if(b){move(settings.navigation,Number(b.dataset.navUp),Number(b.dataset.navUp)-1);renderNavigation();markDirty();return}b=e.target.closest("[data-nav-down]");if(b){move(settings.navigation,Number(b.dataset.navDown),Number(b.dataset.navDown)+1);renderNavigation();markDirty();return}b=e.target.closest("[data-section-up]");if(b){const id=b.dataset.sectionUp,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i-1);renderHomeSections();markDirty();return}b=e.target.closest("[data-section-down]");if(b){const id=b.dataset.sectionDown,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i+1);renderHomeSections();markDirty();return}});
+  b=e.target.closest("[data-remove-member]");if(b){settings.members.splice(Number(b.dataset.removeMember),1);renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();return}b=e.target.closest("[data-remove-routine]");if(b){if(confirm("Routine verwijderen?")){settings.routines.splice(Number(b.dataset.removeRoutine),1);renderRoutines();markDirty();save()}return}b=e.target.closest("[data-remove-smart-task]");if(b){if(confirm("Terugkerende taak verwijderen?")){settings.smart_tasks.splice(Number(b.dataset.removeSmartTask),1);renderSmartTasks();markDirty();save()}return}b=e.target.closest("[data-remove-list]");if(b&&!b.disabled){if(confirm("Lijst verwijderen?")){settings.lists.splice(Number(b.dataset.removeList),1);renderLists();markDirty();save()}return}b=e.target.closest("[data-remove-reward]");if(b){if(confirm("Beloning verwijderen?")){settings.rewards.splice(Number(b.dataset.removeReward),1);renderRewards();markDirty();save()}return}b=e.target.closest("[data-remove-departure]");if(b){if(confirm("Vertrekhulp verwijderen?")){settings.departure_rules.splice(Number(b.dataset.removeDeparture),1);renderDepartures();markDirty();save()}return}b=e.target.closest("[data-nav-up]");if(b){move(settings.navigation,Number(b.dataset.navUp),Number(b.dataset.navUp)-1);renderNavigation();markDirty();return}b=e.target.closest("[data-nav-down]");if(b){move(settings.navigation,Number(b.dataset.navDown),Number(b.dataset.navDown)+1);renderNavigation();markDirty();return}b=e.target.closest("[data-section-up]");if(b){const id=b.dataset.sectionUp,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i-1);renderHomeSections();markDirty();return}b=e.target.closest("[data-section-down]");if(b){const id=b.dataset.sectionDown,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i+1);renderHomeSections();markDirty();return}});
  document.body.addEventListener("change",e=>{if(e.target.matches("[data-nav-key='enabled']")){const card=e.target.closest("[data-nav]");settings.navigation[Number(card.dataset.nav)].enabled=e.target.checked;markDirty()}if(e.target.matches("[data-section-enable]")){const id=e.target.dataset.sectionEnable;if(e.target.checked&&!settings.home_sections.includes(id))settings.home_sections.push(id);if(!e.target.checked)settings.home_sections=settings.home_sections.filter(x=>x!==id);renderHomeSections();markDirty()}if(e.target.id==="home_entities"||e.target.id==="notification_entities")markDirty();if(e.target.closest(".config-card")||e.target.matches("input,select,textarea"))markDirty()});
  document.body.addEventListener("input",e=>{if(e.target.matches("[data-member-key='name']")){const card=e.target.closest("[data-member]");card.querySelector(".member-title").textContent=e.target.value||"Nieuw gezinslid";card.querySelector(".dot").textContent=(e.target.value||"?").charAt(0).toUpperCase()}if(e.target.matches("[data-member-key='color']")){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='colorText']").value=e.target.value}if(e.target.matches("[data-member-key='colorText']")&&/^#[0-9a-f]{6}$/i.test(e.target.value)){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='color']").value=e.target.value}markDirty()});
  ["title","subtitle","refresh_interval","show_household_status","idle_minutes","idle_show_clock","photos","shopping_list","meals_todo","dashboard_title","dashboard_show_sidebar"].forEach(id=>listen(id,"change",markDirty));
@@ -370,7 +384,7 @@ function bind(){
  window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue=""}})
 }
 (async()=>{
-  console.info("[Family Hub] beheerinterface 0.7.1 start");
+  console.info("[Family Hub] beheerinterface 0.8.0 start");
   try{bind()}catch(e){console.error("[Family Hub] bind-fout",e)}
   startVersionWatch();
   const saveButton=$("save");
@@ -406,4 +420,5 @@ function bind(){
     toast("Home Assistant-entiteiten laden mislukt: "+e.message);
   }
   try{await loadStatus()}catch(e){}
+  loadSuggestions();
 })();
