@@ -31,6 +31,7 @@ jobs:
           test -f vandereijt_family_hub/static/family-hub-admin-0.6.6.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.6.7.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.7.0.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.7.1.js
           test -f vandereijt_family_hub/static/style.css
           test -f vandereijt_family_hub/static/brand-icon.png
           grep -q '^name:' repository.yaml
@@ -48,6 +49,7 @@ jobs:
           node --check vandereijt_family_hub/static/family-hub-admin-0.6.6.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.6.7.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.7.0.js
+          node --check vandereijt_family_hub/static/family-hub-admin-0.7.1.js
           grep -q '"panel": True' vandereijt_family_hub/app.py
           grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
           grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
@@ -71,8 +73,14 @@ jobs:
           grep -q 'lovelace/resources/delete' vandereijt_family_hub/app.py
           grep -q 'customElements.get("family-hub-card")' vandereijt_family_hub/family-hub-card.js
           grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
-          grep -q 'family-hub-admin-0.7.0.js' vandereijt_family_hub/static/index.html
-          grep -q 'beheerinterface 0.7.0 start' vandereijt_family_hub/static/family-hub-admin-0.7.0.js
+          grep -q 'family-hub-admin-0.7.1.js' vandereijt_family_hub/static/index.html
+          grep -q 'beheerinterface 0.7.1 start' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
+          grep -q 'const FH_ADMIN_VERSION="0.7.1"' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
+          grep -q 'checkForFrontendUpdate' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
+          grep -q 'startVersionWatch' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
+          grep -q 'payload\["_app_version"\] = APP_VERSION' vandereijt_family_hub/app.py
+          grep -q '_maybeReloadForVersion' vandereijt_family_hub/family-hub-card.js
+          grep -q '_app_version' vandereijt_family_hub/family-hub-card.js
           grep -q 'const ICON_LIBRARY' vandereijt_family_hub/static/family-hub-admin-0.7.0.js
           grep -q 'data-routine-step' vandereijt_family_hub/static/family-hub-admin-0.7.0.js
           grep -q 'data-add-step' vandereijt_family_hub/static/family-hub-admin-0.7.0.js
@@ -90,4 +98,4 @@ jobs:
           NODE
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.7.0 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.7.1 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
