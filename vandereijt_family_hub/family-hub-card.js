@@ -532,7 +532,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
         if(this._modal.kind==="event")await this._addEvent(q("#fh-who").value,summary,q("#fh-date").value,q("#fh-time").value,q("#fh-all").checked);
         else if(this._modal.kind==="task"){
           const entity=q("#fh-who").value,member=(this._config.members||[]).find(m=>m.todo===entity),points=Number(q("#fh-points").value||0),meta={kind:"manual_task",member_id:member?.id||"",points,points_entity:member?.points_entity||"",date:q("#fh-date").value};
-          await this._addTodo(entity,summary,points?"FH_META:"+JSON.stringify(meta):"",q("#fh-date").value);
+          await this._addTodo(entity,summary,"FH_META:"+JSON.stringify(meta),q("#fh-date").value);
         }else if(this._modal.kind==="list"){
           const l=(this._config.lists||[]).find(x=>x.id===this._modal.listId),entity=l?.todo_entity||(this._modal.listId==="shopping"?this._config.shopping_list:"");await this._addTodo(entity,summary);
         }else if(this._modal.kind==="meal"){
