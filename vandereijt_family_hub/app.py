@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.6.2"
+APP_VERSION = "0.6.3"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -909,12 +909,25 @@ def _is_family_hub_config(config):
         return False
 
 
-def _find_family_hub_resource(resources):
+def _family_hub_resources(resources):
+    matches = []
     for resource in resources or []:
-        url = str(resource.get("url") or "")
-        if url.split("?", 1)[0] == CARD_RESOURCE_BASE:
+        raw = str(resource.get("url") or "")
+        try:
+            path = urlparse(raw).path if "://" in raw else raw.split("?", 1)[0]
+        except Exception:
+            path = raw.split("?", 1)[0]
+        if path == CARD_RESOURCE_BASE or path.endswith("/family-hub-card.js"):
+            matches.append(resource)
+    return matches
+
+
+def _find_family_hub_resource(resources):
+    matches = _family_hub_resources(resources)
+    for resource in matches:
+        if str(resource.get("url") or "").split("?", 1)[0] == CARD_RESOURCE_BASE:
             return resource
-    return None
+    return matches[0] if matches else None
 
 
 def _find_family_hub_dashboard(dashboards):
@@ -951,6 +964,7 @@ def _ensure_resource(ha):
             "Family Hub kan dashboardbronnen alleen automatisch beheren wanneer Home Assistant resources in storage-modus gebruikt."
         )
     resources = ha.call({"type": "lovelace/resources/list"}) or []
+    matches = _family_hub_resources(resources)
     resource = _find_family_hub_resource(resources)
     if resource:
         resource_id = resource.get("id")
@@ -965,6 +979,25 @@ def _ensure_resource(ha):
                     "res_type": "module",
                 }
             )
+        for duplicate in matches:
+            duplicate_id = duplicate.get("id")
+            if duplicate_id and duplicate_id != resource_id:
+                try:
+                    ha.call(
+                        {
+                            "type": "lovelace/resources/delete",
+                            "resource_id": duplicate_id,
+                        }
+                    )
+                    print(
+                        f"[Family Hub] Removed legacy/duplicate Lovelace resource: {duplicate.get('url')}",
+                        flush=True,
+                    )
+                except Exception as exc:
+                    print(
+                        f"[Family Hub] Could not remove duplicate resource {duplicate.get('url')}: {exc}",
+                        flush=True,
+                    )
     else:
         ha.call(
             {
