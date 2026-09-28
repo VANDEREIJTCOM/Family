@@ -7,13 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="static/style.css?v=0.6.7">
+  <link rel="stylesheet" href="static/style.css?v=0.7.0">
 </head>
 <body>
 <div class="shell">
   <aside>
     <div class="brand">
-      <img src="static/brand-icon.png?v=0.6.7" alt="VANDEREIJT.COM">
+      <img src="static/brand-icon.png?v=0.7.0" alt="VANDEREIJT.COM">
       <div><strong><span>VANDEREIJT.COM</span> Family Hub</strong><small>for Home Assistant</small></div>
     </div>
     <nav>
@@ -42,7 +42,7 @@
 
     <section id="tab-general" class="tab active">
       <div class="hero-card">
-        <div><span class="pill">Family Hub 0.6.7</span><h2>Het centrale scherm voor gezin én huis.</h2><p>Agenda, taken, routines, punten, lijstjes, maaltijden, vertrekhulp en Home Assistant-status in één interface.</p></div>
+        <div><span class="pill">Family Hub 0.7.0</span><h2>Het centrale scherm voor gezin én huis.</h2><p>Agenda, taken, routines, punten, lijstjes, maaltijden, vertrekhulp en Home Assistant-status in één interface.</p></div>
         <div class="hero-mark">FH</div>
       </div>
       <div class="grid two">
@@ -67,8 +67,8 @@
 
     <section id="tab-calendars" class="tab">
       <div class="grid two">
-        <article class="card"><h2>Bestaande agenda's</h2><p>Koppel per gezinslid een bestaande Google-, Outlook-, CalDAV- of Home Assistant-agenda via het tabblad Gezin. Als je niets kiest maakt Family Hub automatisch een lokale agenda.</p><button id="reload-entities" class="secondary">Entiteiten opnieuw laden</button></article>
-        <article class="card"><h2>ICS / webcal toevoegen</h2><p>Voor bijvoorbeeld school, sportclub, afvalkalender of een gedeelde agenda met een publieke ICS-link.</p>
+        <article class="card"><h2>Agenda's van het gezin</h2><p>Family Hub maakt automatisch een agenda per gezinslid. Wil je liever een bestaande Google-, Outlook- of andere Home Assistant-agenda gebruiken? Dan kun je die bij het gezinslid kiezen onder <strong>Home Assistant-koppelingen</strong>.</p><button id="reload-entities" class="secondary">Agenda's opnieuw ophalen</button></article>
+        <article class="card"><h2>Extra agenda via een link</h2><p>Handig voor bijvoorbeeld school, sportclub of afvalkalender. Dit is alleen nodig als je zo'n openbare agenda-link hebt.</p>
           <label>Naam<input id="external_calendar_name" type="text" placeholder="Voetbal Fer"></label>
           <label>ICS / webcal URL<input id="external_calendar_url" type="text" placeholder="https://.../calendar.ics"></label>
           <button id="add-external-calendar" class="primary">Agenda toevoegen aan Home Assistant</button>
@@ -78,14 +78,15 @@
     </section>
 
     <section id="tab-routines" class="tab">
-      <div class="section-head"><div><h2>Routines</h2><p>Visuele stappen die iedere dag automatisch opnieuw klaarstaan.</p></div><button id="add-routine" class="secondary">+ Routine</button></div>
+      <div class="section-head"><div><h2>Routines</h2><p>Maak een ochtend-, school- of bedtijdroutine zoals je hem thuis ook zou uitleggen: stap voor stap.</p></div><button id="add-routine" class="secondary">+ Routine maken</button></div>
+      <div class="setup-tip"><div>💡</div><div><strong>Je hoeft geen codes of icoonnamen meer te kennen.</strong>Typ per stap wat er moet gebeuren, kies een icoon uit de bibliotheek en geef eventueel punten. <b>2 punten</b> betekent dus: als die stap klaar is, verdient het kind 2 punten.</div></div>
       <div id="routines" class="cards-grid"></div>
-      <div class="section-head spaced"><div><h2>Slimme taken</h2><p>Terugkerende taken met dagen, deadline en punten.</p></div><button id="add-smart-task" class="secondary">+ Slimme taak</button></div>
+      <div class="section-head spaced"><div><h2>Terugkerende taken</h2><p>Taken die vanzelf op de juiste dagen klaarstaan, bijvoorbeeld kamer opruimen of papier buiten zetten.</p></div><button id="add-smart-task" class="secondary">+ Terugkerende taak</button></div>
       <div id="smart-tasks" class="cards-grid"></div>
     </section>
 
     <section id="tab-lists" class="tab">
-      <div class="section-head"><div><h2>Gedeelde lijstjes</h2><p>Boodschappen, vakantie, caravan, school, klusjes… ieder lijstje krijgt zijn eigen Home Assistant To-do.</p></div><button id="add-list" class="secondary">+ Lijst</button></div>
+      <div class="section-head"><div><h2>Gedeelde lijstjes</h2><p>Maak gewone gezinslijstjes zoals Boodschappen, Vakantie, Caravan, School of Klusjes. Family Hub regelt de technische koppeling op de achtergrond.</p></div><button id="add-list" class="secondary">+ Lijst maken</button></div>
       <div id="lists" class="cards-grid"></div>
       <div class="grid two spaced">
         <article class="card"><h2>Maaltijdplanner</h2><p>Family Hub maakt automatisch een lokale maaltijdenlijst. Op het scherm kunnen maaltijden per datum worden toegevoegd en ingrediënten naar de boodschappenlijst worden gestuurd.</p><label>Maaltijdenlijst<select id="meals_todo"></select></label></article>
@@ -94,16 +95,16 @@
     </section>
 
     <section id="tab-rewards" class="tab">
-      <div class="section-head"><div><h2>Beloningen</h2><p>Kinderen verdienen punten met taken en routines. Punten worden als Home Assistant helper opgeslagen.</p></div><button id="add-reward" class="secondary">+ Beloning</button></div>
+      <div class="section-head"><div><h2>Punten & beloningen</h2><p>Geef punten aan stappen of taken en bepaal hier waar kinderen voor kunnen sparen. De technische opslag regelt Family Hub vanzelf.</p></div><button id="add-reward" class="secondary">+ Beloning maken</button></div>
       <div id="rewards" class="cards-grid"></div>
     </section>
 
     <section id="tab-home" class="tab">
       <div class="grid two">
-        <article class="card"><h2>Slim huisblok</h2><p>Kies entiteiten die op het Family Hub-scherm zichtbaar mogen zijn, zoals temperatuur, deur, auto, energie of wasmachine.</p><label>Home Assistant entiteiten<select id="home_entities" multiple size="12"></select></label></article>
-        <article class="card"><h2>Contextuele meldingen</h2><p>Geselecteerde entiteiten verschijnen als melding wanneer hun status actief of afwijkend is.</p><label>Melding-entiteiten<select id="notification_entities" multiple size="12"></select></label></article>
+        <article class="card"><h2>Wat wil je van je huis zien?</h2><p>Kies bijvoorbeeld de temperatuur, achterdeur, auto, energie of wasmachine. Je ziet hier gewoon de namen uit Home Assistant.</p><label>Toon op Family Hub<select id="home_entities" multiple size="12"></select><small>Je kunt meerdere onderdelen selecteren.</small></label></article>
+        <article class="card"><h2>Welke huismeldingen zijn belangrijk?</h2><p>Kies alleen dingen waarvoor je op het Family Hub-scherm een melding wilt zien, bijvoorbeeld een open deur of wasmachine die klaar is.</p><label>Toon als melding<select id="notification_entities" multiple size="12"></select><small>Family Hub toont deze alleen als de status actief of afwijkend is.</small></label></article>
       </div>
-      <div class="section-head spaced"><div><h2>Vertrekhulp</h2><p>Match een agenda-afspraak en toon automatisch een checklist vóór vertrek.</p></div><button id="add-departure" class="secondary">+ Vertrekregel</button></div>
+      <div class="section-head spaced"><div><h2>Vertrekhulp</h2><p>Laat Family Hub vóór een afspraak automatisch zien wat mee moet. Bijvoorbeeld bij “voetbal” → bidon, tas en jas.</p></div><button id="add-departure" class="secondary">+ Vertrekhulp maken</button></div>
       <div id="departures" class="cards-grid"></div>
     </section>
 
@@ -141,6 +142,6 @@
   </main>
 </div>
 <div id="toast" class="toast"></div>
-<script src="static/family-hub-admin-0.6.7.js" defer></script>
+<script src="static/family-hub-admin-0.7.0.js" defer></script>
 </body>
 </html>
