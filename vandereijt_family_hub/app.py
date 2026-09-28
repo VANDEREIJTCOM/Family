@@ -1260,7 +1260,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type or mimetypes.guess_type(path.name)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")\n        self.send_header("Pragma", "no-cache")\n        self.send_header("Expires", "0")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(raw)
 
