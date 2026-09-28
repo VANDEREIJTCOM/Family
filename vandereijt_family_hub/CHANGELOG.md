@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 — automatisch vernieuwen na updates
+- Family Hub controleert automatisch of de draaiende App een nieuwere versie heeft dan de geladen beheerinterface.
+- Na een update verschijnt kort **Family Hub is bijgewerkt** en wordt de beheerinterface vanzelf opnieuw geladen.
+- Ook het Family Hub-dashboard controleert de gepubliceerde App-versie en vernieuwt zichzelf automatisch zodra de nieuwe kaartresource beschikbaar is.
+- De openbare Family Hub-instellingen bevatten voortaan de actieve App-versie voor deze updatecontrole.
+- Geen handmatige App-herstart, Ctrl+F5 of Home Assistant-herstart nodig na toekomstige Family Hub-updates.
+- Updatecontroles blijven stil tijdens de korte periode waarin de App-container opnieuw opstart.
+
+
 ## 0.7.0 — Family-friendly setup
 - Beheerinterface opnieuw ingericht voor niet-technische gezinsleden: gewone taal voorop, technische Home Assistant-koppelingen onder **Geavanceerd**.
 - Routines hebben nu een visuele stappenbouwer: **+ Stap toevoegen**, stapnaam, icoonbibliotheek, optionele punten en omhoog/omlaag/verwijderen.
