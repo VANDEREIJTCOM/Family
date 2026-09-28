@@ -1626,6 +1626,7 @@ class Handler(BaseHTTPRequestHandler):
                 incoming_members = settings.get("members", []) if isinstance(settings, dict) else []
                 settings, provisioned, provision_warnings = provision_family_features(settings)
                 settings = save_settings(settings)
+                sync_generated_content()
                 persisted = load_settings()
                 if len(persisted.get("members", [])) != len(settings.get("members", [])):
                     raise RuntimeError("Controle na opslaan mislukt: gezinsleden niet correct bewaard")
