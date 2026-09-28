@@ -49,13 +49,13 @@ function iconInfo(value){
 function iconPicker(value,hiddenAttr,compact=false){
   const current=value||"mdi:check-circle-outline";
   const selected=iconInfo(current);
-  return `<div class="icon-picker ${compact?"compact":""}" data-icon-picker>
+  return `<details class="icon-picker ${compact?"compact":""}" data-icon-picker>
     <input type="hidden" ${hiddenAttr} value="${esc(current)}">
-    <div class="icon-picker-current"><span>${selected[1]}</span><strong>${esc(selected[2])}</strong></div>
+    <summary class="icon-picker-current"><span>${selected[1]}</span><strong>${esc(selected[2])}</strong><em>Kies icoon</em></summary>
     <div class="icon-grid">
       ${ICON_LIBRARY.map(x=>`<button type="button" class="icon-choice ${x[0]===current?"selected":""}" data-icon-value="${esc(x[0])}" title="${esc(x[2])}"><span>${x[1]}</span><small>${esc(x[2])}</small></button>`).join("")}
     </div>
-  </div>`;
+  </details>`;
 }
 function stepEditorHtml(step={},index=0){
   const id=step.id||uid("step");
@@ -298,7 +298,8 @@ function bind(){
     if(hidden)hidden.value=b.dataset.iconValue;
     picker?.querySelectorAll("[data-icon-value]").forEach(x=>x.classList.toggle("selected",x===b));
     const info=iconInfo(b.dataset.iconValue),current=picker?.querySelector(".icon-picker-current");
-    if(current)current.innerHTML=`<span>${info[1]}</span><strong>${esc(info[2])}</strong>`;
+    if(current)current.innerHTML=`<span>${info[1]}</span><strong>${esc(info[2])}</strong><em>Kies icoon</em>`;
+    if(picker?.tagName==="DETAILS")picker.open=false;
     markDirty();return;
   }
   b=e.target.closest("[data-add-step]");
