@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.3
+- Fix voor de beheerinterface waarbij één ontbrekend DOM-element de volledige initialisatie kon afbreken met `Cannot read properties of null (reading 'addEventListener')`.
+- Eventbinding is nu fouttolerant: ontbrekende velden worden gelogd maar blokkeren het laden van opgeslagen gezinsleden niet meer.
+- Opslaan toont en logt nu de daadwerkelijke foutmelding, zodat configuratieproblemen direct zichtbaar zijn.
+- Family Hub ruimt oude/dubbele Lovelace-resources zoals oudere `family-hub-card.js` registraties automatisch op.
+- De dashboardkaart voorkomt een harde CustomElementRegistry-crash als een oude resource tijdens dezelfde browser-sessie nog geladen is.
+- Dit lost tevens de situatie op waarbij een oude Family Hub v0.3-kaart naast de nieuwe kaart geladen werd.
+
+
 ## 0.6.2
 - Home Assistant Ingress-fix: API-root wordt nu afgeleid van het daadwerkelijk geladen `static/app.js`-bestand in plaats van de zichtbare browser-URL.
 - Hierdoor werken `/api/settings`, `/api/entities` en opslaan betrouwbaar vanuit de Home Assistant App-route.
