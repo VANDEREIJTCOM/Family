@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import mimetypes
 import os
@@ -10,13 +11,15 @@ import urllib.error
 import urllib.request
 
 import websocket
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.7.1"
+APP_VERSION = "0.8.0"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -181,13 +184,26 @@ def normalize_settings(data):
                 "icon": str(step.get("icon") or "mdi:check-circle-outline")[:80],
                 "points": max(0, min(100, int(step.get("points") or 0))),
             })
+        raw_member_ids = routine.get("member_ids")
+        if not isinstance(raw_member_ids, list):
+            raw_member_ids = [routine.get("member_id")] if routine.get("member_id") else []
+        member_ids = []
+        for member_id in raw_member_ids:
+            member_id = str(member_id or "")[:80]
+            if member_id and member_id not in member_ids:
+                member_ids.append(member_id)
         routines.append({
             "id": _clean_id(routine.get("id"), f"routine_{idx+1}"),
             "title": title[:80],
-            "member_id": str(routine.get("member_id") or "")[:80],
+            "member_id": member_ids[0] if member_ids else "",
+            "member_ids": member_ids[:16],
             "icon": str(routine.get("icon") or "mdi:progress-check")[:80],
             "days": [int(x) for x in (routine.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
             "time": str(routine.get("time") or "07:00")[:5],
+            "duration_minutes": max(5, min(240, int(routine.get("duration_minutes") or 30))),
+            "show_in_calendar": bool(routine.get("show_in_calendar", True)),
+            "show_in_tasks": bool(routine.get("show_in_tasks", True)),
+            "enabled": bool(routine.get("enabled", True)),
             "todo_entity": str(routine.get("todo_entity") or "")[:160],
             "steps": steps[:20],
         })
@@ -669,21 +685,9 @@ def provision_family_features(settings):
                 warnings.append(f"Lijst {item.get('title')}: {exc}")
     settings["lists"] = lists
 
-    member_names = {m.get("id"): m.get("name") for m in settings.get("members", [])}
-    for routine in settings.get("routines", []):
-        if not routine.get("todo_entity"):
-            try:
-                who = member_names.get(routine.get("member_id")) or "Gezin"
-                routine["todo_entity"] = ensure_named_todo(
-                    f"Family Hub Routine {who} - {routine['title']}"
-                )
-                provisioned.append({
-                    "type": "routine",
-                    "title": routine["title"],
-                    "entity_id": routine["todo_entity"],
-                })
-            except Exception as exc:
-                warnings.append(f"Routine {routine.get('title')}: {exc}")
+    # Routines use each member's own calendar and task list from 0.8 onward.
+    # Keep legacy routine.todo_entity values readable for older installations, but do not
+    # create new dedicated routine lists.
 
     return normalize_settings(settings), provisioned, warnings
 
@@ -756,6 +760,226 @@ def add_todo_item(entity_id, title, description="", due_date=None, due_time=None
     ha_service("todo", "add_item", data, entity_id)
 
 
+def _fh_meta(item):
+    description = str((item or {}).get("description") or "")
+    if not description.startswith("FH_META:"):
+        return {}
+    try:
+        value = json.loads(description[8:])
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+def remove_generated_todo_items(entity_id, kind, routine_id=None, member_id=None, date=None):
+    try:
+        items = get_todo_items(entity_id, ["needs_action", "completed"])
+    except Exception:
+        return
+    for item in items:
+        meta = _fh_meta(item)
+        if meta.get("kind") != kind:
+            continue
+        if routine_id and meta.get("routine_id") != routine_id:
+            continue
+        if member_id and meta.get("member_id") != member_id:
+            continue
+        if date and meta.get("date") != date:
+            continue
+        key = item.get("uid") or item.get("summary")
+        if key:
+            try:
+                ha_service("todo", "remove_item", {"item": key}, entity_id)
+            except Exception:
+                pass
+
+
+def add_calendar_event(entity_id, summary, date, start_time, duration_minutes=30, description=""):
+    if not entity_id or not summary or not date or not start_time:
+        return
+    try:
+        start = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return
+    end = start + timedelta(minutes=max(5, int(duration_minutes or 30)))
+    data = {
+        "summary": summary,
+        "start_date_time": start.strftime("%Y-%m-%d %H:%M:%S"),
+        "end_date_time": end.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    if description:
+        data["description"] = description
+    ha_service("calendar", "create_event", data, entity_id)
+
+
+def _routine_fingerprint(routine):
+    payload = {
+        "title": routine.get("title"),
+        "member_ids": routine.get("member_ids"),
+        "days": routine.get("days"),
+        "time": routine.get("time"),
+        "duration_minutes": routine.get("duration_minutes"),
+        "show_in_calendar": routine.get("show_in_calendar"),
+        "show_in_tasks": routine.get("show_in_tasks"),
+        "steps": routine.get("steps"),
+    }
+    return hashlib.sha1(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:10]
+
+
+def build_suggestions(settings):
+    suggestions = []
+    members = {m.get("id"): m for m in settings.get("members", [])}
+    routines = settings.get("routines", [])
+    smart_tasks = settings.get("smart_tasks", [])
+
+    assigned = set()
+    for routine in routines:
+        for member_id in routine.get("member_ids") or ([routine.get("member_id")] if routine.get("member_id") else []):
+            assigned.add(member_id)
+
+    for member in members.values():
+        if member.get("role") == "child" and member.get("id") not in assigned:
+            suggestions.append({
+                "id": f"morning:{member['id']}",
+                "type": "routine_template",
+                "title": f"Ochtendroutine voor {member['name']}",
+                "reason": "Er staat nog geen routine voor dit kind. Een korte ochtendroutine geeft houvast en kan later eenvoudig worden aangepast.",
+                "action_label": "Ochtendroutine maken",
+                "payload": {
+                    "title": "Opstaan en naar school",
+                    "member_ids": [member["id"]],
+                    "icon": "mdi:weather-sunset-up",
+                    "days": [0,1,2,3,4],
+                    "time": "07:00",
+                    "duration_minutes": 45,
+                    "show_in_calendar": True,
+                    "show_in_tasks": True,
+                    "steps": [
+                        {"title":"Aankleden","icon":"mdi:tshirt-crew","points":1},
+                        {"title":"Ontbijten","icon":"mdi:food","points":1},
+                        {"title":"Tandenpoetsen","icon":"mdi:toothbrush","points":1},
+                        {"title":"Tas pakken","icon":"mdi:bag-personal","points":1},
+                    ],
+                },
+            })
+
+    groups = defaultdict(list)
+    for task in smart_tasks:
+        if not task.get("enabled", True) or not task.get("member_id"):
+            continue
+        due = str(task.get("due_time") or "")
+        try:
+            hour = int(due[:2]) if due else 12
+        except ValueError:
+            hour = 12
+        period = "ochtend" if hour < 10 else ("avond" if hour >= 17 else "dag")
+        groups[(task.get("member_id"), period)].append(task)
+    for (member_id, period), tasks in groups.items():
+        if len(tasks) < 3:
+            continue
+        existing_titles = {
+            str(step.get("title") or "").lower()
+            for routine in routines
+            if member_id in (routine.get("member_ids") or [routine.get("member_id")])
+            for step in routine.get("steps", [])
+        }
+        candidates = [t for t in tasks if str(t.get("title") or "").lower() not in existing_titles]
+        if len(candidates) < 3:
+            continue
+        member = members.get(member_id) or {}
+        label = "Ochtendroutine" if period == "ochtend" else ("Avondroutine" if period == "avond" else "Dagelijkse routine")
+        suggestions.append({
+            "id": f"bundle:{member_id}:{period}",
+            "type": "bundle_tasks",
+            "title": f"Bundel {len(candidates)} taken voor {member.get('name','gezinslid')}",
+            "reason": f"Deze taken horen allemaal bij dezelfde {period}. Als routine staan ze overzichtelijk in één stappenplan.",
+            "action_label": "Als routine bundelen",
+            "payload": {
+                "title": label,
+                "member_ids": [member_id],
+                "icon": "mdi:progress-check",
+                "days": sorted(set(x for t in candidates for x in (t.get("days") or []))),
+                "time": min([t.get("due_time") for t in candidates if t.get("due_time")] or ["07:00"]),
+                "duration_minutes": 45,
+                "show_in_calendar": True,
+                "show_in_tasks": True,
+                "steps": [{"title":t.get("title"),"icon":t.get("icon") or "mdi:check-circle-outline","points":t.get("points",0)} for t in candidates],
+                "source_task_ids": [t.get("id") for t in candidates],
+            },
+        })
+
+    for member in members.values():
+        todo = member.get("todo")
+        if not todo:
+            continue
+        try:
+            items = get_todo_items(todo, ["needs_action", "completed"])
+        except Exception:
+            continue
+        repeats = defaultdict(list)
+        for item in items:
+            meta = _fh_meta(item)
+            if meta.get("kind") != "manual_task" or meta.get("member_id") != member.get("id"):
+                continue
+            summary = str(item.get("summary") or "").strip()
+            date = str(meta.get("date") or "")
+            if summary and date:
+                repeats[summary.lower()].append((summary, date))
+        existing = {str(t.get("title") or "").lower() for t in smart_tasks if t.get("member_id") == member.get("id")}
+        for key, occurrences in repeats.items():
+            dates = sorted(set(date for _, date in occurrences))
+            if len(dates) < 3 or key in existing:
+                continue
+            weekdays = sorted(set(datetime.strptime(d, "%Y-%m-%d").weekday() for d in dates if re.match(r"^\d{4}-\d{2}-\d{2}$", d)))
+            title = occurrences[0][0]
+            suggestions.append({
+                "id": f"repeat:{member['id']}:{hashlib.sha1(key.encode()).hexdigest()[:8]}",
+                "type": "repeated_task",
+                "title": f"Maak ‘{title}’ automatisch",
+                "reason": f"Je hebt deze taak al op {len(dates)} verschillende dagen voor {member['name']} toegevoegd.",
+                "action_label": "Terugkerende taak maken",
+                "payload": {
+                    "title": title,
+                    "member_id": member["id"],
+                    "icon": "mdi:checkbox-marked-circle-outline",
+                    "points": 0,
+                    "days": weekdays or [0,1,2,3,4,5,6],
+                    "due_time": "",
+                    "enabled": True,
+                },
+            })
+
+    return suggestions[:12]
+
+
+def apply_suggestion(settings, suggestion_id):
+    suggestions = build_suggestions(settings)
+    suggestion = next((x for x in suggestions if x.get("id") == suggestion_id), None)
+    if not suggestion:
+        raise RuntimeError("Deze aanbeveling is niet meer beschikbaar.")
+    payload = dict(suggestion.get("payload") or {})
+    kind = suggestion.get("type")
+    if kind in {"routine_template", "bundle_tasks"}:
+        payload.pop("source_task_ids", None)
+        payload["id"] = _clean_id(f"routine_{int(time.time())}", "routine")
+        payload["steps"] = [
+            {"id": _clean_id(f"step_{idx+1}_{int(time.time())}", f"step_{idx+1}"), **step}
+            for idx, step in enumerate(payload.get("steps") or [])
+        ]
+        settings.setdefault("routines", []).append(payload)
+        if kind == "bundle_tasks":
+            source_ids = set((suggestion.get("payload") or {}).get("source_task_ids") or [])
+            for task in settings.get("smart_tasks", []):
+                if task.get("id") in source_ids:
+                    task["enabled"] = False
+    elif kind == "repeated_task":
+        payload["id"] = _clean_id(f"task_{int(time.time())}", "task")
+        settings.setdefault("smart_tasks", []).append(payload)
+    else:
+        raise RuntimeError("Onbekend aanbevelingstype.")
+    return normalize_settings(settings)
+
+
 def sync_generated_content():
     settings = load_settings()
     runtime = load_runtime()
@@ -766,37 +990,68 @@ def sync_generated_content():
     members = {m.get("id"): m for m in settings.get("members", [])}
 
     for routine in settings.get("routines", []):
-        entity = routine.get("todo_entity")
-        if not entity or weekday not in (routine.get("days") or []):
+        if not routine.get("enabled", True) or weekday not in (routine.get("days") or []):
             continue
-        key = f"routine:{routine.get('id')}:{today}"
-        if runtime.get(key):
-            continue
-        try:
-            clear_todo(entity)
-            member = members.get(routine.get("member_id")) or {}
-            points_entity = member.get("points_entity") or ""
-            for step in routine.get("steps", []):
-                meta = {
-                    "kind": "routine_step",
-                    "routine_id": routine.get("id"),
-                    "step_id": step.get("id"),
-                    "member_id": routine.get("member_id"),
-                    "points": step.get("points", 0),
-                    "points_entity": points_entity,
-                    "date": today,
-                }
-                add_todo_item(
-                    entity,
-                    step.get("title") or "Stap",
-                    "FH_META:" + json.dumps(meta, separators=(",", ":")),
-                    today,
-                    None,
+        member_ids = routine.get("member_ids") or ([routine.get("member_id")] if routine.get("member_id") else [])
+        fingerprint = _routine_fingerprint(routine)
+        for member_id in member_ids:
+            member = members.get(member_id) or {}
+            if not member:
+                continue
+            key = f"routine:{routine.get('id')}:{member_id}:{today}:{fingerprint}"
+            if runtime.get(key):
+                continue
+            try:
+                if routine.get("show_in_tasks", True) and member.get("todo"):
+                    remove_generated_todo_items(
+                        member["todo"],
+                        "routine_step",
+                        routine_id=routine.get("id"),
+                        member_id=member_id,
+                        date=today,
+                    )
+                    for step in routine.get("steps", []):
+                        meta = {
+                            "kind": "routine_step",
+                            "routine_id": routine.get("id"),
+                            "routine_title": routine.get("title"),
+                            "step_id": step.get("id"),
+                            "member_id": member_id,
+                            "points": step.get("points", 0),
+                            "points_entity": member.get("points_entity") or "",
+                            "date": today,
+                        }
+                        add_todo_item(
+                            member["todo"],
+                            step.get("title") or "Stap",
+                            "FH_META:" + json.dumps(meta, separators=(",", ":")),
+                            today,
+                            routine.get("time") or None,
+                        )
+                calendar_key = f"routine-calendar:{routine.get('id')}:{member_id}:{today}"
+                if routine.get("show_in_calendar", True) and member.get("calendar") and not runtime.get(calendar_key):
+                    meta = {
+                        "kind": "routine",
+                        "routine_id": routine.get("id"),
+                        "member_id": member_id,
+                        "date": today,
+                    }
+                    add_calendar_event(
+                        member["calendar"],
+                        routine.get("title") or "Routine",
+                        today,
+                        routine.get("time") or "07:00",
+                        routine.get("duration_minutes") or 30,
+                        "FH_META:" + json.dumps(meta, separators=(",", ":")),
+                    )
+                    runtime[calendar_key] = int(time.time())
+                runtime[key] = int(time.time())
+                changed = True
+            except Exception as exc:
+                print(
+                    f"[Family Hub] Routine sync failed for {routine.get('title')} / {member.get('name')}: {exc}",
+                    flush=True,
                 )
-            runtime[key] = int(time.time())
-            changed = True
-        except Exception as exc:
-            print(f"[Family Hub] Routine sync failed for {routine.get('title')}: {exc}", flush=True)
 
     for task in settings.get("smart_tasks", []):
         if not task.get("enabled", True) or weekday not in (task.get("days") or []):
@@ -1275,6 +1530,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, {"ok": True, "settings": load_settings()})
         if path == "/api/entities":
             return self._json(HTTPStatus.OK, {"ok": True, "entities": grouped_entities()})
+        if path == "/api/suggestions":
+            return self._json(HTTPStatus.OK, {"ok": True, "suggestions": build_suggestions(load_settings())})
         if path == "/api/status":
             return self._json(HTTPStatus.OK, {
                 "ok": True,
@@ -1414,6 +1671,29 @@ class Handler(BaseHTTPRequestHandler):
                         "settings": updated,
                         "provisioned": provisioned,
                         "warnings": warnings,
+                    },
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+
+        if path == "/api/suggestions/apply":
+            try:
+                suggestion_id = str(payload.get("id") or "")
+                if not suggestion_id:
+                    raise ValueError("Aanbeveling ontbreekt")
+                current = load_settings()
+                updated = apply_suggestion(current, suggestion_id)
+                updated, provisioned, warnings = provision_family_features(updated)
+                updated = save_settings(updated)
+                sync_generated_content()
+                return self._json(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        "settings": updated,
+                        "provisioned": provisioned,
+                        "warnings": warnings,
+                        "suggestions": build_suggestions(updated),
                     },
                 )
             except Exception as exc:
