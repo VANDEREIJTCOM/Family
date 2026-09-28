@@ -1,4 +1,7 @@
 const $=id=>document.getElementById(id);
+const FH_ADMIN_VERSION="0.7.1";
+let versionWatchTimer=null;
+let updateReloading=false;
 
 const CLIENT_DEFAULTS={
   version:2,title:"Familie",subtitle:"",weather:"",shopping_list:"",meals_todo:"",
@@ -126,6 +129,34 @@ function click(id,handler){
   return true;
 }
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),2800)}
+function showUpdateOverlay(version){
+  if(document.getElementById("fh-update-overlay"))return;
+  const el=document.createElement("div");
+  el.id="fh-update-overlay";
+  el.className="update-overlay";
+  el.innerHTML=`<div class="update-card"><div class="update-spinner"></div><strong>Family Hub is bijgewerkt</strong><span>Versie ${esc(version)} wordt geladen…</span></div>`;
+  document.body.appendChild(el);
+}
+async function checkForFrontendUpdate(){
+  if(updateReloading)return;
+  try{
+    const d=await api("api/status");
+    const backend=String(d.version||"");
+    if(backend&&backend!==FH_ADMIN_VERSION){
+      updateReloading=true;
+      clearInterval(versionWatchTimer);
+      showUpdateOverlay(backend);
+      setTimeout(()=>window.location.reload(),1400);
+    }
+  }catch(e){
+    // Tijdens een App-update is de backend kort niet bereikbaar. De volgende controle probeert opnieuw.
+  }
+}
+function startVersionWatch(){
+  clearInterval(versionWatchTimer);
+  versionWatchTimer=setInterval(checkForFrontendUpdate,15000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkForFrontendUpdate()});
+}
 function markDirty(){dirty=true;const el=$("save-state");if(el)el.textContent=settingsLoaded?"Niet opgeslagen":"Nog aan het laden…"}
 function uid(prefix){return prefix+"_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7)}
 function options(domain,selected){const a=entities[domain]||[];return '<option value="">— Automatisch regelen —</option>'+a.map(e=>`<option value="${esc(e.entity_id)}" ${e.entity_id===selected?"selected":""}>${esc(e.name)}</option>`).join("")}
@@ -339,8 +370,9 @@ function bind(){
  window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue=""}})
 }
 (async()=>{
-  console.info("[Family Hub] beheerinterface 0.7.0 start");
+  console.info("[Family Hub] beheerinterface 0.7.1 start");
   try{bind()}catch(e){console.error("[Family Hub] bind-fout",e)}
+  startVersionWatch();
   const saveButton=$("save");
   const addMember=$("add-member");
   try{
