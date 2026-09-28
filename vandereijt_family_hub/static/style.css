@@ -21,7 +21,7 @@
 .checklist-row{display:grid;grid-template-columns:30px 1fr 30px 30px 30px;gap:7px;align-items:center}
 .checklist-row input{margin:0}
 .icon-picker{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px}
-.icon-picker-current{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--dark)}
+.icon-picker-current{display:flex;align-items:center;gap:8px;color:var(--dark);cursor:pointer;list-style:none}.icon-picker-current::-webkit-details-marker{display:none}.icon-picker[open] .icon-picker-current{margin-bottom:8px}.icon-picker-current em{margin-left:auto;font-style:normal;font-size:9px;color:var(--blue);font-weight:900}
 .icon-picker-current span{width:30px;height:30px;border-radius:9px;background:#F1F5F9;display:grid;place-items:center;font-size:18px}
 .icon-picker-current strong{font-size:11px}
 .icon-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;max-height:210px;overflow:auto;padding-right:2px}
