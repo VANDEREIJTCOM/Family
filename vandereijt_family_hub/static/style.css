@@ -42,3 +42,11 @@
 .setup-tip strong{display:block;color:#3f3700;margin-bottom:2px}
 @media(max-width:1100px){.icon-grid,.icon-picker.compact .icon-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:700px){.icon-grid,.icon-picker.compact .icon-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.step-editor{grid-template-columns:30px 1fr}.step-actions{grid-column:2;flex-direction:row}.step-meta{grid-template-columns:1fr}.checklist-row{grid-template-columns:30px 1fr 30px 30px 30px}}
+
+/* Family Hub 0.7.1 — seamless update handoff */
+.update-overlay{position:fixed;inset:0;z-index:9999;background:rgba(10,22,40,.78);backdrop-filter:blur(8px);display:grid;place-items:center}
+.update-card{min-width:290px;max-width:420px;background:#fff;border-radius:20px;padding:28px;text-align:center;box-shadow:0 24px 70px #0005}
+.update-card strong{display:block;font-size:18px;color:var(--dark);margin-top:12px}
+.update-card span{display:block;font-size:11px;color:var(--muted);margin-top:6px}
+.update-spinner{width:38px;height:38px;border:4px solid #DCE7F0;border-top-color:var(--blue);border-radius:50%;margin:auto;animation:fh-admin-spin .8s linear infinite}
+@keyframes fh-admin-spin{to{transform:rotate(360deg)}}
