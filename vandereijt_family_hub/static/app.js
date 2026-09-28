@@ -246,12 +246,32 @@ function fill(){
 }
 function readDays(card,prefix){return [...card.querySelectorAll(`[data-day-group^="${prefix}"]`)].filter(x=>x.checked).map(x=>Number(x.dataset.day))}
 function collectDynamic(){
- settings.members=[...document.querySelectorAll("[data-member]")].map((card,i)=>{const old=settings.members[i]||{},get=k=>card.querySelector(`[data-member-key="${k}"]`);let color=(get("colorText")?.value||get("color")?.value||palette[i%palette.length]).trim();if(!/^#[0-9a-f]{6}$/i.test(color))color=get("color")?.value||palette[i%palette.length];return {...old,id:old.id||uid("member"),name:(get("name")?.value||"").trim(),role:get("role")?.value||"adult",color,icon:(get("icon")?.value||"mdi:account").trim(),person:get("person")?.value||"",calendar:get("calendar")?.value||"",todo:get("todo")?.value||"",points_entity:old.points_entity||""}});const nameless=settings.members.findIndex(m=>!m.name);if(nameless>=0)throw new Error(`Vul een naam in voor gezinslid ${nameless+1}`);
- settings.routines=[...document.querySelectorAll("[data-routine]")].map((card,i)=>{const old=settings.routines[i]||{},get=k=>card.querySelector(`[data-routine-key="${k}"]`);const steps=(get("steps")?.value||"").split(/\n+/).map((line,idx)=>{const [title,icon,points]=line.split("|").map(x=>x.trim());return title?{id:old.steps?.[idx]?.id||uid("step"),title,icon:icon||"mdi:check-circle-outline",points:Number(points||0)}:null}).filter(Boolean);return {...old,id:old.id||uid("routine"),title:(get("title")?.value||"").trim(),member_id:get("member_id")?.value||"",time:get("time")?.value||"07:00",days:readDays(card,"routine-"),steps}}).filter(x=>x.title);
+ settings.members=[...document.querySelectorAll("[data-member]")].map((card,i)=>{
+  const old=settings.members[i]||{},get=k=>card.querySelector(`[data-member-key="${k}"]`);
+  let color=(get("colorText")?.value||get("color")?.value||palette[i%palette.length]).trim();
+  if(!/^#[0-9a-f]{6}$/i.test(color))color=get("color")?.value||palette[i%palette.length];
+  return {...old,id:old.id||uid("member"),name:(get("name")?.value||"").trim(),role:get("role")?.value||"adult",color,icon:(get("icon")?.value||"mdi:account").trim(),person:get("person")?.value||"",calendar:get("calendar")?.value||"",todo:get("todo")?.value||"",points_entity:old.points_entity||""};
+ });
+ const nameless=settings.members.findIndex(m=>!m.name);if(nameless>=0)throw new Error(`Vul een naam in voor gezinslid ${nameless+1}`);
+
+ settings.routines=[...document.querySelectorAll("[data-routine]")].map((card,i)=>{
+  const old=settings.routines[i]||{},get=k=>card.querySelector(`[data-routine-key="${k}"]`);
+  const steps=[...card.querySelectorAll("[data-routine-step]")].map((row,idx)=>{
+    const field=k=>row.querySelector(`[data-step-key="${k}"]`),title=(field("title")?.value||"").trim();
+    if(!title)return null;
+    return {id:row.dataset.stepId||old.steps?.[idx]?.id||uid("step"),title,icon:(field("icon")?.value||"mdi:check-circle-outline").trim(),points:Number(field("points")?.value||0)};
+  }).filter(Boolean);
+  return {...old,id:old.id||uid("routine"),title:(get("title")?.value||"").trim(),member_id:get("member_id")?.value||"",icon:(get("icon")?.value||old.icon||"mdi:progress-check").trim(),time:get("time")?.value||"07:00",days:readDays(card,"routine-"),todo_entity:get("todo_entity")?.value||old.todo_entity||"",steps};
+ }).filter(x=>x.title);
+
  settings.smart_tasks=[...document.querySelectorAll("[data-smart-task]")].map((card,i)=>{const old=settings.smart_tasks[i]||{},get=k=>card.querySelector(`[data-task-key="${k}"]`);return {...old,id:old.id||uid("task"),title:(get("title")?.value||"").trim(),member_id:get("member_id")?.value||"",points:Number(get("points")?.value||0),due_time:get("due_time")?.value||"",icon:(get("icon")?.value||"mdi:checkbox-marked-circle-outline").trim(),days:readDays(card,"task-"),enabled:!!get("enabled")?.checked}}).filter(x=>x.title);
  settings.lists=[...document.querySelectorAll("[data-list]")].map((card,i)=>{const old=settings.lists[i]||{},get=k=>card.querySelector(`[data-list-key="${k}"]`);return {...old,id:old.id||uid("list"),title:(get("title")?.value||"").trim(),color:get("color")?.value||"#2E6CA5",icon:(get("icon")?.value||"mdi:format-list-checks").trim(),todo_entity:get("todo_entity")?.value||""}}).filter(x=>x.title);
  settings.rewards=[...document.querySelectorAll("[data-reward]")].map((card,i)=>{const old=settings.rewards[i]||{},get=k=>card.querySelector(`[data-reward-key="${k}"]`);return {...old,id:old.id||uid("reward"),title:(get("title")?.value||"").trim(),cost:Number(get("cost")?.value||1),member_id:get("member_id")?.value||"",icon:(get("icon")?.value||"mdi:gift").trim()}}).filter(x=>x.title);
- settings.departure_rules=[...document.querySelectorAll("[data-departure]")].map((card,i)=>{const old=settings.departure_rules[i]||{},get=k=>card.querySelector(`[data-departure-key="${k}"]`);return {...old,id:old.id||uid("departure"),match:(get("match")?.value||"").trim(),lead_minutes:Number(get("lead_minutes")?.value||45),icon:(get("icon")?.value||"mdi:bag-personal").trim(),checklist:(get("checklist")?.value||"").split(/\n+/).map(x=>x.trim()).filter(Boolean)}}).filter(x=>x.match);
+ settings.departure_rules=[...document.querySelectorAll("[data-departure]")].map((card,i)=>{
+  const old=settings.departure_rules[i]||{},get=k=>card.querySelector(`[data-departure-key="${k}"]`);
+  const checklist=[...card.querySelectorAll("[data-checklist-text]")].map(x=>x.value.trim()).filter(Boolean);
+  return {...old,id:old.id||uid("departure"),match:(get("match")?.value||"").trim(),lead_minutes:Number(get("lead_minutes")?.value||45),icon:(get("icon")?.value||"mdi:bag-personal").trim(),checklist};
+ }).filter(x=>x.match);
 }
 function collect(){collectDynamic();settings.title=$("title").value.trim()||"Familie";settings.subtitle=$("subtitle").value.trim();settings.refresh_interval=Number($("refresh_interval").value||120);settings.show_household_status=$("show_household_status").checked;settings.idle_minutes=Number($("idle_minutes").value||0);settings.idle_show_clock=$("idle_show_clock").checked;settings.photos=$("photos").value.split(/\n+/).map(x=>x.trim()).filter(Boolean);settings.shopping_list=$("shopping_list").value;settings.meals_todo=$("meals_todo").value;settings.accent_color=$("accent_color_text").value||$("accent_color").value;settings.background_overlay=Number($("background_overlay").value||82);settings.home_entities=selectedValues("home_entities");settings.notification_entities=selectedValues("notification_entities");return settings}
 async function loadEntities(){try{const d=await api("api/entities");entities=d.entities;$("connection").textContent="Verbonden met Home Assistant";if(settings)fill()}catch(e){$("connection").textContent="Entiteiten konden niet worden geladen";toast(e.message)}}
@@ -271,7 +291,45 @@ function bind(){
  click("add-list",()=>{settings=ensureSettingsShape(settings);settings.lists.push({id:uid("list"),title:"",icon:"mdi:format-list-checks",color:palette[settings.lists.length%palette.length],todo_entity:""});renderLists();markDirty()});
  click("add-reward",()=>{settings=ensureSettingsShape(settings);settings.rewards.push({id:uid("reward"),title:"",cost:50,icon:"mdi:gift",member_id:""});renderRewards();markDirty()});
  click("add-departure",()=>{settings=ensureSettingsShape(settings);settings.departure_rules.push({id:uid("departure"),match:"",lead_minutes:45,icon:"mdi:bag-personal",checklist:[]});renderDepartures();markDirty()});
- document.body.addEventListener("click",e=>{let b=e.target.closest("[data-remove-member]");if(b){settings.members.splice(Number(b.dataset.removeMember),1);renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();return}b=e.target.closest("[data-remove-routine]");if(b){settings.routines.splice(Number(b.dataset.removeRoutine),1);renderRoutines();markDirty();return}b=e.target.closest("[data-remove-smart-task]");if(b){settings.smart_tasks.splice(Number(b.dataset.removeSmartTask),1);renderSmartTasks();markDirty();return}b=e.target.closest("[data-remove-list]");if(b&&!b.disabled){settings.lists.splice(Number(b.dataset.removeList),1);renderLists();markDirty();return}b=e.target.closest("[data-remove-reward]");if(b){settings.rewards.splice(Number(b.dataset.removeReward),1);renderRewards();markDirty();return}b=e.target.closest("[data-remove-departure]");if(b){settings.departure_rules.splice(Number(b.dataset.removeDeparture),1);renderDepartures();markDirty();return}b=e.target.closest("[data-nav-up]");if(b){move(settings.navigation,Number(b.dataset.navUp),Number(b.dataset.navUp)-1);renderNavigation();markDirty();return}b=e.target.closest("[data-nav-down]");if(b){move(settings.navigation,Number(b.dataset.navDown),Number(b.dataset.navDown)+1);renderNavigation();markDirty();return}b=e.target.closest("[data-section-up]");if(b){const id=b.dataset.sectionUp,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i-1);renderHomeSections();markDirty();return}b=e.target.closest("[data-section-down]");if(b){const id=b.dataset.sectionDown,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i+1);renderHomeSections();markDirty();return}});
+ document.body.addEventListener("click",e=>{
+  let b=e.target.closest("[data-icon-value]");
+  if(b){
+    const picker=b.closest("[data-icon-picker]"),hidden=picker?.querySelector('input[type="hidden"]');
+    if(hidden)hidden.value=b.dataset.iconValue;
+    picker?.querySelectorAll("[data-icon-value]").forEach(x=>x.classList.toggle("selected",x===b));
+    const info=iconInfo(b.dataset.iconValue),current=picker?.querySelector(".icon-picker-current");
+    if(current)current.innerHTML=`<span>${info[1]}</span><strong>${esc(info[2])}</strong>`;
+    markDirty();return;
+  }
+  b=e.target.closest("[data-add-step]");
+  if(b){
+    const card=b.closest("[data-routine]"),list=card?.querySelector(".steps-editor");
+    if(list){
+      const empty=list.querySelector(".builder-empty");if(empty)empty.remove();
+      list.insertAdjacentHTML("beforeend",stepEditorHtml({},list.querySelectorAll("[data-routine-step]").length));
+      markDirty();
+    }
+    return;
+  }
+  b=e.target.closest("[data-remove-step]");
+  if(b){const row=b.closest("[data-routine-step]"),list=row?.parentElement;row?.remove();if(list){renumberRows(list,"[data-routine-step]");if(!list.children.length)list.innerHTML='<div class="builder-empty">Nog geen stappen.</div>'}markDirty();return}
+  b=e.target.closest("[data-step-up]");
+  if(b){const row=b.closest("[data-routine-step]"),prev=row?.previousElementSibling;if(row&&prev&&prev.matches("[data-routine-step]")){row.parentElement.insertBefore(row,prev);renumberRows(row.parentElement,"[data-routine-step]");markDirty()}return}
+  b=e.target.closest("[data-step-down]");
+  if(b){const row=b.closest("[data-routine-step]"),next=row?.nextElementSibling;if(row&&next&&next.matches("[data-routine-step]")){row.parentElement.insertBefore(next,row);renumberRows(row.parentElement,"[data-routine-step]");markDirty()}return}
+  b=e.target.closest("[data-add-check]");
+  if(b){
+    const card=b.closest("[data-departure]"),list=card?.querySelector(".checklist-editor");
+    if(list){const empty=list.querySelector(".builder-empty");if(empty)empty.remove();list.insertAdjacentHTML("beforeend",checklistRowHtml("",list.querySelectorAll("[data-checklist-row]").length));markDirty()}
+    return;
+  }
+  b=e.target.closest("[data-remove-check]");
+  if(b){const row=b.closest("[data-checklist-row]"),list=row?.parentElement;row?.remove();if(list){renumberRows(list,"[data-checklist-row]");if(!list.children.length)list.innerHTML='<div class="builder-empty">Nog geen checklistregels.</div>'}markDirty();return}
+  b=e.target.closest("[data-check-up]");
+  if(b){const row=b.closest("[data-checklist-row]"),prev=row?.previousElementSibling;if(row&&prev&&prev.matches("[data-checklist-row]")){row.parentElement.insertBefore(row,prev);renumberRows(row.parentElement,"[data-checklist-row]");markDirty()}return}
+  b=e.target.closest("[data-check-down]");
+  if(b){const row=b.closest("[data-checklist-row]"),next=row?.nextElementSibling;if(row&&next&&next.matches("[data-checklist-row]")){row.parentElement.insertBefore(next,row);renumberRows(row.parentElement,"[data-checklist-row]");markDirty()}return}
+  b=e.target.closest("[data-remove-member]");if(b){settings.members.splice(Number(b.dataset.removeMember),1);renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();return}b=e.target.closest("[data-remove-routine]");if(b){settings.routines.splice(Number(b.dataset.removeRoutine),1);renderRoutines();markDirty();return}b=e.target.closest("[data-remove-smart-task]");if(b){settings.smart_tasks.splice(Number(b.dataset.removeSmartTask),1);renderSmartTasks();markDirty();return}b=e.target.closest("[data-remove-list]");if(b&&!b.disabled){settings.lists.splice(Number(b.dataset.removeList),1);renderLists();markDirty();return}b=e.target.closest("[data-remove-reward]");if(b){settings.rewards.splice(Number(b.dataset.removeReward),1);renderRewards();markDirty();return}b=e.target.closest("[data-remove-departure]");if(b){settings.departure_rules.splice(Number(b.dataset.removeDeparture),1);renderDepartures();markDirty();return}b=e.target.closest("[data-nav-up]");if(b){move(settings.navigation,Number(b.dataset.navUp),Number(b.dataset.navUp)-1);renderNavigation();markDirty();return}b=e.target.closest("[data-nav-down]");if(b){move(settings.navigation,Number(b.dataset.navDown),Number(b.dataset.navDown)+1);renderNavigation();markDirty();return}b=e.target.closest("[data-section-up]");if(b){const id=b.dataset.sectionUp,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i-1);renderHomeSections();markDirty();return}b=e.target.closest("[data-section-down]");if(b){const id=b.dataset.sectionDown,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i+1);renderHomeSections();markDirty();return}});
  document.body.addEventListener("change",e=>{if(e.target.matches("[data-nav-key='enabled']")){const card=e.target.closest("[data-nav]");settings.navigation[Number(card.dataset.nav)].enabled=e.target.checked;markDirty()}if(e.target.matches("[data-section-enable]")){const id=e.target.dataset.sectionEnable;if(e.target.checked&&!settings.home_sections.includes(id))settings.home_sections.push(id);if(!e.target.checked)settings.home_sections=settings.home_sections.filter(x=>x!==id);renderHomeSections();markDirty()}if(e.target.id==="home_entities"||e.target.id==="notification_entities")markDirty();if(e.target.closest(".config-card")||e.target.matches("input,select,textarea"))markDirty()});
  document.body.addEventListener("input",e=>{if(e.target.matches("[data-member-key='name']")){const card=e.target.closest("[data-member]");card.querySelector(".member-title").textContent=e.target.value||"Nieuw gezinslid";card.querySelector(".dot").textContent=(e.target.value||"?").charAt(0).toUpperCase()}if(e.target.matches("[data-member-key='color']")){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='colorText']").value=e.target.value}if(e.target.matches("[data-member-key='colorText']")&&/^#[0-9a-f]{6}$/i.test(e.target.value)){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='color']").value=e.target.value}markDirty()});
  ["title","subtitle","refresh_interval","show_household_status","idle_minutes","idle_show_clock","photos","shopping_list","meals_todo","dashboard_title","dashboard_show_sidebar"].forEach(id=>listen(id,"change",markDirty));
@@ -280,7 +338,7 @@ function bind(){
  window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue=""}})
 }
 (async()=>{
-  console.info("[Family Hub] beheerinterface 0.6.4 start");
+  console.info("[Family Hub] beheerinterface 0.7.0 start");
   try{bind()}catch(e){console.error("[Family Hub] bind-fout",e)}
   const saveButton=$("save");
   const addMember=$("add-member");
