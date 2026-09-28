@@ -32,6 +32,7 @@ jobs:
           test -f vandereijt_family_hub/static/family-hub-admin-0.6.7.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.7.0.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.7.1.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.8.0.js
           test -f vandereijt_family_hub/static/style.css
           test -f vandereijt_family_hub/static/brand-icon.png
           grep -q '^name:' repository.yaml
@@ -50,6 +51,7 @@ jobs:
           node --check vandereijt_family_hub/static/family-hub-admin-0.6.7.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.7.0.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.7.1.js
+          node --check vandereijt_family_hub/static/family-hub-admin-0.8.0.js
           grep -q '"panel": True' vandereijt_family_hub/app.py
           grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
           grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
@@ -73,8 +75,16 @@ jobs:
           grep -q 'lovelace/resources/delete' vandereijt_family_hub/app.py
           grep -q 'customElements.get("family-hub-card")' vandereijt_family_hub/family-hub-card.js
           grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
-          grep -q 'family-hub-admin-0.7.1.js' vandereijt_family_hub/static/index.html
-          grep -q 'beheerinterface 0.7.1 start' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
+          grep -q 'family-hub-admin-0.8.0.js' vandereijt_family_hub/static/index.html
+          grep -q 'beheerinterface 0.8.0 start' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
+          grep -q 'ROUTINE_TEMPLATES' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
+          grep -q 'openRoutineEditor' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
+          grep -q 'loadSuggestions' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
+          grep -q 'member_ids' vandereijt_family_hub/app.py
+          grep -q 'build_suggestions' vandereijt_family_hub/app.py
+          grep -q 'apply_suggestion' vandereijt_family_hub/app.py
+          grep -q 'add_calendar_event' vandereijt_family_hub/app.py
+          grep -q '_routineMemberIds' vandereijt_family_hub/family-hub-card.js
           grep -q 'const FH_ADMIN_VERSION="0.7.1"' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
           grep -q 'checkForFrontendUpdate' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
           grep -q 'startVersionWatch' vandereijt_family_hub/static/family-hub-admin-0.7.1.js
@@ -98,4 +108,4 @@ jobs:
           NODE
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.7.1 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.8.0 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub

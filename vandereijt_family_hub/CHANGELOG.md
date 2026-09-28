@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0 — product-UX en slimme routines
+- Configuratieschermen voor routines, terugkerende taken, lijstjes, beloningen en vertrekhulp zijn compact overzichtsscherm + aparte editor geworden.
+- Routines kunnen aan meerdere gezinsleden tegelijk worden gekoppeld.
+- Routines kunnen worden bewerkt, gekopieerd, gepauzeerd en verwijderd zonder lange configuratiepagina's.
+- Routine-templates toegevoegd voor ochtend, bedtijd, na school en sport.
+- Routine-stappen worden automatisch in de takenlijst van ieder gekozen gezinslid gezet.
+- Routines kunnen automatisch als agenda-afspraak bij ieder gekozen gezinslid verschijnen.
+- Dashboard toont multi-persoonsroutines per persoon met eigen voortgang.
+- Aanbevelingen toegevoegd: ochtendroutine voor kinderen zonder routine, bundelen van meerdere terugkerende taken en automatisch maken van vaak handmatig ingevoerde taken.
+- Aanbevelingen zijn opt-in: de gebruiker kiest altijd zelf of een voorstel wordt toegepast.
+- Zelfde compacte bewerk-/kopieer-/verwijderpatroon toegepast op terugkerende taken, lijstjes, beloningen en vertrekhulp.
+- Technische Home Assistant-details blijven op de achtergrond; de beheer-App werkt primair met gezinsbegrippen.
+
+
 ## 0.7.1 — automatisch vernieuwen na updates
 - Family Hub controleert automatisch of de draaiende App een nieuwere versie heeft dan de geladen beheerinterface.
 - Na een update verschijnt kort **Family Hub is bijgewerkt** en wordt de beheerinterface vanzelf opnieuw geladen.

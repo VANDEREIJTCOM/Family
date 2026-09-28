@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.7.1
+ * v0.8.0
  */
-const FH_VERSION="0.7.1";
+const FH_VERSION="0.8.0";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -23,6 +23,7 @@ class FamilyHubCard extends HTMLElement{
     this._configUrl=null;
     this._events={};
     this._todos={};
+    this._todoAll={};
     this._routineTodos={};
     this._listTodos={};
     this._meals=[];
@@ -198,6 +199,25 @@ class FamilyHubCard extends HTMLElement{
   _member(id){return (this._config.members||[]).find(m=>m.id===id);}
   _memberByName(name){return (this._config.members||[]).find(m=>m.name===name);}
 
+  _routineMemberIds(r){
+    const ids=Array.isArray(r?.member_ids)&&r.member_ids.length?r.member_ids:(r?.member_id?[r.member_id]:[]);
+    return [...new Set(ids.filter(Boolean))];
+  }
+  _routineMembers(r){return this._routineMemberIds(r).map(id=>this._member(id)).filter(Boolean);}
+  _routineItems(r,m){
+    if(!m)return [];
+    const today=this._dateISO(new Date());
+    const fromMember=(this._todoAll[m.id]||[]).filter(item=>{
+      const meta=this._meta(item);
+      return meta?.kind==="routine_step"&&meta?.routine_id===r.id&&meta?.member_id===m.id&&meta?.date===today;
+    });
+    if(fromMember.length)return fromMember;
+    return (this._routineTodos[r.id]||[]).filter(item=>{
+      const meta=this._meta(item);
+      return !meta?.member_id||meta?.member_id===m.id;
+    });
+  }
+
   async _load(){
     if(!this._hass||!this._config||this._busy)return;
     this._busy=true;
@@ -207,7 +227,10 @@ class FamilyHubCard extends HTMLElement{
       const jobs=[];
       for(const m of this._config.members||[]){
         if(m.calendar)jobs.push(this._calendar(m.calendar,start,end).then(v=>this._events[m.id]=v).catch(()=>this._events[m.id]=[]));
-        if(m.todo)jobs.push(this._todo(m.todo,["needs_action"]).then(v=>this._todos[m.id]=v).catch(()=>this._todos[m.id]=[]));
+        if(m.todo){
+          jobs.push(this._todo(m.todo,["needs_action"]).then(v=>this._todos[m.id]=v).catch(()=>this._todos[m.id]=[]));
+          jobs.push(this._todo(m.todo,["needs_action","completed"]).then(v=>this._todoAll[m.id]=v).catch(()=>this._todoAll[m.id]=[]));
+        }
       }
       for(const r of this._config.routines||[]){
         if(r.todo_entity)jobs.push(this._todo(r.todo_entity,["needs_action","completed"]).then(v=>this._routineTodos[r.id]=v).catch(()=>this._routineTodos[r.id]=[]));
@@ -316,22 +339,42 @@ class FamilyHubCard extends HTMLElement{
   _taskSection(){
     let rows="";
     for(const m of this._config.members||[]){
-      const items=(this._todos[m.id]||[]).slice(0,3);
-      rows+=`<div class="person-mini"><div class="person-title">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span></div>${items.length?items.map(it=>this._taskRow(m.todo,it)).join(""):'<div class="empty small">Geen open taken</div>'}</div>`;
+      const items=this._regularTodos(m).slice(0,3),routineGroups=this._routineTodoGroups(m);
+      const routineHint=routineGroups.length?`<div class="routine-hint"><ha-icon icon="mdi:progress-check"></ha-icon><span>${routineGroups.length} routine${routineGroups.length===1?"":"s"} actief</span></div>`:"";
+      rows+=`<div class="person-mini"><div class="person-title">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span></div>${items.length?items.map(it=>this._taskRow(m.todo,it)).join(""):""}${routineHint}${!items.length&&!routineGroups.length?'<div class="empty small">Geen open taken</div>':""}</div>`;
     }
     return this._section("Taken",rows,'<button class="mini" data-add-task>＋</button>');
   }
   _taskRow(entity,item){const meta=this._meta(item),points=Number(meta?.points||0);return `<button class="check-row" data-complete-entity="${this._esc(entity)}" data-complete-id="${this._esc(item.uid||item.summary)}"><span class="box">✓</span><span>${this._esc(item.summary||"Taak")}</span>${points?`<em>+${points} ★</em>`:""}</button>`;}
+  _regularTodos(m){return (this._todos[m.id]||[]).filter(item=>this._meta(item)?.kind!=="routine_step");}
+  _routineTodoGroups(m){
+    const groups=new Map();
+    for(const item of (this._todos[m.id]||[])){
+      const meta=this._meta(item);
+      if(meta?.kind!=="routine_step")continue;
+      const id=meta.routine_id||"routine",title=meta.routine_title||"Routine";
+      if(!groups.has(id))groups.set(id,{id,title,items:[]});
+      groups.get(id).items.push(item);
+    }
+    return [...groups.values()];
+  }
+  _routineTaskGroup(m,group){
+    return `<div class="routine-task-group"><div class="routine-task-head"><ha-icon icon="mdi:progress-check"></ha-icon><strong>${this._esc(group.title)}</strong><span>${group.items.length} open</span></div>${group.items.map(it=>this._taskRow(m.todo,it)).join("")}</div>`;
+  }
   _routineSection(){
     const today=(new Date().getDay()+6)%7;
-    const routines=(this._config.routines||[]).filter(r=>(r.days||[]).includes(today));
-    const html=routines.length?routines.slice(0,5).map(r=>this._routineCard(r,true)).join(""):'<div class="empty">Geen routines vandaag.</div>';
+    const cards=[];
+    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[]).includes(today))){
+      for(const m of this._routineMembers(r))cards.push(this._routineCard(r,true,m));
+    }
+    const html=cards.length?cards.slice(0,6).join(""):'<div class="empty">Geen routines vandaag.</div>';
     return this._section("Routines",html);
   }
-  _routineCard(r,compact=false){
-    const m=this._member(r.member_id),items=this._routineTodos[r.id]||[];
+  _routineCard(r,compact=false,mOverride=null){
+    const m=mOverride||this._routineMembers(r)[0]||null,items=this._routineItems(r,m);
     const total=(r.steps||[]).length||items.length,done=items.filter(x=>x.status==="completed").length,progress=total?Math.round(done/total*100):0;
-    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}"><div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${done}/${total}</span></div><b>${progress}%</b></div><div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.map(it=>it.status==="completed"?`<div class="done-step"><span>✓</span>${this._esc(it.summary)}</div>`:this._taskRow(r.todo_entity,it)).join("")}</div>`}</article>`;
+    const entity=m?.todo||r.todo_entity||"";
+    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}"><div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b></div><div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.length?items.map(it=>it.status==="completed"?`<div class="done-step"><span>✓</span>${this._esc(it.summary)}</div>`:this._taskRow(entity,it)).join(""):'<div class="empty small">De stappen worden automatisch klaargezet.</div>'}</div>`}</article>`;
   }
   _mealSection(){
     const today=this._dateISO(new Date());const item=this._meals.find(x=>String(x.due||"").slice(0,10)===today);
@@ -375,11 +418,15 @@ class FamilyHubCard extends HTMLElement{
   }
 
   _tasksScreen(){
-    return `<div class="screen-heading"><div><small>TAKEN</small><h1>Wat moet er gebeuren?</h1></div><button class="primary-btn" data-add-task>＋ Taak</button></div><div class="member-columns">${(this._config.members||[]).map(m=>`<section class="member-column" style="--member:${m.color}"><div class="member-column-head">${this._avatar(m)}<div><strong>${this._esc(m.name)}</strong><span>${this._points(m)} punten</span></div><button data-add-task-member="${this._esc(m.id)}">＋</button></div>${(this._todos[m.id]||[]).length?(this._todos[m.id]||[]).map(it=>this._taskRow(m.todo,it)).join(""):'<div class="empty">Alles gedaan 🎉</div>'}</section>`).join("")}</div>`;
+    return `<div class="screen-heading"><div><small>TAKEN</small><h1>Wat moet er gebeuren?</h1></div><button class="primary-btn" data-add-task>＋ Taak</button></div><div class="member-columns">${(this._config.members||[]).map(m=>{const normal=this._regularTodos(m),groups=this._routineTodoGroups(m);return `<section class="member-column" style="--member:${m.color}"><div class="member-column-head">${this._avatar(m)}<div><strong>${this._esc(m.name)}</strong><span>${this._points(m)} punten</span></div><button data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan 🎉</div>':""}</section>`}).join("")}</div>`;
   }
 
   _routinesScreen(){
-    const routines=this._config.routines||[];return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${routines.length?routines.map(r=>this._routineCard(r,false)).join(""):'<div class="empty big">Maak routines aan in de Family Hub App.</div>'}</div>`;
+    const cards=[];
+    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false)){
+      for(const m of this._routineMembers(r))cards.push(this._routineCard(r,false,m));
+    }
+    return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${cards.length?cards.join(""):'<div class="empty big">Maak routines aan in de Family Hub App.</div>'}</div>`;
   }
 
   _listsScreen(){
@@ -401,8 +448,8 @@ class FamilyHubCard extends HTMLElement{
 
   _profileScreen(){
     const m=this._member(this._profileId);if(!m){this._screen="profiles";return this._profilesScreen();}
-    const ev=this._eventsForDay(new Date(),m.id),tasks=this._todos[m.id]||[],routines=(this._config.routines||[]).filter(r=>r.member_id===m.id);
-    return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><h2>Vandaag</h2>${ev.length?ev.map(x=>`<div class="agenda-row" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div></div>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><h2>Taken</h2><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${tasks.length?tasks.map(it=>this._taskRow(m.todo,it)).join(""):'<div class="empty">Alles gedaan.</div>'}</section><section class="panel-block"><h2>Routines</h2>${routines.length?routines.map(r=>this._routineCard(r,true)).join(""):'<div class="empty">Geen routines.</div>'}</section></div></div>`;
+    const ev=this._eventsForDay(new Date(),m.id),tasks=this._todos[m.id]||[],routines=(this._config.routines||[]).filter(r=>this._routineMemberIds(r).includes(m.id));
+    return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><h2>Vandaag</h2>${ev.length?ev.map(x=>`<div class="agenda-row" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div></div>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><h2>Taken</h2><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${this._regularTodos(m).map(it=>this._taskRow(m.todo,it)).join("")}${this._routineTodoGroups(m).map(g=>this._routineTaskGroup(m,g)).join("")}${!tasks.length?'<div class="empty">Alles gedaan.</div>':""}</section><section class="panel-block"><h2>Routines</h2>${routines.length?routines.map(r=>this._routineCard(r,true,m)).join(""):'<div class="empty">Geen routines.</div>'}</section></div></div>`;
   }
 
   _houseScreen(){
@@ -428,6 +475,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
 .content{flex:1;min-height:0;overflow:auto;padding:18px 20px 16px;background:rgba(247,249,251,var(--overlay))}.home-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}.panel-block,.screen-card,.member-column,.list-card,.routine-card,.shopping-preview{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:0 3px 18px #0A162808}.panel-block h2{font-size:15px;margin:0;color:var(--dark)}.block-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.mini{border:0;background:#E5EDF6;color:var(--blue2);width:31px;height:31px;border-radius:9px;font-weight:900;cursor:pointer}.empty{font-size:10px;color:var(--muted);padding:9px 2px}.empty.small{padding:4px 0}.empty.big{background:#fff;border:1px dashed var(--line);border-radius:16px;padding:30px;text-align:center;grid-column:1/-1}.empty-action{width:100%;min-height:70px;border:1px dashed var(--line);background:#FAFBFC;border-radius:12px;color:var(--muted);cursor:pointer}
 .agenda-row{display:grid;grid-template-columns:46px 1fr;gap:8px;border-left:4px solid var(--member);background:#F8FAFC;padding:8px;border-radius:9px;margin:6px 0}.agenda-row time{font-size:9px;color:var(--muted);font-weight:900}.agenda-row strong{display:block;font-size:11px}.agenda-row span{display:block;font-size:9px;color:var(--muted);margin-top:2px}.person-mini{border-top:1px solid #edf0f3;padding:9px 0}.person-mini:first-child{border-top:0}.person-title{display:flex;align-items:center;gap:6px;margin-bottom:4px}.person-title strong{font-size:11px}.person-title>span:last-child{margin-left:auto;color:var(--muted);font-size:9px}.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--member);color:#fff;font-weight:900;overflow:hidden;flex:0 0 auto}.avatar img{width:100%;height:100%;object-fit:cover}.avatar.tiny{width:24px;height:24px;font-size:8px}.avatar.small{width:38px;height:38px}.avatar.large{width:74px;height:74px;font-size:24px}.avatar.xlarge{width:92px;height:92px;font-size:30px}
 .check-row,.list-row{width:100%;border:0;background:transparent;display:flex;align-items:center;gap:8px;text-align:left;padding:7px 3px;border-radius:8px;cursor:pointer;color:#111}.check-row:hover,.list-row:hover{background:#EEF3F7}.box{width:21px;height:21px;border:1.5px solid #CBD4DC;border-radius:6px;display:grid;place-items:center;color:#fff;flex:0 0 auto}.check-row:hover .box,.list-row:hover .box{background:var(--blue);border-color:var(--blue)}.check-row span:nth-child(2),.list-row span:nth-child(2){font-size:10px;flex:1}.check-row em{font-style:normal;font-size:9px;color:#B88400;font-weight:900}
+.routine-hint{display:flex;align-items:center;gap:6px;background:#F0F5FA;color:var(--blue2);border-radius:8px;padding:6px 7px;margin-top:4px;font-size:9px;font-weight:900}.routine-hint ha-icon{--mdc-icon-size:15px}.routine-task-group{margin-top:9px;border:1px solid #DDE6EE;border-radius:10px;padding:7px;background:#F8FAFC}.routine-task-head{display:flex;align-items:center;gap:6px;padding:2px 2px 6px;color:var(--blue2)}.routine-task-head ha-icon{--mdc-icon-size:16px}.routine-task-head strong{font-size:10px;flex:1}.routine-task-head span{font-size:8px;color:var(--muted)}
 .routine-card{margin:7px 0;border-left:5px solid var(--member)}.routine-top{display:flex;align-items:center;gap:8px}.routine-top>div:nth-child(2){flex:1}.routine-top strong{display:block;font-size:11px}.routine-top span{display:block;font-size:8px;color:var(--muted);margin-top:2px}.routine-top b{font-size:10px;color:var(--member)}.progress{height:6px;border-radius:6px;background:#EDF1F4;margin-top:9px;overflow:hidden}.progress i{display:block;height:100%;background:var(--member);border-radius:6px}.routine-steps{margin-top:8px}.done-step{display:flex;gap:8px;padding:6px 3px;font-size:10px;color:#83909A;text-decoration:line-through}.done-step span{color:#34A568;font-weight:900}.meal-today{display:flex;align-items:center;gap:11px;background:#FFF9DF;padding:11px;border-radius:12px}.meal-today ha-icon{color:#B88400}.meal-today small,.meal-today strong{display:block}.meal-today small{font-size:8px;color:#8A7A41}.meal-today strong{font-size:12px}.notice{display:flex;gap:9px;align-items:center;padding:8px;background:#FFF3E7;border-radius:10px;margin:6px 0}.notice ha-icon{color:#D47B20}.notice strong,.notice span{display:block}.notice strong{font-size:10px}.notice span{font-size:8px;color:var(--muted)}.house-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.house-tile{background:#F5F7F9;border-radius:10px;padding:8px;display:grid;grid-template-columns:auto 1fr;gap:3px 7px}.house-tile ha-icon{grid-row:1/3;color:var(--blue)}.house-tile span{font-size:8px;color:var(--muted)}.house-tile strong{font-size:10px}.departure{background:#EAF2FB;border-left:5px solid var(--blue);border-radius:12px;padding:11px;margin:6px 0}.departure-head{display:flex;align-items:center;gap:9px}.departure-head small,.departure-head strong{display:block}.departure-head small{font-size:8px;color:var(--muted)}.departure-head strong{font-size:11px}.departure-checks{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.departure-checks button{border:1px solid #C9D8E8;background:#fff;border-radius:9px;padding:6px 8px;font-size:9px;cursor:pointer}.departure-checks button span{display:inline-grid;width:16px;height:16px;border:1px solid #B9C6D3;border-radius:5px;place-items:center;margin-right:5px}.departure-checks button.checked{opacity:.55;text-decoration:line-through}.departure-checks button.checked span{background:var(--blue);color:#fff}
 .screen-heading,.screen-title{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}.screen-heading small,.screen-title small{font-size:9px;letter-spacing:.12em;color:var(--blue);font-weight:900}.screen-heading h1,.screen-title h1{font-size:24px;margin:4px 0 0;color:var(--dark)}.primary-btn{border:0;background:var(--blue);color:#fff;border-radius:11px;padding:10px 13px;font-weight:900;cursor:pointer}.screen-title button{border:0;background:#E9EEF3;border-radius:9px;padding:7px 10px;margin-left:4px;color:var(--dark);font-weight:900}
 .calendar-screen{height:100%;display:flex;flex-direction:column}.week-head,.week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}.week-head{height:58px}.week-head button{border:0;background:transparent;border-radius:11px}.week-head span{display:block;font-size:9px;text-transform:uppercase;color:var(--muted)}.week-head b{display:block;font-size:18px;margin-top:3px}.week-head .today{background:var(--blue);color:#fff}.week-head .today span{color:#fff}.week-grid{flex:1;min-height:0}.day-col{background:#F4F6F8;border:1px solid transparent;border-radius:12px;padding:6px;overflow:auto}.day-col.today{border-color:#2E6CA555}.event{background:#fff;border-left:4px solid var(--member);padding:7px;border-radius:8px;margin-bottom:6px}.event small,.event strong,.event span{display:block}.event small{font-size:8px;color:var(--muted)}.event strong{font-size:10px;margin-top:3px}.event span{font-size:8px;color:var(--muted);margin-top:3px}.day-empty{width:100%;height:100%;min-height:100px;border:0;background:transparent;color:#97A2AD;cursor:pointer}.day-empty span{display:block;font-size:8px;margin-top:4px}
@@ -484,7 +532,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
         if(this._modal.kind==="event")await this._addEvent(q("#fh-who").value,summary,q("#fh-date").value,q("#fh-time").value,q("#fh-all").checked);
         else if(this._modal.kind==="task"){
           const entity=q("#fh-who").value,member=(this._config.members||[]).find(m=>m.todo===entity),points=Number(q("#fh-points").value||0),meta={kind:"manual_task",member_id:member?.id||"",points,points_entity:member?.points_entity||"",date:q("#fh-date").value};
-          await this._addTodo(entity,summary,points?"FH_META:"+JSON.stringify(meta):"",q("#fh-date").value);
+          await this._addTodo(entity,summary,"FH_META:"+JSON.stringify(meta),q("#fh-date").value);
         }else if(this._modal.kind==="list"){
           const l=(this._config.lists||[]).find(x=>x.id===this._modal.listId),entity=l?.todo_entity||(this._modal.listId==="shopping"?this._config.shopping_list:"");await this._addTodo(entity,summary);
         }else if(this._modal.kind==="meal"){
