@@ -62,6 +62,9 @@ jobs:
           grep -q 'Opslaan mislukt' vandereijt_family_hub/static/app.js
           grep -q 'lovelace/resources/delete' vandereijt_family_hub/app.py
           grep -q 'customElements.get("family-hub-card")' vandereijt_family_hub/family-hub-card.js
+          grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
+          grep -q 'app.js?v=0.6.4' vandereijt_family_hub/static/index.html
+          grep -q 'beheerinterface 0.6.4 start' vandereijt_family_hub/static/app.js
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.6.3 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.6.4 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
