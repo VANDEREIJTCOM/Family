@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.5
+- De beheerinterface gebruikt nu een volledig nieuwe assetnaam: `family-hub-admin-0.6.5.js`.
+- Hiermee kan Home Assistant/Chrome geen oude `app.js` meer hergebruiken onder een nieuwe querystring.
+- De robuuste settings-initialisatie en fouttolerante eventbinding uit 0.6.3/0.6.4 blijven behouden.
+- In F12 moet nu expliciet `[Family Hub] beheerinterface 0.6.5 start` verschijnen.
+
+
 ## 0.6.4
 - Beheerinterface-assets worden nu expliciet met `no-store` geserveerd.
 - Nieuwe assetversie voorkomt dat Home Assistant/Chrome een eerdere 0.6.3 `app.js` blijft uitvoeren.
