@@ -27,6 +27,7 @@ jobs:
           test -f vandereijt_family_hub/logo.png
           test -f vandereijt_family_hub/static/index.html
           test -f vandereijt_family_hub/static/app.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.6.5.js
           test -f vandereijt_family_hub/static/style.css
           test -f vandereijt_family_hub/static/brand-icon.png
           grep -q '^name:' repository.yaml
@@ -40,6 +41,7 @@ jobs:
         run: |
           node --check vandereijt_family_hub/family-hub-card.js
           node --check vandereijt_family_hub/static/app.js
+          node --check vandereijt_family_hub/static/family-hub-admin-0.6.5.js
           grep -q '"panel": True' vandereijt_family_hub/app.py
           grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
           grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
@@ -63,8 +65,8 @@ jobs:
           grep -q 'lovelace/resources/delete' vandereijt_family_hub/app.py
           grep -q 'customElements.get("family-hub-card")' vandereijt_family_hub/family-hub-card.js
           grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
-          grep -q 'app.js?v=0.6.4' vandereijt_family_hub/static/index.html
-          grep -q 'beheerinterface 0.6.4 start' vandereijt_family_hub/static/app.js
+          grep -q 'family-hub-admin-0.6.5.js' vandereijt_family_hub/static/index.html
+          grep -q 'beheerinterface 0.6.5 start' vandereijt_family_hub/static/family-hub-admin-0.6.5.js
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.6.4 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.6.5 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
