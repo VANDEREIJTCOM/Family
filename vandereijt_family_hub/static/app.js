@@ -10,7 +10,7 @@ const CLIENT_DEFAULTS={
   home_entities:[],notification_entities:[],photos:[]
 };
 function freshSettings(){return JSON.parse(JSON.stringify(CLIENT_DEFAULTS))}
-function ensureSettingsShape(value=settings){
+function ensureSettingsShape(value){
   const base=freshSettings();
   const src=(value&&typeof value==="object")?value:{};
   const out={...base,...src};
@@ -19,7 +19,7 @@ function ensureSettingsShape(value=settings){
   }
   return out;
 }
-let settings=ensureSettingsShape();
+let settings=ensureSettingsShape(null);
 let entities={calendar:[],todo:[],person:[],weather:[],all:[]};
 let pendingBackground=null;
 let dirty=false;
