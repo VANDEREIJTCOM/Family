@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.1 — beheerinterface herstel en polish
+- Beheerinterface gebruikt voortaan **unieke CSS- én JavaScript-bestanden per release**, zodat Home Assistant, browser- of serviceworker-cache geen oude beheerlaag kan combineren met nieuwe markup.
+- Routinemanagement opnieuw visueel aangescherpt: echte kaarten, duidelijke hiërarchie, persoonchips, planning, stappen/punten en rustige statuslabels.
+- Acties staan compact onder de kaart: **Bewerken**, **Kopiëren** en een subtiele verwijderactie.
+- Bewerken/kopiëren/verwijderen krijgen nu expliciete eventbindings na iedere render in plaats van alleen één globale click-handler.
+- Hetzelfde robuuste actiepatroon geldt voor terugkerende taken, lijstjes, beloningen en vertrekhulp.
+- Responsive gedrag verbeterd voor brede desktopweergave én kleinere beheerpanelen.
+- Extra validatie toegevoegd voor de versiegebonden beheerassets en directe managementbindings.
+
+
 ## 0.8.0 — product-UX en slimme routines
 - Configuratieschermen voor routines, terugkerende taken, lijstjes, beloningen en vertrekhulp zijn compact overzichtsscherm + aparte editor geworden.
 - Routines kunnen aan meerdere gezinsleden tegelijk worden gekoppeld.

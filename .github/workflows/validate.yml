@@ -33,6 +33,8 @@ jobs:
           test -f vandereijt_family_hub/static/family-hub-admin-0.7.0.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.7.1.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.0.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.8.1.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.8.1.css
           test -f vandereijt_family_hub/static/style.css
           test -f vandereijt_family_hub/static/brand-icon.png
           grep -q '^name:' repository.yaml
@@ -52,6 +54,7 @@ jobs:
           node --check vandereijt_family_hub/static/family-hub-admin-0.7.0.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.7.1.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.8.0.js
+          node --check vandereijt_family_hub/static/family-hub-admin-0.8.1.js
           grep -q '"panel": True' vandereijt_family_hub/app.py
           grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
           grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
@@ -75,8 +78,15 @@ jobs:
           grep -q 'lovelace/resources/delete' vandereijt_family_hub/app.py
           grep -q 'customElements.get("family-hub-card")' vandereijt_family_hub/family-hub-card.js
           grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
-          grep -q 'family-hub-admin-0.8.0.js' vandereijt_family_hub/static/index.html
-          grep -q 'beheerinterface 0.8.0 start' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
+          grep -q 'family-hub-admin-0.8.1.js' vandereijt_family_hub/static/index.html
+          grep -q 'family-hub-admin-0.8.1.css' vandereijt_family_hub/static/index.html
+          grep -q 'beheerinterface 0.8.1 start' vandereijt_family_hub/static/family-hub-admin-0.8.1.js
+          grep -q 'bindRoutineActions(root)' vandereijt_family_hub/static/family-hub-admin-0.8.1.js
+          grep -q 'bindSmartTaskActions(root)' vandereijt_family_hub/static/family-hub-admin-0.8.1.js
+          grep -q 'bindListActions(root)' vandereijt_family_hub/static/family-hub-admin-0.8.1.js
+          grep -q 'bindRewardActions(root)' vandereijt_family_hub/static/family-hub-admin-0.8.1.js
+          grep -q 'bindDepartureActions(root)' vandereijt_family_hub/static/family-hub-admin-0.8.1.js
+          grep -q '.manage-card:hover' vandereijt_family_hub/static/family-hub-admin-0.8.1.css
           grep -q 'ROUTINE_TEMPLATES' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
           grep -q 'openRoutineEditor' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
           grep -q 'loadSuggestions' vandereijt_family_hub/static/family-hub-admin-0.8.0.js
@@ -108,4 +118,4 @@ jobs:
           NODE
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.8.0 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.8.1 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
