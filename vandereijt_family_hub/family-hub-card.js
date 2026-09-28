@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.7.0
+ * v0.7.1
  */
-const FH_VERSION="0.7.0";
+const FH_VERSION="0.7.1";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -33,6 +33,8 @@ class FamilyHubCard extends HTMLElement{
     this._timer=null;
     this._clockTimer=null;
     this._idleTimer=null;
+    this._versionTimer=null;
+    this._updatePending="";
     this._configFetched=0;
     this._screen="home";
     this._profileId=null;
@@ -67,8 +69,8 @@ class FamilyHubCard extends HTMLElement{
     if(!this._modal)this._render();
   }
 
-  connectedCallback(){this._restartTimers();}
-  disconnectedCallback(){clearInterval(this._timer);clearInterval(this._clockTimer);clearInterval(this._idleTimer);}
+  connectedCallback(){this._restartTimers();this._restartVersionWatch();}
+  disconnectedCallback(){clearInterval(this._timer);clearInterval(this._clockTimer);clearInterval(this._idleTimer);clearInterval(this._versionTimer);}
   getCardSize(){return 12;}
 
   _defaults(){return {
@@ -99,6 +101,44 @@ class FamilyHubCard extends HTMLElement{
     this._idleTimer=setInterval(()=>this._checkIdle(),10000);
   }
 
+  _restartVersionWatch(){
+    clearInterval(this._versionTimer);
+    this._versionTimer=setInterval(()=>this._pollAppVersion(),30000);
+    setTimeout(()=>this._pollAppVersion(),5000);
+  }
+
+  async _pollAppVersion(){
+    if(!this._configUrl||this._updatePending)return;
+    try{
+      const sep=this._configUrl.includes("?")?"&":"?";
+      const res=await fetch(this._configUrl+sep+"version_check="+Date.now(),{cache:"no-store"});
+      if(!res.ok)return;
+      const remote=await res.json();
+      this._maybeReloadForVersion(remote?._app_version);
+    }catch{}
+  }
+
+  _maybeReloadForVersion(version){
+    version=String(version||"").trim();
+    if(!version||version===FH_VERSION||this._updatePending)return false;
+    let count=0;
+    const key="family_hub_reload_"+version;
+    try{count=Number(sessionStorage.getItem(key)||0)}catch{}
+    if(count>=2){
+      console.warn("[Family Hub] Nieuwe versie gevonden maar automatisch herladen is al geprobeerd:",version);
+      return false;
+    }
+    this._updatePending=version;
+    this._modal=null;
+    this._screensaver=false;
+    this._render();
+    setTimeout(()=>{
+      try{sessionStorage.setItem(key,String(count+1))}catch{}
+      window.location.reload();
+    },10000);
+    return true;
+  }
+
   _checkIdle(){
     if(this._modal){this._lastInteraction=Date.now();return;}
     const min=Number(this._config?.idle_minutes||0);
@@ -115,6 +155,7 @@ class FamilyHubCard extends HTMLElement{
       const res=await fetch(this._configUrl+sep+"_="+Date.now(),{cache:"no-store"});
       if(!res.ok)throw new Error("HTTP "+res.status);
       const remote=await res.json();
+      if(this._maybeReloadForVersion(remote?._app_version))return;
       const overrides={...(this._base||{})};delete overrides.type;delete overrides.config_url;
       this._config={...this._defaults(),...overrides,...remote};
       this._configFetched=Date.now();
@@ -395,10 +436,15 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
 .modal-wrap{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#0008;backdrop-filter:blur(3px);padding:18px}.modal{width:min(450px,95vw);background:#fff;border-radius:20px;padding:20px}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}.modal-head small{display:block;color:var(--blue);font-size:8px;font-weight:900}.modal-head strong{display:block;font-size:21px;margin-top:3px}.modal-head button{border:0;background:transparent;font-size:28px;color:var(--muted)}.modal label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:10px;font-weight:900;margin:11px 0}.modal input,.modal select,.modal textarea{border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}.modal-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.modal .check{flex-direction:row;align-items:center}.save{width:100%;border:0;border-radius:11px;padding:12px;background:var(--blue);color:#fff;font-weight:900}.screensaver{position:absolute;inset:0;z-index:99999;background:#0A1628 center/cover no-repeat;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}.screensaver-brand{position:absolute;top:28px;left:32px;font-size:13px;font-weight:900;color:var(--yellow)}.screensaver-brand span{color:#fff}.screensaver-clock{text-align:center;text-shadow:0 2px 18px #0008}.screensaver-clock strong{display:block;font-size:88px;line-height:1}.screensaver-clock span{display:block;font-size:22px;text-transform:capitalize;margin-top:10px}.screensaver>small{position:absolute;bottom:28px;color:#ffffff99}
 @media(max-width:1100px){.home-grid{grid-template-columns:repeat(2,1fr)}.member-columns,.list-grid,.reward-grid,.profile-grid{grid-template-columns:repeat(2,1fr)}.meal-grid{grid-template-columns:repeat(4,1fr)}.house-screen-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:800px){ha-card{height:auto;min-height:100vh}.hub-header{grid-template-columns:1fr auto}.clock{display:none}.home-grid,.member-columns,.routine-grid,.list-grid,.reward-grid,.profile-grid,.profile-columns{grid-template-columns:1fr}.meal-grid{grid-template-columns:repeat(2,1fr)}.house-screen-grid{grid-template-columns:repeat(2,1fr)}.calendar-screen{min-height:650px}.bottom-nav{justify-content:flex-start;position:sticky;bottom:0}.content{padding:12px}.screensaver-clock strong{font-size:60px}}
+.update-screen{height:100%;min-height:650px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#F7F9FB;color:var(--dark);text-align:center}.update-screen strong{font-size:22px}.update-screen span{font-size:13px;color:var(--blue2);font-weight:900}.update-screen small{font-size:10px;color:var(--muted)}.update-spinner{width:36px;height:36px;border:4px solid #D9E4EE;border-top-color:var(--blue);border-radius:50%;animation:fh-spin .8s linear infinite}@keyframes fh-spin{to{transform:rotate(360deg)}}
 @media(max-width:520px){.hub-header{padding:0 12px}.brand strong{font-size:9px}.brand span{font-size:14px}.weather{font-size:11px}.house-screen-grid{grid-template-columns:1fr}.meal-grid{grid-template-columns:1fr 1fr}.week-head,.week-grid{gap:3px}.day-col{padding:3px}.event{border-left-width:3px;padding:5px 3px}.event strong{font-size:8px}.event span{display:none}.bottom-nav button{min-width:66px}.screen-heading h1,.screen-title h1{font-size:20px}}
 `;}
 
   _render(){
+    if(this._updatePending){
+      this.shadowRoot.innerHTML=`<style>${this._css()}</style><ha-card><div class="update-screen"><div class="update-spinner"></div><strong>Family Hub is bijgewerkt</strong><span>Versie ${this._esc(this._updatePending)} wordt geladen…</span><small>Even geduld, dit gaat automatisch.</small></div></ha-card>`;
+      return;
+    }
     if(!this._config){this.shadowRoot.innerHTML="";return;}
     if(this._screensaver){this.shadowRoot.innerHTML=`<style>${this._css()}</style>${this._screensaverHtml()}`;return;}
     const bg=this._config.background_url?`--wall:url('${this._esc(this._config.background_url)}');`:"",overlay=Math.max(0,Math.min(100,Number(this._config.background_overlay??82)))/100;
