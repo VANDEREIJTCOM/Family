@@ -54,7 +54,19 @@ function api(path,opts={}){
   }).finally(()=>clearTimeout(timer));
 }
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function listen(id,event,handler){\n  const el=$(id);\n  if(!el){console.warn(`[Family Hub] ontbrekend element #${id} voor ${event}`);return false;}\n  el.addEventListener(event,handler);\n  return true;\n}\nfunction click(id,handler){\n  const el=$(id);\n  if(!el){console.warn(`[Family Hub] ontbrekende knop #${id}`);return false;}\n  el.onclick=handler;\n  return true;\n}\nfunction toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),2800)}
+function listen(id,event,handler){
+  const el=$(id);
+  if(!el){console.warn(`[Family Hub] ontbrekend element #${id} voor ${event}`);return false;}
+  el.addEventListener(event,handler);
+  return true;
+}
+function click(id,handler){
+  const el=$(id);
+  if(!el){console.warn(`[Family Hub] ontbrekende knop #${id}`);return false;}
+  el.onclick=handler;
+  return true;
+}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),2800)}
 function markDirty(){dirty=true;const el=$("save-state");if(el)el.textContent=settingsLoaded?"Niet opgeslagen":"Nog aan het laden…"}
 function uid(prefix){return prefix+"_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7)}
 function options(domain,selected){const a=entities[domain]||[];return '<option value="">— Automatisch / niet ingesteld —</option>'+a.map(e=>`<option value="${esc(e.entity_id)}" ${e.entity_id===selected?"selected":""}>${esc(e.name)} · ${esc(e.entity_id)}</option>`).join("")}
