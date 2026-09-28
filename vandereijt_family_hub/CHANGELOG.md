@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.7
+- Fix voor taak-/afspraakvensters die tijdens Home Assistant state-updates opnieuw werden gerenderd.
+- Een open **Voor wie**-keuzelijst blijft nu open en selecteerbaar.
+- Tekstvelden in modals behouden focus tijdens achtergrondupdates.
+- Toetsaanslagen vanuit Family Hub-formulieren lekken niet meer door naar Home Assistant-snelzoeken/apparaten zoeken.
+- Klok- en dataverversingen renderen niet over een geopend formulier heen.
+- Screensaver wordt niet geactiveerd zolang een invoervenster openstaat.
+
+
 ## 0.6.6
 - Fix voor een JavaScript-initialisatiefout in de beheerinterface: `ensureSettingsShape(value=settings)` kon `settings` benaderen vóór initialisatie.
 - `ensureSettingsShape` heeft geen default-parameter meer en `settings` wordt veilig gestart met een expliciete lege waarde.

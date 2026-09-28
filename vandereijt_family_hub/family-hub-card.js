@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.6.6
+ * v0.6.7
  */
-const FH_VERSION="0.6.6";
+const FH_VERSION="0.6.7";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -39,7 +39,13 @@ class FamilyHubCard extends HTMLElement{
     this._lastInteraction=Date.now();
     this._screensaver=false;
     this.shadowRoot.addEventListener("pointerdown",()=>this._touch(),{passive:true});
-    this.shadowRoot.addEventListener("keydown",()=>this._touch(),{passive:true});
+    this.shadowRoot.addEventListener("keydown",e=>{
+      this._touch();
+      if(this._modal&&["INPUT","SELECT","TEXTAREA"].includes(e.target?.tagName))e.stopPropagation();
+    });
+    this.shadowRoot.addEventListener("keyup",e=>{
+      if(this._modal&&["INPUT","SELECT","TEXTAREA"].includes(e.target?.tagName))e.stopPropagation();
+    });
   }
 
   static getStubConfig(){return {config_url:"/local/family-hub/settings.json"};}
@@ -58,7 +64,7 @@ class FamilyHubCard extends HTMLElement{
     const first=!this._hass;
     this._hass=hass;
     if(first&&this._config)this._load();
-    this._render();
+    if(!this._modal)this._render();
   }
 
   connectedCallback(){this._restartTimers();}
@@ -89,11 +95,12 @@ class FamilyHubCard extends HTMLElement{
     if(!this._config)return;
     const sec=Math.max(30,Number(this._config.refresh_interval||120));
     this._timer=setInterval(()=>this._load(),sec*1000);
-    this._clockTimer=setInterval(()=>this._render(),30000);
+    this._clockTimer=setInterval(()=>{if(!this._modal)this._render()},30000);
     this._idleTimer=setInterval(()=>this._checkIdle(),10000);
   }
 
   _checkIdle(){
+    if(this._modal){this._lastInteraction=Date.now();return;}
     const min=Number(this._config?.idle_minutes||0);
     if(!min)return;
     const idle=Date.now()-this._lastInteraction>=min*60000;
@@ -170,7 +177,7 @@ class FamilyHubCard extends HTMLElement{
       if(this._config.shopping_list)jobs.push(this._todo(this._config.shopping_list,["needs_action"]).then(v=>this._shopping=v).catch(()=>this._shopping=[]));
       if(this._config.meals_todo)jobs.push(this._todo(this._config.meals_todo,["needs_action"]).then(v=>this._meals=v).catch(()=>this._meals=[]));
       await Promise.all(jobs);
-    }finally{this._busy=false;this._render();}
+    }finally{this._busy=false;if(!this._modal)this._render();}
   }
 
   _eventsForDay(day,memberId=null){
