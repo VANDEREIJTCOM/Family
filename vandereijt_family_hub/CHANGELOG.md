@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0 — Family-friendly setup
+- Beheerinterface opnieuw ingericht voor niet-technische gezinsleden: gewone taal voorop, technische Home Assistant-koppelingen onder **Geavanceerd**.
+- Routines hebben nu een visuele stappenbouwer: **+ Stap toevoegen**, stapnaam, icoonbibliotheek, optionele punten en omhoog/omlaag/verwijderen.
+- Bij punten staat nu expliciet wat ze betekenen: punten worden verdiend wanneer een stap of taak wordt afgerond.
+- Gemeenschappelijke visuele icoonbibliotheek toegevoegd voor gezinsleden, routines, stappen, taken, lijstjes, beloningen en vertrekhulp.
+- Terugkerende taken gebruiken duidelijke labels zoals **Wat moet er gebeuren?**, **Wanneer klaar?** en **Punten voor afronden**.
+- Vertrekhulp heeft nu een echte checklistbouwer in plaats van een technisch tekstvak met één regel per item.
+- Bestaande Home Assistant agenda-/todo-koppelingen blijven beschikbaar, maar staan uit de weg voor gezinnen die Family Hub alles automatisch laten regelen.
+- Entiteitkeuzes tonen vooral de vriendelijke Home Assistant-naam in plaats van technische entity-ID's.
+- Teksten in Agenda's, Lijstjes, Punten en Huis & vertrek herschreven met voorbeelden uit het dagelijks gezinsleven.
+
+
 ## 0.6.7
 - Fix voor taak-/afspraakvensters die tijdens Home Assistant state-updates opnieuw werden gerenderd.
 - Een open **Voor wie**-keuzelijst blijft nu open en selecteerbaar.
