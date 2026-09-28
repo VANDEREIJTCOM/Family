@@ -31,6 +31,65 @@ const HOME_SECTION_META={
   departures:["Vertrekhulp","mdi:bag-personal"],today:["Vandaag / agenda","mdi:calendar-today"],tasks:["Taken","mdi:check-circle-outline"],routines:["Routines","mdi:progress-check"],meals:["Maaltijden","mdi:silverware-fork-knife"],notifications:["Meldingen","mdi:bell-outline"],house_status:["Huisstatus","mdi:home-automation"]
 };
 
+const ICON_LIBRARY=[
+  ["mdi:account","👤","Persoon"],["mdi:tshirt-crew","👕","Aankleden"],["mdi:toothbrush","🪥","Tandenpoetsen"],
+  ["mdi:shower","🚿","Douchen"],["mdi:food","🍽️","Eten"],["mdi:cup-water","🥤","Drinken"],
+  ["mdi:school","🎒","School"],["mdi:book-open-page-variant","📚","Lezen / huiswerk"],["mdi:bed","🛏️","Slapen"],
+  ["mdi:soccer","⚽","Sport"],["mdi:bicycle","🚲","Fiets"],["mdi:car","🚗","Auto"],
+  ["mdi:home","🏠","Thuis"],["mdi:broom","🧹","Opruimen"],["mdi:dishwasher","🍽️","Vaatwasser"],
+  ["mdi:washing-machine","🧺","Was"],["mdi:trash-can-outline","🗑️","Afval"],["mdi:bag-personal","🎒","Tas meenemen"],
+  ["mdi:check-circle-outline","✅","Taak"],["mdi:progress-check","☑️","Routine"],["mdi:star","⭐","Punten"],
+  ["mdi:gift","🎁","Beloning"],["mdi:cart","🛒","Boodschappen"],["mdi:silverware-fork-knife","🍴","Maaltijd"],
+  ["mdi:clock-outline","⏰","Tijd"],["mdi:calendar","📅","Agenda"],["mdi:party-popper","🎉","Feest"],
+  ["mdi:heart","❤️","Gezin"],["mdi:paw","🐾","Huisdier"],["mdi:music","🎵","Muziek"]
+];
+function iconInfo(value){
+  return ICON_LIBRARY.find(x=>x[0]===value)||[value||"mdi:circle-outline","•","Anders"];
+}
+function iconPicker(value,hiddenAttr,compact=false){
+  const current=value||"mdi:check-circle-outline";
+  const selected=iconInfo(current);
+  return `<div class="icon-picker ${compact?"compact":""}" data-icon-picker>
+    <input type="hidden" ${hiddenAttr} value="${esc(current)}">
+    <div class="icon-picker-current"><span>${selected[1]}</span><strong>${esc(selected[2])}</strong></div>
+    <div class="icon-grid">
+      ${ICON_LIBRARY.map(x=>`<button type="button" class="icon-choice ${x[0]===current?"selected":""}" data-icon-value="${esc(x[0])}" title="${esc(x[2])}"><span>${x[1]}</span><small>${esc(x[2])}</small></button>`).join("")}
+    </div>
+  </div>`;
+}
+function stepEditorHtml(step={},index=0){
+  const id=step.id||uid("step");
+  return `<div class="step-editor" data-routine-step data-step-id="${esc(id)}">
+    <div class="step-badge">${index+1}</div>
+    <div class="step-main">
+      <label>Wat moet er gebeuren?<input data-step-key="title" value="${esc(step.title||"")}" placeholder="Bijv. tandenpoetsen"></label>
+      <div class="step-meta">
+        <label>Punten <input data-step-key="points" type="number" min="0" max="100" value="${Number(step.points||0)}"></label>
+        <span class="help-inline">⭐ Optioneel: deze punten worden verdiend als de stap klaar is.</span>
+      </div>
+      <label>Icoon</label>
+      ${iconPicker(step.icon||"mdi:check-circle-outline",'data-step-key="icon"',true)}
+    </div>
+    <div class="step-actions">
+      <button type="button" class="tiny" data-step-up title="Omhoog">↑</button>
+      <button type="button" class="tiny" data-step-down title="Omlaag">↓</button>
+      <button type="button" class="tiny danger-lite" data-remove-step title="Verwijderen">×</button>
+    </div>
+  </div>`;
+}
+function checklistRowHtml(text="",index=0){
+  return `<div class="checklist-row" data-checklist-row>
+    <span class="step-badge">${index+1}</span>
+    <input data-checklist-text value="${esc(text)}" placeholder="Bijv. bidon meenemen">
+    <button type="button" class="tiny" data-check-up title="Omhoog">↑</button>
+    <button type="button" class="tiny" data-check-down title="Omlaag">↓</button>
+    <button type="button" class="tiny danger-lite" data-remove-check title="Verwijderen">×</button>
+  </div>`;
+}
+function renumberRows(root,selector){
+  [...root.querySelectorAll(selector)].forEach((row,i)=>{const badge=row.querySelector(".step-badge");if(badge)badge.textContent=String(i+1)});
+}
+
 const FAMILY_HUB_SCRIPT_URL=(document.currentScript&&document.currentScript.src)||window.location.href;
 const FAMILY_HUB_APP_ROOT=new URL("../",FAMILY_HUB_SCRIPT_URL);
 
@@ -69,31 +128,119 @@ function click(id,handler){
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),2800)}
 function markDirty(){dirty=true;const el=$("save-state");if(el)el.textContent=settingsLoaded?"Niet opgeslagen":"Nog aan het laden…"}
 function uid(prefix){return prefix+"_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7)}
-function options(domain,selected){const a=entities[domain]||[];return '<option value="">— Automatisch / niet ingesteld —</option>'+a.map(e=>`<option value="${esc(e.entity_id)}" ${e.entity_id===selected?"selected":""}>${esc(e.name)} · ${esc(e.entity_id)}</option>`).join("")}
+function options(domain,selected){const a=entities[domain]||[];return '<option value="">— Automatisch regelen —</option>'+a.map(e=>`<option value="${esc(e.entity_id)}" ${e.entity_id===selected?"selected":""}>${esc(e.name)}</option>`).join("")}
 function memberOptions(selected,allLabel="— Kies gezinslid —"){return `<option value="">${esc(allLabel)}</option>`+(settings.members||[]).map(m=>`<option value="${esc(m.id)}" ${m.id===selected?"selected":""}>${esc(m.name)}</option>`).join("")}
 function preview(url){const p=$("background-preview");if(url){p.style.backgroundImage=`url('${url}')`;p.innerHTML=""}else{p.style.backgroundImage="none";p.innerHTML="<span>Geen achtergrond gekozen</span>"}}
 function fillMulti(id,values){const set=new Set(values||[]);[...$(id).options].forEach(o=>o.selected=set.has(o.value))}
 function selectedValues(id){return [...$(id).selectedOptions].map(o=>o.value)}
 
-function renderMembers(){const root=$("members");if(!settings.members?.length){root.innerHTML='<article class="card empty-card"><p>Nog geen gezinsleden. Klik op <strong>+ Gezinslid</strong>.</p></article>';return}root.innerHTML=settings.members.map((m,i)=>`
-<article class="member config-card" data-member="${i}" style="--member:${esc(m.color||palette[i%palette.length])}">
-<div class="member-head"><div class="dot">${esc((m.name||"?").charAt(0).toUpperCase())}</div><div><div class="member-title">${esc(m.name||"Nieuw gezinslid")}</div><div class="member-sub">${m.role==="child"?"Kind":"Volwassene"} · ${m.points_entity?esc(m.points_entity):"puntenhelper wordt automatisch aangemaakt"}</div></div><button class="remove" data-remove-member="${i}">×</button></div>
-<div class="form-grid"><label class="span2">Naam<input data-member-key="name" value="${esc(m.name||"")}" placeholder="Naam"></label><label>Rol<select data-member-key="role"><option value="adult" ${m.role!=="child"?"selected":""}>Volwassene</option><option value="child" ${m.role==="child"?"selected":""}>Kind</option></select></label><label>Kleur<div class="member-color"><input data-member-key="color" type="color" value="${esc(m.color||palette[i%palette.length])}"><input data-member-key="colorText" value="${esc(m.color||palette[i%palette.length])}"></div></label><label class="span2">Home Assistant persoon<select data-member-key="person">${options("person",m.person)}</select></label><label class="span2">Agenda<select data-member-key="calendar">${options("calendar",m.calendar)}</select><small>Leeg = Family Hub maakt automatisch een lokale agenda.</small></label><label class="span2">Takenlijst<select data-member-key="todo">${options("todo",m.todo)}</select><small>Leeg = Family Hub maakt automatisch een lokale takenlijst.</small></label><label class="span2">MDI-icoon<input data-member-key="icon" value="${esc(m.icon||"mdi:account")}"></label></div></article>`).join("")}
+function renderMembers(){
+ const root=$("members");
+ if(!settings.members?.length){root.innerHTML='<article class="card empty-card"><p>Nog geen gezinsleden. Klik op <strong>+ Gezinslid</strong>.</p></article>';return}
+ root.innerHTML=settings.members.map((m,i)=>`
+ <article class="member config-card friendly-card" data-member="${i}" style="--member:${esc(m.color||palette[i%palette.length])}">
+  <div class="member-head"><div class="dot">${esc((m.name||"?").charAt(0).toUpperCase())}</div><div><div class="member-title">${esc(m.name||"Nieuw gezinslid")}</div><div class="member-sub">${m.role==="child"?"Kind":"Volwassene"}</div></div><button class="remove" data-remove-member="${i}">×</button></div>
+  <div class="form-grid">
+   <label class="span2">Naam<input data-member-key="name" value="${esc(m.name||"")}" placeholder="Bijv. Joes"></label>
+   <label>Rol<select data-member-key="role"><option value="adult" ${m.role!=="child"?"selected":""}>Volwassene</option><option value="child" ${m.role==="child"?"selected":""}>Kind</option></select></label>
+   <label>Kleur<div class="member-color"><input data-member-key="color" type="color" value="${esc(m.color||palette[i%palette.length])}"><input data-member-key="colorText" value="${esc(m.color||palette[i%palette.length])}"></div></label>
+   <div class="span2"><label>Icoon</label>${iconPicker(m.icon||"mdi:account",'data-member-key="icon"',true)}</div>
+   <details class="advanced span2"><summary>Home Assistant-koppelingen <span>optioneel</span></summary><p>Laat dit leeg als Family Hub de agenda en takenlijst zelf mag regelen.</p>
+    <div class="form-grid">
+     <label class="span2">Home Assistant persoon<select data-member-key="person">${options("person",m.person)}</select></label>
+     <label class="span2">Agenda<select data-member-key="calendar">${options("calendar",m.calendar)}</select></label>
+     <label class="span2">Takenlijst<select data-member-key="todo">${options("todo",m.todo)}</select></label>
+    </div>
+   </details>
+  </div>
+ </article>`).join("");
+}
 
-function dayChecks(values,name){const set=new Set((values||[]).map(Number));return `<div class="day-checks">${DAYS.map((d,i)=>`<label><input type="checkbox" data-day="${i}" data-day-group="${name}" ${set.has(i)?"checked":""}><span>${d}</span></label>`).join("")}</div>`}
-function renderRoutines(){const root=$("routines");root.innerHTML=(settings.routines||[]).map((r,i)=>`
-<article class="config-card" data-routine="${i}"><div class="config-head"><div><strong>${esc(r.title||"Nieuwe routine")}</strong><small>${r.todo_entity?esc(r.todo_entity):"Takenlijst wordt automatisch aangemaakt"}</small></div><button class="remove" data-remove-routine="${i}">×</button></div><div class="form-grid"><label class="span2">Naam<input data-routine-key="title" value="${esc(r.title||"")}"></label><label>Voor wie<select data-routine-key="member_id">${memberOptions(r.member_id)}</select></label><label>Tijd<input data-routine-key="time" type="time" value="${esc(r.time||"07:00")}"></label><label class="span2">Dagen${dayChecks(r.days,"routine-"+i)}</label><label class="span2">Stappen<textarea data-routine-key="steps" rows="6" placeholder="Aankleden | mdi:tshirt-crew | 2&#10;Ontbijten | mdi:food | 2">${esc((r.steps||[]).map(s=>`${s.title} | ${s.icon||"mdi:check-circle-outline"} | ${s.points||0}`).join("\n"))}</textarea><small>Per regel: titel | MDI-icoon | punten</small></label></div></article>`).join("")||'<article class="card empty-card"><p>Nog geen routines.</p></article>'}
-function renderSmartTasks(){const root=$("smart-tasks");root.innerHTML=(settings.smart_tasks||[]).map((t,i)=>`
-<article class="config-card" data-smart-task="${i}"><div class="config-head"><div><strong>${esc(t.title||"Nieuwe taak")}</strong><small>${t.points||0} punten</small></div><button class="remove" data-remove-smart-task="${i}">×</button></div><div class="form-grid"><label class="span2">Taak<input data-task-key="title" value="${esc(t.title||"")}"></label><label>Voor wie<select data-task-key="member_id">${memberOptions(t.member_id)}</select></label><label>Punten<input data-task-key="points" type="number" min="0" max="500" value="${Number(t.points||0)}"></label><label>Deadline<input data-task-key="due_time" type="time" value="${esc(t.due_time||"")}"></label><label>MDI-icoon<input data-task-key="icon" value="${esc(t.icon||"mdi:checkbox-marked-circle-outline")}"></label><label class="span2">Dagen${dayChecks(t.days,"task-"+i)}</label><label class="switch span2"><input data-task-key="enabled" type="checkbox" ${t.enabled!==false?"checked":""}> Actief</label></div></article>`).join("")||'<article class="card empty-card"><p>Nog geen slimme taken.</p></article>'}
-function renderLists(){const root=$("lists");root.innerHTML=(settings.lists||[]).map((l,i)=>`
-<article class="config-card" data-list="${i}"><div class="config-head"><div><strong>${esc(l.title||"Nieuwe lijst")}</strong><small>${l.todo_entity?esc(l.todo_entity):"Home Assistant To-do wordt automatisch aangemaakt"}</small></div><button class="remove" data-remove-list="${i}" ${l.id==="shopping"?"disabled title='Boodschappenlijst is gekoppeld aan de maaltijdplanner'":""}>×</button></div><div class="form-grid"><label class="span2">Naam<input data-list-key="title" value="${esc(l.title||"")}"></label><label>Kleur<input data-list-key="color" type="color" value="${esc(l.color||"#2E6CA5")}"></label><label>MDI-icoon<input data-list-key="icon" value="${esc(l.icon||"mdi:format-list-checks")}"></label><label class="span2">Bestaande To-do (optioneel)<select data-list-key="todo_entity">${options("todo",l.todo_entity)}</select></label></div></article>`).join("")||'<article class="card empty-card"><p>Family Hub maakt na opslaan automatisch een boodschappenlijst aan.</p></article>'}
-function renderRewards(){const root=$("rewards");root.innerHTML=(settings.rewards||[]).map((r,i)=>`
-<article class="config-card" data-reward="${i}"><div class="config-head"><div><strong>${esc(r.title||"Nieuwe beloning")}</strong><small>${Number(r.cost||0)} punten</small></div><button class="remove" data-remove-reward="${i}">×</button></div><div class="form-grid"><label class="span2">Beloning<input data-reward-key="title" value="${esc(r.title||"")}"></label><label>Kosten<input data-reward-key="cost" type="number" min="1" value="${Number(r.cost||50)}"></label><label>Voor<select data-reward-key="member_id">${memberOptions(r.member_id,"Iedereen")}</select></label><label class="span2">MDI-icoon<input data-reward-key="icon" value="${esc(r.icon||"mdi:gift")}"></label></div></article>`).join("")||'<article class="card empty-card"><p>Nog geen beloningen.</p></article>'}
-function renderDepartures(){const root=$("departures");root.innerHTML=(settings.departure_rules||[]).map((r,i)=>`
-<article class="config-card" data-departure="${i}"><div class="config-head"><div><strong>${esc(r.match||"Nieuwe vertrekregel")}</strong><small>${Number(r.lead_minutes||45)} min vooraf</small></div><button class="remove" data-remove-departure="${i}">×</button></div><div class="form-grid"><label class="span2">Agenda-afspraak bevat<input data-departure-key="match" value="${esc(r.match||"")}" placeholder="voetbal"></label><label>Minuten vooraf<input data-departure-key="lead_minutes" type="number" min="0" max="360" value="${Number(r.lead_minutes||45)}"></label><label>MDI-icoon<input data-departure-key="icon" value="${esc(r.icon||"mdi:bag-personal")}"></label><label class="span2">Checklist<textarea data-departure-key="checklist" rows="5" placeholder="Voetbaltas&#10;Bidon&#10;Jas">${esc((r.checklist||[]).join("\n"))}</textarea></label></div></article>`).join("")||'<article class="card empty-card"><p>Nog geen vertrekregels.</p></article>'}
+function dayChecks(values,name){
+ const set=new Set((values||[]).map(Number));
+ return `<div class="day-checks">${DAYS.map((d,i)=>`<label><input type="checkbox" data-day="${i}" data-day-group="${name}" ${set.has(i)?"checked":""}><span>${d}</span></label>`).join("")}</div>`;
+}
+function renderRoutines(){
+ const root=$("routines");
+ root.innerHTML=(settings.routines||[]).map((r,i)=>`
+ <article class="config-card friendly-card" data-routine="${i}">
+  <div class="config-head"><div><strong>${esc(r.title||"Nieuwe routine")}</strong><small>${r.member_id?esc((settings.members||[]).find(m=>m.id===r.member_id)?.name||"Gezin"):"Kies voor wie deze routine is"}</small></div><button class="remove" data-remove-routine="${i}">×</button></div>
+  <div class="form-grid">
+   <label class="span2">Naam van de routine<input data-routine-key="title" value="${esc(r.title||"")}" placeholder="Bijv. Opstaan en naar school"></label>
+   <label>Voor wie?<select data-routine-key="member_id">${memberOptions(r.member_id)}</select></label>
+   <label>Start rond<input data-routine-key="time" type="time" value="${esc(r.time||"07:00")}"></label>
+   <label class="span2">Op welke dagen?${dayChecks(r.days,"routine-"+i)}</label>
+   <div class="span2"><label>Icoon van de routine</label>${iconPicker(r.icon||"mdi:progress-check",'data-routine-key="icon"',true)}</div>
+   <div class="span2 routine-builder">
+    <div class="builder-head"><div><strong>Stappen</strong><p>Voeg de stappen één voor één toe. Punten zijn optioneel.</p></div><button type="button" class="secondary small-btn" data-add-step>+ Stap toevoegen</button></div>
+    <div class="steps-editor">${(r.steps||[]).map((st,si)=>stepEditorHtml(st,si)).join("")||'<div class="builder-empty">Nog geen stappen. Voeg bijvoorbeeld “Aankleden” of “Tandenpoetsen” toe.</div>'}</div>
+   </div>
+   <details class="advanced span2"><summary>Technische koppeling <span>optioneel</span></summary><p>Family Hub maakt automatisch een takenlijst voor deze routine. Alleen aanpassen als je zelf een bestaande Home Assistant-lijst wilt gebruiken.</p><label>Bestaande takenlijst<select data-routine-key="todo_entity">${options("todo",r.todo_entity)}</select></label></details>
+  </div>
+ </article>`).join("")||'<article class="card empty-card"><p>Nog geen routines. Maak bijvoorbeeld een ochtendroutine of bedtijd-routine.</p></article>';
+}
+function renderSmartTasks(){
+ const root=$("smart-tasks");
+ root.innerHTML=(settings.smart_tasks||[]).map((t,i)=>`
+ <article class="config-card friendly-card" data-smart-task="${i}">
+  <div class="config-head"><div><strong>${esc(t.title||"Nieuwe taak")}</strong><small>${Number(t.points||0)?Number(t.points||0)+" punten":"Geen punten"}</small></div><button class="remove" data-remove-smart-task="${i}">×</button></div>
+  <div class="form-grid">
+   <label class="span2">Wat moet er gebeuren?<input data-task-key="title" value="${esc(t.title||"")}" placeholder="Bijv. kamer opruimen"></label>
+   <label>Voor wie?<select data-task-key="member_id">${memberOptions(t.member_id)}</select></label>
+   <label>Wanneer klaar?<input data-task-key="due_time" type="time" value="${esc(t.due_time||"")}"><small>Laat leeg als er geen vaste tijd is.</small></label>
+   <label>Punten voor afronden<input data-task-key="points" type="number" min="0" max="500" value="${Number(t.points||0)}"><small>0 = geen punten.</small></label>
+   <label class="switch"><input data-task-key="enabled" type="checkbox" ${t.enabled!==false?"checked":""}> Deze taak automatisch klaarzetten</label>
+   <label class="span2">Op welke dagen?${dayChecks(t.days,"task-"+i)}</label>
+   <div class="span2"><label>Icoon</label>${iconPicker(t.icon||"mdi:checkbox-marked-circle-outline",'data-task-key="icon"',true)}</div>
+  </div>
+ </article>`).join("")||'<article class="card empty-card"><p>Nog geen slimme taken. Hiermee kun je bijvoorbeeld iedere maandag “papier buiten zetten” klaarzetten.</p></article>';
+}
+function renderLists(){
+ const root=$("lists");
+ root.innerHTML=(settings.lists||[]).map((l,i)=>`
+ <article class="config-card friendly-card" data-list="${i}">
+  <div class="config-head"><div><strong>${esc(l.title||"Nieuwe lijst")}</strong><small>Gedeeld lijstje</small></div><button class="remove" data-remove-list="${i}" ${l.id==="shopping"?"disabled title='Boodschappenlijst is gekoppeld aan de maaltijdplanner'":""}>×</button></div>
+  <div class="form-grid">
+   <label class="span2">Naam<input data-list-key="title" value="${esc(l.title||"")}" placeholder="Bijv. Vakantie of School"></label>
+   <label>Kleur<input data-list-key="color" type="color" value="${esc(l.color||"#2E6CA5")}"></label>
+   <div><label>Icoon</label>${iconPicker(l.icon||"mdi:format-list-checks",'data-list-key="icon"',true)}</div>
+   <details class="advanced span2"><summary>Home Assistant-koppeling <span>optioneel</span></summary><p>Family Hub maakt vanzelf een lijst aan. Kies alleen iets als je al een bestaande takenlijst wilt gebruiken.</p><label>Bestaande takenlijst<select data-list-key="todo_entity">${options("todo",l.todo_entity)}</select></label></details>
+  </div>
+ </article>`).join("")||'<article class="card empty-card"><p>Nog geen extra lijstjes. De boodschappenlijst wordt automatisch geregeld.</p></article>';
+}
+function renderRewards(){
+ const root=$("rewards");
+ root.innerHTML=(settings.rewards||[]).map((r,i)=>`
+ <article class="config-card friendly-card" data-reward="${i}">
+  <div class="config-head"><div><strong>${esc(r.title||"Nieuwe beloning")}</strong><small>${Number(r.cost||0)} punten nodig</small></div><button class="remove" data-remove-reward="${i}">×</button></div>
+  <div class="form-grid">
+   <label class="span2">Welke beloning?<input data-reward-key="title" value="${esc(r.title||"")}" placeholder="Bijv. film kiezen"></label>
+   <label>Hoeveel punten zijn nodig?<input data-reward-key="cost" type="number" min="1" value="${Number(r.cost||50)}"></label>
+   <label>Voor wie?<select data-reward-key="member_id">${memberOptions(r.member_id,"Iedereen")}</select></label>
+   <div class="span2"><label>Icoon</label>${iconPicker(r.icon||"mdi:gift",'data-reward-key="icon"',true)}</div>
+  </div>
+ </article>`).join("")||'<article class="card empty-card"><p>Nog geen beloningen. Bijvoorbeeld “film kiezen” voor 50 punten.</p></article>';
+}
+function renderDepartures(){
+ const root=$("departures");
+ root.innerHTML=(settings.departure_rules||[]).map((r,i)=>`
+ <article class="config-card friendly-card" data-departure="${i}">
+  <div class="config-head"><div><strong>${esc(r.match||"Nieuwe vertrekhulp")}</strong><small>Verschijnt ${Number(r.lead_minutes||45)} minuten vooraf</small></div><button class="remove" data-remove-departure="${i}">×</button></div>
+  <div class="form-grid">
+   <label class="span2">Wanneer moet deze checklist verschijnen?<input data-departure-key="match" value="${esc(r.match||"")}" placeholder="Bijv. voetbal"><small>Family Hub kijkt of dit woord in een agenda-afspraak staat.</small></label>
+   <label>Hoe lang van tevoren?<select data-departure-key="lead_minutes">${[15,30,45,60,90,120].map(v=>`<option value="${v}" ${Number(r.lead_minutes||45)===v?"selected":""}>${v<60?v+" minuten":v===60?"1 uur":v===90?"1,5 uur":"2 uur"}</option>`).join("")}</select></label>
+   <div><label>Icoon</label>${iconPicker(r.icon||"mdi:bag-personal",'data-departure-key="icon"',true)}</div>
+   <div class="span2 routine-builder">
+    <div class="builder-head"><div><strong>Wat moet mee of klaar zijn?</strong><p>Maak een korte afvinklijst voor vertrek.</p></div><button type="button" class="secondary small-btn" data-add-check>+ Checklistregel</button></div>
+    <div class="checklist-editor">${(r.checklist||[]).map((x,ci)=>checklistRowHtml(x,ci)).join("")||'<div class="builder-empty">Nog geen checklistregels.</div>'}</div>
+   </div>
+  </div>
+ </article>`).join("")||'<article class="card empty-card"><p>Nog geen vertrekhulp. Maak bijvoorbeeld een checklist voor voetbal of school.</p></article>';
+}
+
 function renderNavigation(){const root=$("navigation-editor");root.innerHTML=(settings.navigation||[]).map((n,i)=>`<div class="reorder-row" data-nav="${i}"><label class="switch compact"><input data-nav-key="enabled" type="checkbox" ${n.enabled!==false?"checked":""}><span></span></label><div class="reorder-main"><strong>${esc(n.label)}</strong><small>${esc(n.id)} · ${esc(n.icon)}</small></div><button data-nav-up="${i}" ${i===0?"disabled":""}>↑</button><button data-nav-down="${i}" ${i===(settings.navigation.length-1)?"disabled":""}>↓</button></div>`).join("")}
 function renderHomeSections(){const visible=settings.home_sections||[];const hidden=Object.keys(HOME_SECTION_META).filter(id=>!visible.includes(id));const order=[...visible,...hidden];$("home-sections-editor").innerHTML=order.map(id=>{const enabled=visible.includes(id),meta=HOME_SECTION_META[id]||[id,""],visibleIndex=visible.indexOf(id);return `<div class="reorder-row" data-section="${esc(id)}"><label class="switch compact"><input data-section-enable="${esc(id)}" type="checkbox" ${enabled?"checked":""}><span></span></label><div class="reorder-main"><strong>${esc(meta[0])}</strong><small>${esc(id)}</small></div><button data-section-up="${esc(id)}" ${!enabled||visibleIndex<=0?"disabled":""}>↑</button><button data-section-down="${esc(id)}" ${!enabled||visibleIndex<0||visibleIndex===visible.length-1?"disabled":""}>↓</button></div>`}).join("")}
-function renderEntitySelects(){const all=entities.all||[];const html=all.map(e=>`<option value="${esc(e.entity_id)}">${esc(e.name)} · ${esc(e.entity_id)} · ${esc(e.state)}</option>`).join("");$("home_entities").innerHTML=html;$("notification_entities").innerHTML=html;fillMulti("home_entities",settings.home_entities);fillMulti("notification_entities",settings.notification_entities)}
+function renderEntitySelects(){const all=entities.all||[];const html=all.map(e=>`<option value="${esc(e.entity_id)}">${esc(e.name)} — ${esc(e.state)}</option>`).join("");$("home_entities").innerHTML=html;$("notification_entities").innerHTML=html;fillMulti("home_entities",settings.home_entities);fillMulti("notification_entities",settings.notification_entities)}
 function fill(){
   $("title").value=settings.title||"";$("subtitle").value=settings.subtitle||"";$("refresh_interval").value=String(settings.refresh_interval||120);$("show_household_status").checked=settings.show_household_status!==false;$("idle_minutes").value=settings.idle_minutes??5;$("idle_show_clock").checked=settings.idle_show_clock!==false;$("photos").value=(settings.photos||[]).join("\n");$("shopping_list").innerHTML=options("todo",settings.shopping_list);$("meals_todo").innerHTML=options("todo",settings.meals_todo);$("accent_color").value=settings.accent_color||"#2E6CA5";$("accent_color_text").value=settings.accent_color||"#2E6CA5";$("background_overlay").value=settings.background_overlay??82;$("overlay-label").textContent=(settings.background_overlay??82)+"%";$("dashboard_title").value=settings.dashboard_title||"Family Hub";$("dashboard_show_sidebar").checked=settings.dashboard_show_sidebar!==false;preview(settings.background_url);renderMembers();renderRoutines();renderSmartTasks();renderLists();renderRewards();renderDepartures();renderNavigation();renderHomeSections();renderEntitySelects();
 }
