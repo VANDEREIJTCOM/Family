@@ -133,7 +133,7 @@ function bind(){
  window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue=""}})
 }
 (async()=>{
-  console.info("[Family Hub] beheerinterface 0.6.4 start");
+  console.info("[Family Hub] beheerinterface 0.6.6 start");
   try{bind()}catch(e){console.error("[Family Hub] bind-fout",e)}
   const saveButton=$("save");
   const addMember=$("add-member");
