@@ -980,6 +980,34 @@ def apply_suggestion(settings, suggestion_id):
     return normalize_settings(settings)
 
 
+def cleanup_removed_routine_tasks(old_settings, new_settings):
+    old_members = {m.get("id"): m for m in old_settings.get("members", [])}
+    new_by_id = {r.get("id"): r for r in new_settings.get("routines", [])}
+
+    for old_routine in old_settings.get("routines", []):
+        routine_id = old_routine.get("id")
+        if not routine_id:
+            continue
+        old_member_ids = set(old_routine.get("member_ids") or ([old_routine.get("member_id")] if old_routine.get("member_id") else []))
+        new_routine = new_by_id.get(routine_id)
+        if not new_routine or new_routine.get("enabled", True) is False or new_routine.get("show_in_tasks", True) is False:
+            remove_for = old_member_ids
+        else:
+            new_member_ids = set(new_routine.get("member_ids") or ([new_routine.get("member_id")] if new_routine.get("member_id") else []))
+            remove_for = old_member_ids - new_member_ids
+
+        for member_id in remove_for:
+            member = old_members.get(member_id) or {}
+            if member.get("todo"):
+                remove_generated_todo_items(
+                    member["todo"],
+                    "routine_step",
+                    routine_id=routine_id,
+                    member_id=member_id,
+                )
+
+
+
 def sync_generated_content():
     settings = load_settings()
     runtime = load_runtime()
@@ -1625,6 +1653,7 @@ class Handler(BaseHTTPRequestHandler):
                     settings["background_url"] = current.get("background_url", "")
                 incoming_members = settings.get("members", []) if isinstance(settings, dict) else []
                 settings, provisioned, provision_warnings = provision_family_features(settings)
+                cleanup_removed_routine_tasks(current, settings)
                 settings = save_settings(settings)
                 sync_generated_content()
                 persisted = load_settings()
