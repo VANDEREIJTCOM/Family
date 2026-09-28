@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.7.1"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -304,6 +304,7 @@ def load_settings():
 
 def publish_settings(settings):
     payload = dict(settings)
+    payload["_app_version"] = APP_VERSION
     tmp = PUBLIC_SETTINGS.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(PUBLIC_SETTINGS)
