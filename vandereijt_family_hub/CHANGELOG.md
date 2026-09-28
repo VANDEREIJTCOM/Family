@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.6
+- Fix voor een JavaScript-initialisatiefout in de beheerinterface: `ensureSettingsShape(value=settings)` kon `settings` benaderen vóór initialisatie.
+- `ensureSettingsShape` heeft geen default-parameter meer en `settings` wordt veilig gestart met een expliciete lege waarde.
+- Nieuwe unieke beheerasset `family-hub-admin-0.6.6.js`.
+- Hierdoor worden navigatie, gezinsbeheer en opslaan weer gebonden zodra de beheerinterface opent.
+- Extra runtime-validatie toegevoegd zodat deze specifieke initialisatiefout niet opnieuw ongemerkt door alleen een syntaxcheck kan glippen.
+
+
 ## 0.6.5
 - De beheerinterface gebruikt nu een volledig nieuwe assetnaam: `family-hub-admin-0.6.5.js`.
 - Hiermee kan Home Assistant/Chrome geen oude `app.js` meer hergebruiken onder een nieuwe querystring.
