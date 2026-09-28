@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.6.2
+ * v0.6.3
  */
-const FH_VERSION="0.6.2";
+const FH_VERSION="0.6.3";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -443,7 +443,13 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
   }
 }
 
-customElements.define("family-hub-card",FamilyHubCard);
+if(!customElements.get("family-hub-card")){
+  customElements.define("family-hub-card",FamilyHubCard);
+}else{
+  console.warn("[Family Hub] family-hub-card was al geregistreerd; controleer op een oude dubbele Lovelace-resource.");
+}
 window.customCards=window.customCards||[];
-window.customCards.push({type:"family-hub-card",name:"VANDEREIJT.COM Family Hub",description:"Gezinsagenda, routines, taken, lijsten, maaltijden, punten en Home Assistant in één Family Hub",preview:true,documentationURL:"https://github.com/VANDEREIJTCOM/Family"});
+if(!window.customCards.some(x=>x.type==="family-hub-card")){
+  window.customCards.push({type:"family-hub-card",name:"VANDEREIJT.COM Family Hub",description:"Gezinsagenda, routines, taken, lijsten, maaltijden, punten en Home Assistant in één Family Hub",preview:true,documentationURL:"https://github.com/VANDEREIJTCOM/Family"});
+}
 console.info("%c VANDEREIJT.COM Family Hub %c v"+FH_VERSION,"background:#0A1628;color:#FFDD00;font-weight:900;padding:3px 7px","color:#2E6CA5");
