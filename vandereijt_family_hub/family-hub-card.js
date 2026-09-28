@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.7.1
+ * v0.8.0
  */
-const FH_VERSION="0.7.1";
+const FH_VERSION="0.8.0";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -23,6 +23,7 @@ class FamilyHubCard extends HTMLElement{
     this._configUrl=null;
     this._events={};
     this._todos={};
+    this._todoAll={};
     this._routineTodos={};
     this._listTodos={};
     this._meals=[];
@@ -198,6 +199,25 @@ class FamilyHubCard extends HTMLElement{
   _member(id){return (this._config.members||[]).find(m=>m.id===id);}
   _memberByName(name){return (this._config.members||[]).find(m=>m.name===name);}
 
+  _routineMemberIds(r){
+    const ids=Array.isArray(r?.member_ids)&&r.member_ids.length?r.member_ids:(r?.member_id?[r.member_id]:[]);
+    return [...new Set(ids.filter(Boolean))];
+  }
+  _routineMembers(r){return this._routineMemberIds(r).map(id=>this._member(id)).filter(Boolean);}
+  _routineItems(r,m){
+    if(!m)return [];
+    const today=this._dateISO(new Date());
+    const fromMember=(this._todoAll[m.id]||[]).filter(item=>{
+      const meta=this._meta(item);
+      return meta?.kind==="routine_step"&&meta?.routine_id===r.id&&meta?.member_id===m.id&&meta?.date===today;
+    });
+    if(fromMember.length)return fromMember;
+    return (this._routineTodos[r.id]||[]).filter(item=>{
+      const meta=this._meta(item);
+      return !meta?.member_id||meta?.member_id===m.id;
+    });
+  }
+
   async _load(){
     if(!this._hass||!this._config||this._busy)return;
     this._busy=true;
@@ -207,7 +227,10 @@ class FamilyHubCard extends HTMLElement{
       const jobs=[];
       for(const m of this._config.members||[]){
         if(m.calendar)jobs.push(this._calendar(m.calendar,start,end).then(v=>this._events[m.id]=v).catch(()=>this._events[m.id]=[]));
-        if(m.todo)jobs.push(this._todo(m.todo,["needs_action"]).then(v=>this._todos[m.id]=v).catch(()=>this._todos[m.id]=[]));
+        if(m.todo){
+          jobs.push(this._todo(m.todo,["needs_action"]).then(v=>this._todos[m.id]=v).catch(()=>this._todos[m.id]=[]));
+          jobs.push(this._todo(m.todo,["needs_action","completed"]).then(v=>this._todoAll[m.id]=v).catch(()=>this._todoAll[m.id]=[]));
+        }
       }
       for(const r of this._config.routines||[]){
         if(r.todo_entity)jobs.push(this._todo(r.todo_entity,["needs_action","completed"]).then(v=>this._routineTodos[r.id]=v).catch(()=>this._routineTodos[r.id]=[]));
@@ -324,14 +347,18 @@ class FamilyHubCard extends HTMLElement{
   _taskRow(entity,item){const meta=this._meta(item),points=Number(meta?.points||0);return `<button class="check-row" data-complete-entity="${this._esc(entity)}" data-complete-id="${this._esc(item.uid||item.summary)}"><span class="box">✓</span><span>${this._esc(item.summary||"Taak")}</span>${points?`<em>+${points} ★</em>`:""}</button>`;}
   _routineSection(){
     const today=(new Date().getDay()+6)%7;
-    const routines=(this._config.routines||[]).filter(r=>(r.days||[]).includes(today));
-    const html=routines.length?routines.slice(0,5).map(r=>this._routineCard(r,true)).join(""):'<div class="empty">Geen routines vandaag.</div>';
+    const cards=[];
+    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[]).includes(today))){
+      for(const m of this._routineMembers(r))cards.push(this._routineCard(r,true,m));
+    }
+    const html=cards.length?cards.slice(0,6).join(""):'<div class="empty">Geen routines vandaag.</div>';
     return this._section("Routines",html);
   }
-  _routineCard(r,compact=false){
-    const m=this._member(r.member_id),items=this._routineTodos[r.id]||[];
+  _routineCard(r,compact=false,mOverride=null){
+    const m=mOverride||this._routineMembers(r)[0]||null,items=this._routineItems(r,m);
     const total=(r.steps||[]).length||items.length,done=items.filter(x=>x.status==="completed").length,progress=total?Math.round(done/total*100):0;
-    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}"><div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${done}/${total}</span></div><b>${progress}%</b></div><div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.map(it=>it.status==="completed"?`<div class="done-step"><span>✓</span>${this._esc(it.summary)}</div>`:this._taskRow(r.todo_entity,it)).join("")}</div>`}</article>`;
+    const entity=m?.todo||r.todo_entity||"";
+    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}"><div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b></div><div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.length?items.map(it=>it.status==="completed"?`<div class="done-step"><span>✓</span>${this._esc(it.summary)}</div>`:this._taskRow(entity,it)).join(""):'<div class="empty small">De stappen worden automatisch klaargezet.</div>'}</div>`}</article>`;
   }
   _mealSection(){
     const today=this._dateISO(new Date());const item=this._meals.find(x=>String(x.due||"").slice(0,10)===today);
@@ -379,7 +406,11 @@ class FamilyHubCard extends HTMLElement{
   }
 
   _routinesScreen(){
-    const routines=this._config.routines||[];return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${routines.length?routines.map(r=>this._routineCard(r,false)).join(""):'<div class="empty big">Maak routines aan in de Family Hub App.</div>'}</div>`;
+    const cards=[];
+    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false)){
+      for(const m of this._routineMembers(r))cards.push(this._routineCard(r,false,m));
+    }
+    return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${cards.length?cards.join(""):'<div class="empty big">Maak routines aan in de Family Hub App.</div>'}</div>`;
   }
 
   _listsScreen(){
@@ -401,8 +432,8 @@ class FamilyHubCard extends HTMLElement{
 
   _profileScreen(){
     const m=this._member(this._profileId);if(!m){this._screen="profiles";return this._profilesScreen();}
-    const ev=this._eventsForDay(new Date(),m.id),tasks=this._todos[m.id]||[],routines=(this._config.routines||[]).filter(r=>r.member_id===m.id);
-    return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><h2>Vandaag</h2>${ev.length?ev.map(x=>`<div class="agenda-row" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div></div>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><h2>Taken</h2><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${tasks.length?tasks.map(it=>this._taskRow(m.todo,it)).join(""):'<div class="empty">Alles gedaan.</div>'}</section><section class="panel-block"><h2>Routines</h2>${routines.length?routines.map(r=>this._routineCard(r,true)).join(""):'<div class="empty">Geen routines.</div>'}</section></div></div>`;
+    const ev=this._eventsForDay(new Date(),m.id),tasks=this._todos[m.id]||[],routines=(this._config.routines||[]).filter(r=>this._routineMemberIds(r).includes(m.id));
+    return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><h2>Vandaag</h2>${ev.length?ev.map(x=>`<div class="agenda-row" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div></div>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><h2>Taken</h2><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${tasks.length?tasks.map(it=>this._taskRow(m.todo,it)).join(""):'<div class="empty">Alles gedaan.</div>'}</section><section class="panel-block"><h2>Routines</h2>${routines.length?routines.map(r=>this._routineCard(r,true,m)).join(""):'<div class="empty">Geen routines.</div>'}</section></div></div>`;
   }
 
   _houseScreen(){
