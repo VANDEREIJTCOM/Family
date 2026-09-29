@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.9.5
+ * v0.9.6
  */
-const FH_VERSION="0.9.5";
+const FH_VERSION="0.9.6";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -39,6 +39,7 @@ class FamilyHubCard extends HTMLElement{
     this._configFetched=0;
     this._lastCalendarSourceRefresh=0;
     this._calendarRefreshing=false;
+    this._memberFilter=null;
     this._screen="home";
     this._profileId=null;
     this._lastInteraction=Date.now();
@@ -310,6 +311,46 @@ class FamilyHubCard extends HTMLElement{
   _member(id){return (this._config.members||[]).find(m=>m.id===id);}
   _memberByName(name){return (this._config.members||[]).find(m=>m.name===name);}
 
+  _resetMemberFilter(){
+    this._memberFilter=null;
+  }
+
+  _memberVisible(member){
+    if(!member)return false;
+    return !this._memberFilter||this._memberFilter.has(member.id);
+  }
+
+  _toggleMemberFilter(memberId){
+    const ids=(this._config.members||[]).map(m=>m.id).filter(Boolean);
+    if(!this._memberFilter)this._memberFilter=new Set(ids);
+    if(this._memberFilter.has(memberId))this._memberFilter.delete(memberId);
+    else this._memberFilter.add(memberId);
+    this._render();
+  }
+
+  _showAllMembers(){
+    this._memberFilter=null;
+    this._render();
+  }
+
+  _memberLegend(){
+    const members=this._config.members||[];
+    if(!members.length)return "";
+    const allOn=!this._memberFilter||members.every(m=>this._memberFilter.has(m.id));
+    return `<div class="member-filter" aria-label="Gezinsleden filter">
+      <span class="member-filter-label">Wie?</span>
+      <button class="member-filter-all ${allOn?"active":""}" data-member-all>Iedereen</button>
+      ${members.map(m=>{
+        const active=!this._memberFilter||this._memberFilter.has(m.id);
+        return `<button class="member-filter-chip ${active?"active":"off"}" data-member-filter="${this._esc(m.id)}" aria-pressed="${active?"true":"false"}" style="--member:${this._esc(m.color||"#607d8b")}"><i></i><span>${this._esc(m.name)}</span></button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  _legendForScreen(){
+    return ["home","calendar","tasks","routines","rewards","profiles"].includes(this._screen);
+  }
+
   _routineMemberIds(r){
     const ids=Array.isArray(r?.member_ids)&&r.member_ids.length?r.member_ids:(r?.member_id?[r.member_id]:[]);
     return [...new Set(ids.filter(Boolean))];
@@ -388,6 +429,7 @@ class FamilyHubCard extends HTMLElement{
     const out=[],seen=new Set(),key=x=>x.member.id+"|"+String(x.event.summary||"").toLowerCase()+"|"+this._time(x.event);
     for(const m of this._config.members||[]){
       if(memberId&&m.id!==memberId)continue;
+      if(!memberId&&!this._memberVisible(m))continue;
       for(const ev of this._events[m.id]||[])if(this._eventOnDay(ev,day)){const x={member:m,event:ev};out.push(x);seen.add(key(x))}
     }
     for(const x of this._scheduledForDay(day,memberId)){const k=key(x);if(!seen.has(k)){out.push(x);seen.add(k)}}
@@ -545,7 +587,7 @@ class FamilyHubCard extends HTMLElement{
   }
   _taskSection(){
     let rows="";
-    for(const m of this._config.members||[]){
+    for(const m of (this._config.members||[]).filter(m=>this._memberVisible(m))){
       const items=this._regularTodos(m).slice(0,4),routineGroups=this._routineTodoGroups(m);
       const routineHint=routineGroups.length?`<button class="routine-hint" data-screen="routines"><ha-icon icon="mdi:progress-check"></ha-icon><span>${routineGroups.length} routine${routineGroups.length===1?"":"s"} vandaag</span><b>›</b></button>`:"";
       rows+=`<div class="person-mini"><button class="person-title person-link" data-profile="${this._esc(m.id)}">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span><b>›</b></button>${items.length?items.map(it=>this._taskRow(m.todo,it,m.id)).join(""):""}${routineHint}${!items.length&&!routineGroups.length?'<div class="empty small">Geen taken vandaag</div>':""}</div>`;
@@ -581,7 +623,7 @@ class FamilyHubCard extends HTMLElement{
     const today=(new Date().getDay()+6)%7;
     const cards=[];
     for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[]).includes(today))){
-      for(const m of this._routineMembers(r))cards.push(this._routineCard(r,true,m));
+      for(const m of this._routineMembers(r).filter(m=>this._memberVisible(m)))cards.push(this._routineCard(r,true,m));
     }
     const html=cards.length?cards.slice(0,6).join(""):'<div class="empty">Geen routines vandaag.</div>';
     return this._section("Routines",html,"","routines");
@@ -635,13 +677,13 @@ class FamilyHubCard extends HTMLElement{
   }
 
   _tasksScreen(){
-    return `<div class="screen-heading"><div><small>TAKEN</small><h1>Wat moet er gebeuren?</h1></div><button class="primary-btn" data-add-task>＋ Taak</button></div><div class="member-columns">${(this._config.members||[]).map(m=>{const normal=this._regularTodos(m),groups=this._routineTodoGroups(m);return `<section class="member-column" style="--member:${m.color}"><div class="member-column-head"><button class="member-link" data-profile="${this._esc(m.id)}">${this._avatar(m)}<div><strong>${this._esc(m.name)}</strong><span>${this._points(m)} punten</span></div><b>›</b></button><button class="member-add" data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it,m.id)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan 🎉</div>':""}</section>`}).join("")}</div>`;
+    return `<div class="screen-heading"><div><small>TAKEN</small><h1>Wat moet er gebeuren?</h1></div><button class="primary-btn" data-add-task>＋ Taak</button></div><div class="member-columns">${(this._config.members||[]).filter(m=>this._memberVisible(m)).map(m=>{const normal=this._regularTodos(m),groups=this._routineTodoGroups(m);return `<section class="member-column" style="--member:${m.color}"><div class="member-column-head"><button class="member-link" data-profile="${this._esc(m.id)}">${this._avatar(m)}<div><strong>${this._esc(m.name)}</strong><span>${this._points(m)} punten</span></div><b>›</b></button><button class="member-add" data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it,m.id)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan 🎉</div>':""}</section>`}).join("")}</div>`;
   }
 
   _routinesScreen(){
     const cards=[];
     for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false)){
-      for(const m of this._routineMembers(r))cards.push(this._routineCard(r,false,m));
+      for(const m of this._routineMembers(r).filter(m=>this._memberVisible(m)))cards.push(this._routineCard(r,false,m));
     }
     return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${cards.length?cards.join(""):'<div class="empty big">Maak routines aan in de Family Hub App.</div>'}</div>`;
   }
@@ -656,11 +698,11 @@ class FamilyHubCard extends HTMLElement{
   }
 
   _rewardsScreen(){
-    const members=(this._config.members||[]).filter(m=>m.role==="child"||m.points_entity),rewards=this._config.rewards||[],labels={balance:"Doorlopend",daily:"Vandaag",weekly:"Deze week",monthly:"Deze maand"};
+    const members=(this._config.members||[]).filter(m=>(m.role==="child"||m.points_entity)&&this._memberVisible(m)),rewards=this._config.rewards||[],labels={balance:"Doorlopend",daily:"Vandaag",weekly:"Deze week",monthly:"Deze maand"};
     return `<div class="screen-heading"><div><small>PUNTEN & BELONINGEN</small><h1>Sparen voor iets leuks</h1></div></div><div class="points-strip">${members.map(m=>`<button data-profile="${this._esc(m.id)}" style="--member:${m.color}">${this._avatar(m,"small")}<span>${this._esc(m.name)}</span><span class="points-today"><strong>${this._periodPoints(m,"daily")} ★</strong><small>vandaag</small></span></button>`).join("")}</div><div class="reward-grid">${rewards.length?rewards.map(r=>{const cycle=r.cycle||"balance",cost=Number(r.cost||0);return `<article class="reward-card"><ha-icon icon="${this._esc(r.icon||"mdi:gift")}"></ha-icon><strong>${this._esc(r.title)}</strong><span>${cost} ★</span><small class="reward-period">${labels[cycle]||labels.balance}</small><div class="reward-people">${members.filter(m=>!r.member_id||r.member_id===m.id).map(m=>{const score=cycle==="balance"?this._points(m):this._periodPoints(m,cycle),claimed=this._rewardClaimed(r,m),ready=score>=cost&&!claimed;return `<button class="${claimed?"claimed":ready?"ready":""}" data-redeem="${this._esc(r.id)}" data-redeem-member="${this._esc(m.id)}" ${!ready?"disabled":""}><span>${this._esc(m.name)}</span><strong>${claimed?"Behaald ✓":score+"/"+cost+" ★"}</strong></button>`}).join("")}</div></article>`}).join(""):'<div class="empty big">Maak beloningen aan in de Family Hub App.</div>'}</div>`;
   }
 
-  _profilesScreen(){return `<div class="screen-heading"><div><small>GEZIN</small><h1>Iedereen in beeld</h1></div></div><div class="profile-grid">${(this._config.members||[]).map(m=>{const s=this._personState(m);return `<button class="profile-card" data-profile="${this._esc(m.id)}" style="--member:${m.color}">${this._avatar(m,"large")}<strong>${this._esc(m.name)}</strong><span>${s?.state==="home"?"Thuis":s?.state||""}</span><b>${this._points(m)} ★</b></button>`}).join("")}</div>`;}
+  _profilesScreen(){return `<div class="screen-heading"><div><small>GEZIN</small><h1>Iedereen in beeld</h1></div></div><div class="profile-grid">${(this._config.members||[]).filter(m=>this._memberVisible(m)).map(m=>{const s=this._personState(m);return `<button class="profile-card" data-profile="${this._esc(m.id)}" style="--member:${m.color}">${this._avatar(m,"large")}<strong>${this._esc(m.name)}</strong><span>${s?.state==="home"?"Thuis":s?.state||""}</span><b>${this._points(m)} ★</b></button>`}).join("")}</div>`;}
 
   _profileScreen(){
     const m=this._member(this._profileId);if(!m){this._screen="profiles";return this._profilesScreen();}
@@ -674,7 +716,18 @@ class FamilyHubCard extends HTMLElement{
   }
 
   _screenHtml(){
-    if(this._screen==="calendar")return this._calendarScreen();if(this._screen==="tasks")return this._tasksScreen();if(this._screen==="routines")return this._routinesScreen();if(this._screen==="lists")return this._listsScreen();if(this._screen==="meals")return this._mealsScreen();if(this._screen==="rewards")return this._rewardsScreen();if(this._screen==="profiles")return this._profilesScreen();if(this._screen==="profile")return this._profileScreen();if(this._screen==="house")return this._houseScreen();return this._homeScreen();
+    let html;
+    if(this._screen==="calendar")html=this._calendarScreen();
+    else if(this._screen==="tasks")html=this._tasksScreen();
+    else if(this._screen==="routines")html=this._routinesScreen();
+    else if(this._screen==="lists")html=this._listsScreen();
+    else if(this._screen==="meals")html=this._mealsScreen();
+    else if(this._screen==="rewards")html=this._rewardsScreen();
+    else if(this._screen==="profiles")html=this._profilesScreen();
+    else if(this._screen==="profile")html=this._profileScreen();
+    else if(this._screen==="house")html=this._houseScreen();
+    else html=this._homeScreen();
+    return (this._legendForScreen()?this._memberLegend():"")+html;
   }
 
   _screensaverHtml(){
@@ -688,7 +741,7 @@ class FamilyHubCard extends HTMLElement{
 ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-radius:0;overflow:hidden;background:#fff}ha-card.fullscreen{height:100vh;min-height:100vh}
 .hub{height:100%;position:relative;display:flex;flex-direction:column;background:#F7F9FB;color:#111;overflow:hidden}.wall{position:absolute;inset:0;background:var(--wall) center/cover no-repeat;opacity:calc(1 - var(--overlay));pointer-events:none}.hub-header,.content,.bottom-nav{position:relative;z-index:1}
 .hub-header{height:82px;flex:0 0 82px;background:rgba(10,22,40,.96);color:#fff;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 24px;border-bottom:4px solid var(--yellow)}.brand strong{display:block;color:var(--yellow);font-size:12px;letter-spacing:.05em}.brand span{display:block;font-size:18px;font-weight:900}.brand small{display:block;color:#ffffff99;font-size:9px;margin-top:2px}.clock{text-align:center;text-transform:capitalize;font-size:11px;color:#ffffffba}.clock b{display:block;font-size:26px;color:#fff;margin-top:2px}.weather{justify-self:end;display:flex;gap:8px;align-items:center;font-weight:900}
-.content{flex:1;min-height:0;overflow:auto;padding:18px 20px 16px;background:rgba(247,249,251,var(--overlay))}.home-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}.panel-block,.screen-card,.member-column,.list-card,.routine-card,.shopping-preview{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:0 3px 18px #0A162808}.panel-block h2{font-size:15px;margin:0;color:var(--dark)}.block-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.mini{border:0;background:#E5EDF6;color:var(--blue2);width:31px;height:31px;border-radius:9px;font-weight:900;cursor:pointer}.empty{font-size:10px;color:var(--muted);padding:9px 2px}.empty.small{padding:4px 0}.empty.big{background:#fff;border:1px dashed var(--line);border-radius:16px;padding:30px;text-align:center;grid-column:1/-1}.empty-action{width:100%;min-height:70px;border:1px dashed var(--line);background:#FAFBFC;border-radius:12px;color:var(--muted);cursor:pointer}
+.content{flex:1;min-height:0;overflow:auto;padding:18px 20px 16px;background:rgba(247,249,251,var(--overlay))}.member-filter{position:sticky;top:-18px;z-index:8;display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:-18px -20px 14px;padding:10px 20px;background:rgba(247,249,251,.96);backdrop-filter:blur(10px);border-bottom:1px solid #DEE5EC}.member-filter-label{font-size:9px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-right:2px}.member-filter button{height:30px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:0 10px;font-family:inherit;font-size:10px;font-weight:800;color:var(--dark);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s ease}.member-filter button:hover{transform:translateY(-1px)}.member-filter-all.active{background:var(--dark);border-color:var(--dark);color:#fff}.member-filter-chip i{width:10px;height:10px;border-radius:50%;background:var(--member)}.member-filter-chip.active{border-color:var(--member);box-shadow:inset 0 -2px 0 var(--member)}.member-filter-chip.off{opacity:.38;filter:grayscale(.75)}.member-filter-chip.off span{text-decoration:line-through;text-decoration-thickness:1px}.home-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}.panel-block,.screen-card,.member-column,.list-card,.routine-card,.shopping-preview{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:0 3px 18px #0A162808}.panel-block h2{font-size:15px;margin:0;color:var(--dark)}.block-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.mini{border:0;background:#E5EDF6;color:var(--blue2);width:31px;height:31px;border-radius:9px;font-weight:900;cursor:pointer}.empty{font-size:10px;color:var(--muted);padding:9px 2px}.empty.small{padding:4px 0}.empty.big{background:#fff;border:1px dashed var(--line);border-radius:16px;padding:30px;text-align:center;grid-column:1/-1}.empty-action{width:100%;min-height:70px;border:1px dashed var(--line);background:#FAFBFC;border-radius:12px;color:var(--muted);cursor:pointer}
 .agenda-row{display:grid;grid-template-columns:46px 1fr;gap:8px;border-left:4px solid var(--member);background:#F8FAFC;padding:8px;border-radius:9px;margin:6px 0}.agenda-row time{font-size:9px;color:var(--muted);font-weight:900}.agenda-row strong{display:block;font-size:11px}.agenda-row span{display:block;font-size:9px;color:var(--muted);margin-top:2px}.person-mini{border-top:1px solid #edf0f3;padding:9px 0}.person-mini:first-child{border-top:0}.person-title{display:flex;align-items:center;gap:6px;margin-bottom:4px}.person-title strong{font-size:11px}.person-title>span:last-child{margin-left:auto;color:var(--muted);font-size:9px}.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--member);color:#fff;font-weight:900;overflow:hidden;flex:0 0 auto}.avatar img{width:100%;height:100%;object-fit:cover}.avatar.tiny{width:24px;height:24px;font-size:8px}.avatar.small{width:38px;height:38px}.avatar.large{width:74px;height:74px;font-size:24px}.avatar.xlarge{width:92px;height:92px;font-size:30px}
 .check-row,.list-row{width:100%;border:0;background:transparent;display:flex;align-items:center;gap:8px;text-align:left;padding:7px 3px;border-radius:8px;cursor:pointer;color:#111}.check-row:hover,.list-row:hover{background:#EEF3F7}.box{width:21px;height:21px;border:1.5px solid #CBD4DC;border-radius:6px;display:grid;place-items:center;color:#fff;flex:0 0 auto}.check-row:hover .box,.list-row:hover .box{background:var(--blue);border-color:var(--blue)}.check-row span:nth-child(2),.list-row span:nth-child(2){font-size:10px;flex:1}.check-row em{font-style:normal;font-size:9px;color:#B88400;font-weight:900}
 .routine-hint{display:flex;align-items:center;gap:6px;background:#F0F5FA;color:var(--blue2);border-radius:8px;padding:6px 7px;margin-top:4px;font-size:9px;font-weight:900}.routine-hint ha-icon{--mdc-icon-size:15px}.routine-task-group{margin-top:9px;border:1px solid #DDE6EE;border-radius:10px;padding:7px;background:#F8FAFC}.routine-task-head{display:flex;align-items:center;gap:6px;padding:2px 2px 6px;color:var(--blue2)}.routine-task-head ha-icon{--mdc-icon-size:16px}.routine-task-head strong{font-size:10px;flex:1}.routine-task-head span{font-size:8px;color:var(--muted)}
@@ -738,10 +791,12 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
   }
   _bind(){
     const q=s=>this.shadowRoot.querySelector(s);
-    this.shadowRoot.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>{this._screen=b.dataset.screen;this._profileId=null;this._modal=null;this._render()});
+    this.shadowRoot.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>{this._screen=b.dataset.screen;this._profileId=null;this._modal=null;this._resetMemberFilter();this._render()});
+    this.shadowRoot.querySelectorAll("[data-member-filter]").forEach(b=>b.onclick=()=>this._toggleMemberFilter(b.dataset.memberFilter));
+    q("[data-member-all]")&&(q("[data-member-all]").onclick=()=>this._showAllMembers());
     q("[data-ha-overview]")&&(q("[data-ha-overview]").onclick=()=>this._openHomeAssistant());
-    this.shadowRoot.querySelectorAll("[data-profile]").forEach(b=>b.onclick=()=>{this._profileId=b.dataset.profile;this._screen="profile";this._modal=null;this._render()});
-    q("[data-profile-back]")&&(q("[data-profile-back]").onclick=()=>{this._screen="profiles";this._profileId=null;this._render()});
+    this.shadowRoot.querySelectorAll("[data-profile]").forEach(b=>b.onclick=()=>{this._profileId=b.dataset.profile;this._screen="profile";this._modal=null;this._resetMemberFilter();this._render()});
+    q("[data-profile-back]")&&(q("[data-profile-back]").onclick=()=>{this._screen="profiles";this._profileId=null;this._resetMemberFilter();this._render()});
     this.shadowRoot.querySelectorAll("[data-more-info]").forEach(b=>b.onclick=()=>this._showMoreInfo(b.dataset.moreInfo));
     this.shadowRoot.querySelectorAll("[data-event-detail]").forEach(b=>b.onclick=()=>this._open("eventDetail",{memberId:b.dataset.eventMember,start:b.dataset.eventStart,summary:b.dataset.eventSummary}));
     this.shadowRoot.querySelectorAll("[data-task-detail]").forEach(b=>b.onclick=()=>this._open("taskDetail",{entity:b.dataset.taskEntity,itemId:b.dataset.taskId,memberId:b.dataset.taskMember}));

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.6 — klikbare kleurlegenda en gezinsfilter
+- Op alle schermen waar informatie van meerdere gezinsleden door elkaar kan staan — **Vandaag, Agenda, Taken, Routines, Punten en Gezin** — staat nu bovenaan een compacte legenda met de ingestelde kleur van ieder gezinslid.
+- De legenda is direct een filter: klik op een naam/kleur om dat gezinslid tijdelijk uit het huidige scherm te verbergen of weer te tonen.
+- De knop **Iedereen** schakelt alle gezinsleden direct weer in.
+- Uitgeschakelde personen worden visueel gedimd en doorgestreept, zodat duidelijk blijft welk filter actief is.
+- De legenda blijft bovenaan zichtbaar tijdens scrollen.
+- Het filter is bewust tijdelijk. Bij navigeren naar een ander Family Hub-scherm, of wanneer je later terugkomt op een scherm, staat standaard **iedereen weer aan**.
+- De filtering werkt door in afspraken, vertrekhulp, taken, routines, beloningen en gezinskaarten; de onderliggende Home Assistant-data wordt niet aangepast.
+
+
 ## 0.9.5 — agenda's actief verversen
 - Home Assistant Remote Calendar bewaart de opgehaalde ICS-data standaard veel langer dan de Family Hub-interface. Daardoor kon Family Hub wel iedere 2 minuten opnieuw tekenen, maar bleef een wijziging in Google Agenda nog uit de Home Assistant-cache komen.
 - Family Hub vraagt gekoppelde agenda-entiteiten nu actief om een update via `homeassistant.update_entity` vóór het opnieuw ophalen van afspraken.
