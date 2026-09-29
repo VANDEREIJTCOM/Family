@@ -181,7 +181,13 @@ function mergeProvisionedMembers(serverMembers=[]){
  persistedMemberIds=new Set((serverMembers||[]).map(m=>m.id));
 }
 async function saveSection(section,message="Opgeslagen"){
- if(sectionSaving.has(section))return false;
+ if(sectionSaving.has(section)){
+  if(section==="members"){
+    clearTimeout(memberAutosaveTimer);
+    memberAutosaveTimer=setTimeout(()=>saveSection("members",message),350);
+  }
+  return false;
+ }
  try{
   sectionSaving.add(section);
   syncDraftFromDom(false);
