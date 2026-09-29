@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const FH_ADMIN_VERSION="0.8.2";
+const FH_ADMIN_VERSION="0.8.3";
 let versionWatchTimer=null;
 let updateReloading=false;
 
@@ -27,6 +27,9 @@ let entities={calendar:[],todo:[],person:[],weather:[],all:[]};
 let pendingBackground=null;
 let dirty=false;
 let settingsLoaded=false;
+let memberAutosaveTimer=null;
+let persistedMemberIds=new Set();
+let sectionSaving=false;
 
 const palette=["#2E6CA5","#8B5CF6","#43A66B","#E3A72F","#E6784F","#D94B4B","#06B6D4","#7C8A9A"];
 const DAYS=["Ma","Di","Wo","Do","Vr","Za","Zo"];
@@ -158,6 +161,65 @@ function startVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkForFrontendUpdate()});
 }
 function markDirty(){dirty=true;const el=$("save-state");if(el)el.textContent=settingsLoaded?"Niet opgeslagen":"Nog aan het laden…"}
+function setSaveState(text){const el=$("save-state");if(el)el.textContent=text}
+function namedMembers(){return (settings.members||[]).filter(m=>String(m?.name||"").trim())}
+function hasInvalidPersistedMember(){
+ return (settings.members||[]).some(m=>persistedMemberIds.has(m.id)&&!String(m.name||"").trim());
+}
+function mergeProvisionedMembers(serverMembers=[]){
+ const byId=new Map((serverMembers||[]).map(m=>[m.id,m]));
+ settings.members=(settings.members||[]).map(local=>{
+  const server=byId.get(local.id);
+  if(!server)return local;
+  return {...local,
+    calendar:local.calendar||server.calendar||"",
+    todo:local.todo||server.todo||"",
+    person:local.person||server.person||"",
+    points_entity:server.points_entity||local.points_entity||""
+  };
+ });
+ persistedMemberIds=new Set((serverMembers||[]).map(m=>m.id));
+}
+async function saveSection(section,message="Opgeslagen"){
+ if(sectionSaving)return false;
+ try{
+  sectionSaving=true;
+  syncDraftFromDom(false);
+  if(section==="members"&&hasInvalidPersistedMember())return false;
+  const value=section==="members"?namedMembers():deepClone(settings[section]||[]);
+  setSaveState("Opslaan…");
+  const d=await api("api/settings/section",{method:"POST",body:JSON.stringify({
+    section,
+    value,
+    members:section==="members"?undefined:namedMembers()
+  })});
+  if(section==="members"){
+    mergeProvisionedMembers(d.settings?.members||[]);
+  }else{
+    settings[section]=deepClone(d.settings?.[section]||settings[section]||[]);
+    mergeProvisionedMembers(d.settings?.members||[]);
+  }
+  setSaveState(dirty?"Algemene wijzigingen niet opgeslagen":"Opgeslagen");
+  toast(message);
+  loadSuggestions();
+  return true;
+ }catch(e){
+  console.error("[Family Hub] onderdeel opslaan mislukt",section,e);
+  setSaveState("Opslaan mislukt");
+  toast("Opslaan mislukt: "+e.message);
+  return false;
+ }finally{sectionSaving=false}
+}
+function scheduleMemberAutosave(){
+ clearTimeout(memberAutosaveTimer);
+ syncDraftFromDom(false);
+ if(hasInvalidPersistedMember()){setSaveState("Vul de naam van het gezinslid in");return}
+ const unsavedNamed=(settings.members||[]).some(m=>String(m.name||"").trim()&&!persistedMemberIds.has(m.id));
+ const hasNamed=(settings.members||[]).some(m=>String(m.name||"").trim());
+ if(!hasNamed)return;
+ setSaveState(unsavedNamed?"Nieuw gezinslid opslaan…":"Wijziging opslaan…");
+ memberAutosaveTimer=setTimeout(()=>saveSection("members",unsavedNamed?"Gezinslid opgeslagen":"Gezinslid bijgewerkt"),700);
+}
 function uid(prefix){return prefix+"_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7)}
 function options(domain,selected){const a=entities[domain]||[];return '<option value="">— Automatisch regelen —</option>'+a.map(e=>`<option value="${esc(e.entity_id)}" ${e.entity_id===selected?"selected":""}>${esc(e.name)}</option>`).join("")}
 function memberOptions(selected,allLabel="— Kies gezinslid —"){return `<option value="">${esc(allLabel)}</option>`+(settings.members||[]).map(m=>`<option value="${esc(m.id)}" ${m.id===selected?"selected":""}>${esc(m.name)}</option>`).join("")}
@@ -376,7 +438,7 @@ function move(arr,from,to){if(to<0||to>=arr.length)return;const [x]=arr.splice(f
 function bind(){
  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{syncDraftFromDom(false);document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");const tab=$("tab-"+b.dataset.tab);if(tab)tab.classList.add("active");const title=$("page-title");if(title)title.textContent=b.textContent.trim();if(b.dataset.tab==="dashboard")loadStatus()});
  click("save",save);click("reload-entities",loadEntities);click("install-dashboard",installDashboard);click("remove-dashboard",removeDashboard);click("provision-now",provisionNow);click("add-external-calendar",addExternalCalendar);
- click("add-member",e=>{e?.preventDefault?.();syncDraftFromDom(false);settings=ensureSettingsShape(settings);settings.members.push({id:uid("member"),name:"",role:"adult",color:palette[settings.members.length%palette.length],icon:"mdi:account",calendar:"",todo:"",person:"",points_entity:""});renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();toast("Gezinslid toegevoegd — je eerdere invoer blijft als concept bewaard")});
+ click("add-member",e=>{e?.preventDefault?.();syncDraftFromDom(false);settings=ensureSettingsShape(settings);settings.members.push({id:uid("member"),name:"",role:"adult",color:palette[settings.members.length%palette.length],icon:"mdi:account",calendar:"",todo:"",person:"",points_entity:""});renderMembers();renderRoutines();renderSmartTasks();renderRewards();setSaveState("Nieuw gezinslid");toast("Gezinslid toegevoegd — vul de gegevens in; opslaan gaat automatisch")});
  click("add-routine",()=>openRoutineTemplates());
  click("add-smart-task",()=>openTaskEditor());
  click("add-list",()=>openListEditor());
@@ -394,7 +456,10 @@ function bind(){
     const info=iconInfo(b.dataset.iconValue),current=picker?.querySelector(".icon-picker-current");
     if(current)current.innerHTML=`<span>${info[1]}</span><strong>${esc(info[2])}</strong><em>Kies icoon</em>`;
     if(picker?.tagName==="DETAILS")picker.open=false;
-    if(!picker?.closest("#admin-editor")){syncDraftFromDom(false);markDirty()}
+    if(!picker?.closest("#admin-editor")){
+      syncDraftFromDom(false);
+      if(picker?.closest("[data-member]"))scheduleMemberAutosave();else markDirty();
+    }
     return;
   }
   b=e.target.closest("[data-add-step]");
@@ -424,9 +489,9 @@ function bind(){
   if(b){const row=b.closest("[data-checklist-row]"),prev=row?.previousElementSibling;if(row&&prev&&prev.matches("[data-checklist-row]")){row.parentElement.insertBefore(row,prev);renumberRows(row.parentElement,"[data-checklist-row]")}return}
   b=e.target.closest("[data-check-down]");
   if(b){const row=b.closest("[data-checklist-row]"),next=row?.nextElementSibling;if(row&&next&&next.matches("[data-checklist-row]")){row.parentElement.insertBefore(next,row);renumberRows(row.parentElement,"[data-checklist-row]")}return}
-  b=e.target.closest("[data-remove-member]");if(b){syncDraftFromDom(false);settings.members.splice(Number(b.dataset.removeMember),1);renderMembers();renderRoutines();renderSmartTasks();renderRewards();markDirty();return}b=e.target.closest("[data-nav-up]");if(b){move(settings.navigation,Number(b.dataset.navUp),Number(b.dataset.navUp)-1);renderNavigation();markDirty();return}b=e.target.closest("[data-nav-down]");if(b){move(settings.navigation,Number(b.dataset.navDown),Number(b.dataset.navDown)+1);renderNavigation();markDirty();return}b=e.target.closest("[data-section-up]");if(b){const id=b.dataset.sectionUp,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i-1);renderHomeSections();markDirty();return}b=e.target.closest("[data-section-down]");if(b){const id=b.dataset.sectionDown,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i+1);renderHomeSections();markDirty();return}});
- document.body.addEventListener("change",e=>{if(e.target.matches("[data-nav-key='enabled']")){const card=e.target.closest("[data-nav]");settings.navigation[Number(card.dataset.nav)].enabled=e.target.checked;markDirty()}if(e.target.matches("[data-section-enable]")){const id=e.target.dataset.sectionEnable;if(e.target.checked&&!settings.home_sections.includes(id))settings.home_sections.push(id);if(!e.target.checked)settings.home_sections=settings.home_sections.filter(x=>x!==id);renderHomeSections();markDirty()}if(e.target.id==="home_entities"||e.target.id==="notification_entities")markDirty();if(e.target.closest(".config-card")||e.target.matches("input,select,textarea")){if(!e.target.closest("#admin-editor")){syncDraftFromDom(false);markDirty()}}});
- document.body.addEventListener("input",e=>{if(e.target.matches("[data-member-key='name']")){const card=e.target.closest("[data-member]");card.querySelector(".member-title").textContent=e.target.value||"Nieuw gezinslid";card.querySelector(".dot").textContent=(e.target.value||"?").charAt(0).toUpperCase()}if(e.target.matches("[data-member-key='color']")){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='colorText']").value=e.target.value}if(e.target.matches("[data-member-key='colorText']")&&/^#[0-9a-f]{6}$/i.test(e.target.value)){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='color']").value=e.target.value}if(!e.target.closest("#admin-editor")){syncDraftFromDom(false);markDirty()}});
+  b=e.target.closest("[data-remove-member]");if(b){syncDraftFromDom(false);settings.members.splice(Number(b.dataset.removeMember),1);renderMembers();renderRoutines();renderSmartTasks();renderRewards();saveSection("members","Gezinslid verwijderd");return}b=e.target.closest("[data-nav-up]");if(b){move(settings.navigation,Number(b.dataset.navUp),Number(b.dataset.navUp)-1);renderNavigation();markDirty();return}b=e.target.closest("[data-nav-down]");if(b){move(settings.navigation,Number(b.dataset.navDown),Number(b.dataset.navDown)+1);renderNavigation();markDirty();return}b=e.target.closest("[data-section-up]");if(b){const id=b.dataset.sectionUp,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i-1);renderHomeSections();markDirty();return}b=e.target.closest("[data-section-down]");if(b){const id=b.dataset.sectionDown,i=settings.home_sections.indexOf(id);move(settings.home_sections,i,i+1);renderHomeSections();markDirty();return}});
+ document.body.addEventListener("change",e=>{if(e.target.matches("[data-nav-key='enabled']")){const card=e.target.closest("[data-nav]");settings.navigation[Number(card.dataset.nav)].enabled=e.target.checked;markDirty();return}if(e.target.matches("[data-section-enable]")){const id=e.target.dataset.sectionEnable;if(e.target.checked&&!settings.home_sections.includes(id))settings.home_sections.push(id);if(!e.target.checked)settings.home_sections=settings.home_sections.filter(x=>x!==id);renderHomeSections();markDirty();return}if(e.target.closest("[data-member]")){syncDraftFromDom(false);scheduleMemberAutosave();return}if(e.target.id==="home_entities"||e.target.id==="notification_entities")markDirty();if(e.target.closest(".config-card")||e.target.matches("input,select,textarea")){if(!e.target.closest("#admin-editor")){syncDraftFromDom(false);markDirty()}}});
+ document.body.addEventListener("input",e=>{if(e.target.matches("[data-member-key='name']")){const card=e.target.closest("[data-member]");card.querySelector(".member-title").textContent=e.target.value||"Nieuw gezinslid";card.querySelector(".dot").textContent=(e.target.value||"?").charAt(0).toUpperCase()}if(e.target.matches("[data-member-key='color']")){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='colorText']").value=e.target.value}if(e.target.matches("[data-member-key='colorText']")&&/^#[0-9a-f]{6}$/i.test(e.target.value)){const card=e.target.closest("[data-member]");card.style.setProperty("--member",e.target.value);card.querySelector("[data-member-key='color']").value=e.target.value}if(e.target.closest("[data-member]")){syncDraftFromDom(false);scheduleMemberAutosave();return}if(!e.target.closest("#admin-editor")){syncDraftFromDom(false);markDirty()}});
  ["title","subtitle","refresh_interval","show_household_status","idle_minutes","idle_show_clock","photos","shopping_list","meals_todo","dashboard_title","dashboard_show_sidebar"].forEach(id=>listen(id,"change",markDirty));
  const accent=$("accent_color"),accentText=$("accent_color_text"),overlay=$("background_overlay"),overlayLabel=$("overlay-label");if(accent)accent.oninput=()=>{if(accentText)accentText.value=accent.value;markDirty()};if(accentText)accentText.oninput=()=>{if(/^#[0-9a-f]{6}$/i.test(accentText.value)&&accent)accent.value=accentText.value;markDirty()};if(overlay)overlay.oninput=()=>{if(overlayLabel)overlayLabel.textContent=overlay.value+"%";markDirty()};
  const bgFile=$("background-file");if(bgFile)bgFile.onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>12*1024*1024){toast("Afbeelding mag maximaal 12 MB zijn");return}const r=new FileReader();r.onload=()=>{pendingBackground=r.result;preview(r.result);markDirty()};r.readAsDataURL(f)};click("remove-background",async()=>{try{const d=await api("api/background/remove",{method:"POST",body:"{}"});settings=ensureSettingsShape(d.settings);pendingBackground=null;preview("");dirty=false;toast("Achtergrond verwijderd")}catch(e){console.error("[Family Hub] achtergrond verwijderen mislukt",e);toast(e.message)}});
@@ -444,6 +509,7 @@ function bind(){
     $("connection").textContent="Instellingen laden…";
     const d=await api("api/settings");
     settings=ensureSettingsShape(d.settings);
+    persistedMemberIds=new Set((settings.members||[]).map(m=>m.id));
     settingsLoaded=true;
     fill();
     $("save-state").textContent="Opgeslagen";
