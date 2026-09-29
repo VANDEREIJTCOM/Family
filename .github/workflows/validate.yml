@@ -91,7 +91,7 @@ jobs:
           grep -q 'function scheduleMemberAutosave' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
           grep -q 'api("api/settings/section"' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
           grep -q 'if(message)toast(message)' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
-          grep -q 'const allowed = {"members", "routines", "smart_tasks", "lists", "rewards", "departure_rules"}' vandereijt_family_hub/app.py
+          grep -q 'allowed = {"members", "routines", "smart_tasks", "lists", "rewards", "departure_rules"}' vandereijt_family_hub/app.py
           grep -q 'function syncMembersDraft' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
           grep -q 'function syncStaticDraft' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
           grep -q 'function syncDraftFromDom' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
