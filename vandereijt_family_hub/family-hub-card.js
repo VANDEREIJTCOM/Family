@@ -409,28 +409,35 @@ class FamilyHubCard extends HTMLElement{
     return `<header class="hub-header"><div class="brand"><strong>VANDEREIJT.COM</strong><span>Family Hub</span><small>${this._esc(this._config.subtitle||"for Home Assistant")}</small></div><div class="clock"><div>${now.toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"})}</div><b>${now.toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})}</b></div>${this._weather()}</header>`;
   }
 
-  _section(title,content,extra=""){return `<section class="panel-block"><div class="block-head"><div><h2>${this._esc(title)}</h2></div>${extra}</div>${content}</section>`;}
+  _section(title,content,extra="",target=""){const heading=target?`<button class="section-link" data-screen="${this._esc(target)}"><h2>${this._esc(title)}</h2><span>›</span></button>`:`<div><h2>${this._esc(title)}</h2></div>`;return `<section class="panel-block"><div class="block-head">${heading}${extra}</div>${content}</section>`;}
   _todayAgenda(){
     const ev=this._eventsForDay(new Date());
-    const html=ev.length?ev.slice(0,8).map(x=>`<div class="agenda-row" style="--member:${x.member.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}</span></div></div>`).join(""):'<div class="empty">Geen afspraken vandaag.</div>';
-    return this._section("Vandaag",html,'<button class="mini" data-add-event>＋</button>');
+    const html=ev.length?ev.slice(0,8).map(x=>`<button class="agenda-row agenda-click" data-event-detail data-event-member="${this._esc(x.member.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${x.member.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}${x.event._fhSynthetic?" · Family Hub":""}</span></div><b>›</b></button>`).join(""):'<div class="empty">Geen afspraken vandaag.</div>';
+    return this._section("Vandaag",html,'<button class="mini" data-add-event>＋</button>',"calendar");
   }
   _taskSection(){
     let rows="";
     for(const m of this._config.members||[]){
-      const items=this._regularTodos(m).slice(0,3),routineGroups=this._routineTodoGroups(m);
-      const routineHint=routineGroups.length?`<div class="routine-hint"><ha-icon icon="mdi:progress-check"></ha-icon><span>${routineGroups.length} routine${routineGroups.length===1?"":"s"} actief</span></div>`:"";
-      rows+=`<div class="person-mini"><div class="person-title">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span></div>${items.length?items.map(it=>this._taskRow(m.todo,it)).join(""):""}${routineHint}${!items.length&&!routineGroups.length?'<div class="empty small">Geen open taken</div>':""}</div>`;
+      const items=this._regularTodos(m).slice(0,4),routineGroups=this._routineTodoGroups(m);
+      const routineHint=routineGroups.length?`<button class="routine-hint" data-screen="routines"><ha-icon icon="mdi:progress-check"></ha-icon><span>${routineGroups.length} routine${routineGroups.length===1?"":"s"} vandaag</span><b>›</b></button>`:"";
+      rows+=`<div class="person-mini"><button class="person-title person-link" data-profile="${this._esc(m.id)}">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span><b>›</b></button>${items.length?items.map(it=>this._taskRow(m.todo,it,m.id)).join(""):""}${routineHint}${!items.length&&!routineGroups.length?'<div class="empty small">Geen taken vandaag</div>':""}</div>`;
     }
-    return this._section("Taken",rows,'<button class="mini" data-add-task>＋</button>');
+    return this._section("Taken",rows,'<button class="mini" data-add-task>＋</button>',"tasks");
   }
-  _taskRow(entity,item){const meta=this._meta(item),points=Number(meta?.points||0);return `<button class="check-row" data-complete-entity="${this._esc(entity)}" data-complete-id="${this._esc(item.uid||item.summary)}"><span class="box">✓</span><span>${this._esc(item.summary||"Taak")}</span>${points?`<em>+${points} ★</em>`:""}</button>`;}
-  _regularTodos(m){return (this._todos[m.id]||[]).filter(item=>this._meta(item)?.kind!=="routine_step");}
+  _itemDate(item){const meta=this._meta(item);return String(meta?.date||item?.due||item?.due_date||item?.due_datetime||"").slice(0,10)}
+  _taskRow(entity,item,memberId=""){
+    const meta=this._meta(item),points=Number(meta?.points||0),completed=item.status==="completed",id=item.uid||item.summary,mid=memberId||meta?.member_id||"";
+    return `<div class="check-row ${completed?"completed":""}"><button class="task-toggle box" data-toggle-task-entity="${this._esc(entity)}" data-toggle-task-id="${this._esc(id)}" title="${completed?"Terugzetten":"Afronden"}">${completed?"✓":""}</button><button class="task-open" data-task-detail data-task-entity="${this._esc(entity)}" data-task-id="${this._esc(id)}" data-task-member="${this._esc(mid)}"><span>${this._esc(item.summary||"Taak")}</span>${completed?"<small>Afgerond · klik om te bekijken</small>":""}</button>${points?`<em>${completed?"":"+"}${points} ★</em>`:""}<span class="row-arrow">›</span></div>`;
+  }
+  _regularTodos(m){
+    const today=this._dateISO(new Date()),all=this._todoAll[m.id]||this._todos[m.id]||[];
+    return all.filter(item=>{const meta=this._meta(item);if(meta?.kind==="routine_step"||meta?.kind==="reward_claim")return false;if(item.status!=="completed")return true;return this._itemDate(item)===today}).sort((a,b)=>(a.status==="completed")-(b.status==="completed"));
+  }
   _routineTodoGroups(m){
-    const groups=new Map();
-    for(const item of (this._todos[m.id]||[])){
+    const groups=new Map(),today=this._dateISO(new Date());
+    for(const item of (this._todoAll[m.id]||[])){
       const meta=this._meta(item);
-      if(meta?.kind!=="routine_step")continue;
+      if(meta?.kind!=="routine_step"||meta?.date!==today)continue;
       const id=meta.routine_id||"routine",title=meta.routine_title||"Routine";
       if(!groups.has(id))groups.set(id,{id,title,items:[]});
       groups.get(id).items.push(item);
@@ -438,8 +445,10 @@ class FamilyHubCard extends HTMLElement{
     return [...groups.values()];
   }
   _routineTaskGroup(m,group){
-    return `<div class="routine-task-group"><div class="routine-task-head"><ha-icon icon="mdi:progress-check"></ha-icon><strong>${this._esc(group.title)}</strong><span>${group.items.length} open</span></div>${group.items.map(it=>this._taskRow(m.todo,it)).join("")}</div>`;
+    const done=group.items.filter(x=>x.status==="completed").length;
+    return `<div class="routine-task-group"><button class="routine-task-head" data-screen="routines"><ha-icon icon="mdi:progress-check"></ha-icon><strong>${this._esc(group.title)}</strong><span>${done}/${group.items.length} klaar</span><b>›</b></button>${group.items.map(it=>this._taskRow(m.todo,it,m.id)).join("")}</div>`;
   }
+
   _routineSection(){
     const today=(new Date().getDay()+6)%7;
     const cards=[];
@@ -447,29 +456,30 @@ class FamilyHubCard extends HTMLElement{
       for(const m of this._routineMembers(r))cards.push(this._routineCard(r,true,m));
     }
     const html=cards.length?cards.slice(0,6).join(""):'<div class="empty">Geen routines vandaag.</div>';
-    return this._section("Routines",html);
+    return this._section("Routines",html,"","routines");
   }
   _routineCard(r,compact=false,mOverride=null){
     const m=mOverride||this._routineMembers(r)[0]||null,items=this._routineItems(r,m);
     const total=(r.steps||[]).length||items.length,done=items.filter(x=>x.status==="completed").length,progress=total?Math.round(done/total*100):0;
     const entity=m?.todo||r.todo_entity||"";
-    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}"><div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b></div><div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.length?items.map(it=>it.status==="completed"?`<div class="done-step"><span>✓</span>${this._esc(it.summary)}</div>`:this._taskRow(entity,it)).join(""):'<div class="empty small">De stappen worden automatisch klaargezet.</div>'}</div>`}</article>`;
+    const top=compact?`<button class="routine-top routine-link" data-screen="routines">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b><i>›</i></button>`:`<div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b></div>`;
+    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}">${top}<div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.length?items.map(it=>this._taskRow(entity,it,m?.id||"")).join(""):'<div class="empty small">De stappen worden automatisch klaargezet.</div>'}</div>`}</article>`;
   }
   _mealSection(){
     const today=this._dateISO(new Date());const item=this._meals.find(x=>String(x.due||"").slice(0,10)===today);
-    const html=item?`<div class="meal-today"><ha-icon icon="mdi:silverware-fork-knife"></ha-icon><div><small>Vanavond</small><strong>${this._esc(item.summary)}</strong></div></div>`:'<button class="empty-action" data-add-meal>＋ Maaltijd plannen</button>';
-    return this._section("Eten",html);
+    const html=item?`<button class="meal-today meal-link" data-screen="meals"><ha-icon icon="mdi:silverware-fork-knife"></ha-icon><div><small>Vanavond</small><strong>${this._esc(item.summary)}</strong></div><b>›</b></button>`:'<button class="empty-action" data-add-meal>＋ Maaltijd plannen</button>';
+    return this._section("Eten",html,"","meals");
   }
   _notificationsSection(){
     const inactive=new Set(["off","closed","idle","home","0","unknown","unavailable","none",""]);
     const active=(this._config.notification_entities||[]).map(id=>this._hass?.states?.[id]).filter(s=>s&&!inactive.has(String(s.state).toLowerCase()));
     const html=active.length?active.slice(0,6).map(s=>`<div class="notice"><ha-icon icon="${this._esc(s.attributes?.icon||"mdi:bell-outline")}"></ha-icon><div><strong>${this._esc(s.attributes?.friendly_name||s.entity_id)}</strong><span>${this._esc(s.state)}</span></div></div>`).join(""):'<div class="empty">Geen meldingen.</div>';
-    return this._section("Meldingen",html);
+    return this._section("Meldingen",html,"","house");
   }
   _houseSection(){
     const ids=this._config.home_entities||[];
-    const html=ids.length?`<div class="house-grid">${ids.slice(0,8).map(id=>{const s=this._hass?.states?.[id];return `<div class="house-tile"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><span>${this._esc(s?.attributes?.friendly_name||id)}</span><strong>${this._esc(this._stateText(id))}</strong></div>`}).join("")}</div>`:'<div class="empty">Nog geen huis-entiteiten gekozen.</div>';
-    return this._section("Huis",html);
+    const html=ids.length?`<div class="house-grid">${ids.slice(0,8).map(id=>{const s=this._hass?.states?.[id];return `<button class="house-tile" data-more-info="${this._esc(id)}"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><span>${this._esc(s?.attributes?.friendly_name||id)}</span><strong>${this._esc(this._stateText(id))}</strong></button>`}).join("")}</div>`:'<div class="empty">Nog geen huis-entiteiten gekozen.</div>';
+    return this._section("Huis",html,"","house");
   }
   _departuresSection(){
     const now=new Date();const cards=[];
