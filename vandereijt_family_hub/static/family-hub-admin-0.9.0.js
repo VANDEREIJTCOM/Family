@@ -503,7 +503,22 @@ async function save(){try{const saveButton=$("save");if(saveButton)saveButton.di
 async function installDashboard(){const b=$("install-dashboard");try{b.disabled=true;b.textContent="Installeren…";await save();const d=await api("api/dashboard/install",{method:"POST",body:JSON.stringify({title:$("dashboard_title").value.trim()||"Family Hub",show_in_sidebar:$("dashboard_show_sidebar").checked})});settings=d.settings;fill();await loadStatus();toast("Family Hub is bijgewerkt in Home Assistant")}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="Dashboard installeren / bijwerken"}}
 async function removeDashboard(){if(!confirm("Family Hub uit Overzicht en eventueel de zijbalk verwijderen? Je instellingen blijven bewaard."))return;try{const d=await api("api/dashboard/remove",{method:"POST",body:"{}"});settings=d.settings;fill();await loadStatus();toast("Family Hub dashboard verwijderd")}catch(e){toast(e.message)}}
 async function provisionNow(){const b=$("provision-now");try{b.disabled=true;b.textContent="Controleren…";const d=await api("api/provision",{method:"POST",body:"{}"});settings=d.settings;await loadEntities();toast(d.provisioned?.length?`${d.provisioned.length} koppelingen aangemaakt`:"Alles is al in orde")}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="Family Hub-entiteiten controleren"}}
-async function addExternalCalendar(){const b=$("add-external-calendar"),out=$("external-calendar-result");try{b.disabled=true;out.textContent="Agenda controleren…";await api("api/external-calendar",{method:"POST",body:JSON.stringify({name:$("external_calendar_name").value.trim(),url:$("external_calendar_url").value.trim()})});out.textContent="Agenda toegevoegd aan Home Assistant.";await loadEntities();toast("Externe agenda toegevoegd")}catch(e){out.textContent=e.message;toast(e.message)}finally{b.disabled=false}}
+async function addExternalCalendar(){
+ const b=$("add-external-calendar"),out=$("external-calendar-result"),name=$("external_calendar_name").value.trim(),url=$("external_calendar_url").value.trim();
+ if(!url)return toast("Plak eerst een iCal/ICS-link.");
+ if(/calendar\.google\.com/i.test(url)&&!/\/calendar\/ical\//i.test(url)){
+  const msg="Dit is een gewone Google Agenda-deellink. Gebruik onder Google Agenda → Instellingen → jouw agenda → Agenda integreren het ‘Geheim adres in iCal-indeling’ (of het openbare iCal-adres).";
+  out.textContent=msg;toast("Google Agenda: gebruik de iCal-link");return;
+ }
+ try{
+  b.disabled=true;b.textContent="Controleren…";out.textContent="Agenda-link controleren…";
+  await api("api/external-calendar",{method:"POST",body:JSON.stringify({name,url})});
+  out.textContent="Agenda toegevoegd aan Home Assistant. Je kunt hem nu bij een gezinslid kiezen.";
+  await loadEntities();toast("Externe agenda toegevoegd");
+ }catch(e){
+  out.textContent=e.message;toast(e.message);
+ }finally{b.disabled=false;b.textContent="Agenda toevoegen aan Home Assistant"}
+}
 function move(arr,from,to){if(to<0||to>=arr.length)return;const [x]=arr.splice(from,1);arr.splice(to,0,x)}
 function bind(){
  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{syncDraftFromDom(false);document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");const tab=$("tab-"+b.dataset.tab);if(tab)tab.classList.add("active");const title=$("page-title");if(title)title.textContent=b.textContent.trim();if(b.dataset.tab==="dashboard")loadStatus()});
