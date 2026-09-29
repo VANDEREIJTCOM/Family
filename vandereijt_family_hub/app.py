@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.9.1"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -384,7 +384,7 @@ def grouped_entities():
 
 
 
-def ha_api(method, path, payload=None):
+def ha_api(method, path, payload=None, timeout=15):
     if not SUPERVISOR_TOKEN:
         raise RuntimeError("Home Assistant API token ontbreekt")
     body = None
@@ -401,7 +401,7 @@ def ha_api(method, path, payload=None):
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             raw = response.read()
             return json.loads(raw.decode("utf-8")) if raw else {}
     except urllib.error.HTTPError as exc:
@@ -1206,6 +1206,7 @@ def create_remote_calendar(name, url):
             "url": calendar_url,
             "verify_ssl": True,
         },
+        timeout=45,
     )
     if result.get("type") == "create_entry":
         return result
@@ -1778,7 +1779,9 @@ class Handler(BaseHTTPRequestHandler):
                 result = create_remote_calendar(name, url)
                 return self._json(HTTPStatus.OK, {"ok": True, "result": result})
             except Exception as exc:
-                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                error = str(exc)
+                print(f"[Family Hub] External calendar error: {error}", flush=True)
+                return self._json(HTTPStatus.OK, {"ok": False, "error": error})
 
         if path == "/api/provision":
             try:

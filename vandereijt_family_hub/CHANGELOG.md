@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1 — punten en externe agenda
+- De puntenstrook bovenaan **Punten & beloningen** toont nu expliciet de punten van **vandaag**. Daardoor klopt Lonneke bijvoorbeeld met haar dagbeloning en wordt het doorlopende saldo niet meer als dagtotaal gepresenteerd.
+- De externe-agenda-wizard wacht nu maximaal 50 seconden op Home Assistant; de Remote Calendar-integratie kan zelf tot 30 seconden nodig hebben om een ICS-feed te lezen.
+- De backend wacht langer op de Remote Calendar-configuratiestap, zodat een geldige maar tragere agenda niet voortijdig wordt afgebroken.
+- Validatiefouten van een externe agenda komen als duidelijke Family Hub-melding terug in plaats van als alleen een generieke mislukte netwerkrequest.
+- Externe-agendafouten worden ook in het Family Hub App-log geschreven voor verdere diagnose.
+
+
 ## 0.9.0 — interactieve Family Hub
 - Dashboardinformatie is veel vaker direct aanklikbaar: agenda-items, taken, personen, routines, maaltijden, meldingen en huisstatus leiden naar detail of de juiste Family Hub-weergave.
 - Klik op een persoon om direct naar de persoonlijke kaart te gaan.
