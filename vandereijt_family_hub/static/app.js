@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const FH_ADMIN_VERSION="0.8.3";
+const FH_ADMIN_VERSION="0.9.0";
 let versionWatchTimer=null;
 let updateReloading=false;
 
@@ -370,17 +370,79 @@ function renderRoutines(){
  bindRoutineActions(root);
 }
 function openTaskEditor(index=null,seed=null){
- const t=deepClone(seed||(index==null?{title:"",member_id:"",icon:"mdi:checkbox-marked-circle-outline",points:0,days:[0,1,2,3,4],due_time:"",enabled:true}:settings.smart_tasks[index]));
- const body=`<div class="editor-grid"><section class="editor-section span2"><h3>Terugkerende taak</h3><label>Wat moet er gebeuren?<input id="ed-task-title" value="${esc(t.title||"")}"></label><div class="editor-two"><label>Voor wie?<select id="ed-task-member">${memberOptions(t.member_id)}</select></label><label>Tijd<input id="ed-task-time" type="time" value="${esc(t.due_time||"")}"></label></div><label>Dagen</label>${editorDays(t.days||[0,1,2,3,4])}</section><section class="editor-section"><h3>Beloning</h3><label>Punten<input id="ed-task-points" type="number" min="0" value="${Number(t.points||0)}"><small>0 = geen punten</small></label><label class="switch"><input id="ed-task-enabled" type="checkbox" ${t.enabled!==false?"checked":""}> Automatisch klaarzetten</label></section><section class="editor-section"><h3>Icoon</h3>${iconPicker(t.icon||"mdi:checkbox-marked-circle-outline",'id="ed-task-icon"',true)}</section></div>`;
+ const t=deepClone(seed||(index==null?{title:"",member_id:"",icon:"mdi:checkbox-marked-circle-outline",points:0,days:[0,1,2,3,4],due_time:"",show_in_calendar:true,enabled:true}:settings.smart_tasks[index]));
+ const body=`<div class="editor-grid">
+  <section class="editor-section span2">
+   <h3>Terugkerende taak</h3>
+   <label>Wat moet er gebeuren?<input id="ed-task-title" value="${esc(t.title||"")}" placeholder="Bijv. kamer opruimen"></label>
+   <div class="editor-two">
+    <label>Voor wie?<select id="ed-task-member">${memberOptions(t.member_id)}</select></label>
+    <label>Tijd<input id="ed-task-time" type="time" value="${esc(t.due_time||"")}"></label>
+   </div>
+   <label>Dagen</label>${editorDays(t.days||[0,1,2,3,4])}
+  </section>
+  <section class="editor-section">
+   <h3>Waar zichtbaar?</h3>
+   <label class="switch"><input id="ed-task-enabled" type="checkbox" ${t.enabled!==false?"checked":""}> Automatisch klaarzetten</label>
+   <label class="switch"><input id="ed-task-calendar" type="checkbox" ${t.show_in_calendar!==false?"checked":""}> Ook tonen in de gezinsagenda</label>
+   <p class="help-inline">De agenda toont deze taak op alle gekozen dagen, ook vooruit in de week.</p>
+  </section>
+  <section class="editor-section">
+   <h3>Beloning & icoon</h3>
+   <label>Punten<input id="ed-task-points" type="number" min="0" value="${Number(t.points||0)}"><small>0 = geen punten</small></label>
+   <label>Icoon</label>${iconPicker(t.icon||"mdi:checkbox-marked-circle-outline",'id="ed-task-icon"',true)}
+  </section>
+ </div>`;
  const el=editorShell(index==null?"Terugkerende taak maken":"Taak bewerken","Na Opslaan staat de taak direct klaar voor Family Hub.",body,"Opslaan");
  el.querySelectorAll("[data-day-preset]").forEach(b=>b.onclick=()=>{const sets={week:[0,1,2,3,4],all:[0,1,2,3,4,5,6],weekend:[5,6]},set=new Set(sets[b.dataset.dayPreset]);el.querySelectorAll("[data-editor-day]").forEach(x=>x.checked=set.has(Number(x.value)))});
- el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-task-title").value.trim(),member_id=el.querySelector("#ed-task-member").value,days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value));if(!title||!member_id||!days.length)return toast("Vul naam, persoon en dagen in.");const next={...t,id:t.id||uid("task"),title,member_id,days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};const inserted=index==null;if(inserted)settings.smart_tasks.push(next);else settings.smart_tasks[index]=next;const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";const ok=await saveSection("smart_tasks",inserted?"Taak opgeslagen":"Taak bijgewerkt");if(ok){closeEditor();renderSmartTasks()}else{if(inserted)settings.smart_tasks.pop();else settings.smart_tasks[index]=t;btn.disabled=false;btn.textContent="Opslaan"}};
+ el.querySelector("[data-editor-save]").onclick=async()=>{
+  const title=el.querySelector("#ed-task-title").value.trim(),member_id=el.querySelector("#ed-task-member").value,days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value));
+  if(!title||!member_id||!days.length)return toast("Vul naam, persoon en dagen in.");
+  const next={...t,id:t.id||uid("task"),title,member_id,days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),show_in_calendar:el.querySelector("#ed-task-calendar").checked,enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};
+  const inserted=index==null;if(inserted)settings.smart_tasks.push(next);else settings.smart_tasks[index]=next;
+  const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
+  const ok=await saveSection("smart_tasks",inserted?"Taak opgeslagen":"Taak bijgewerkt");
+  if(ok){closeEditor();renderSmartTasks()}else{if(inserted)settings.smart_tasks.pop();else settings.smart_tasks[index]=t;btn.disabled=false;btn.textContent="Opslaan"}
+ };
 }
-function renderSmartTasks(){const root=$("smart-tasks"),items=settings.smart_tasks||[];root.className="manage-grid";root.innerHTML=items.length?items.map((t,i)=>`<article class="manage-card ${t.enabled===false?"disabled-card":""}"><div class="manage-icon">${iconInfo(t.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(t.title)}</strong>${t.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills([t.member_id])}<div class="manage-meta"><span>📅 ${esc(daySummary(t.days))}</span>${t.due_time?`<span>🕒 ${esc(t.due_time)}</span>`:""}${Number(t.points||0)?`<span>⭐ ${Number(t.points)} punten</span>`:""}</div></div>${actionButtons("smart-task",i)}</article>`).join(""):managementEmpty("Nog geen terugkerende taken");bindSmartTaskActions(root)}
+function renderSmartTasks(){const root=$("smart-tasks"),items=settings.smart_tasks||[];root.className="manage-grid";root.innerHTML=items.length?items.map((t,i)=>`<article class="manage-card ${t.enabled===false?"disabled-card":""}"><div class="manage-icon">${iconInfo(t.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(t.title)}</strong>${t.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills([t.member_id])}<div class="manage-meta"><span>📅 ${esc(daySummary(t.days))}</span>${t.due_time?`<span>🕒 ${esc(t.due_time)}</span>`:""}${Number(t.points||0)?`<span>⭐ ${Number(t.points)} punten</span>`:""}${t.show_in_calendar!==false?'<span>🗓 Agenda</span>':""}</div></div>${actionButtons("smart-task",i)}</article>`).join(""):managementEmpty("Nog geen terugkerende taken");bindSmartTaskActions(root)}
 function openListEditor(index=null,seed=null){const l=deepClone(seed||(index==null?{title:"",icon:"mdi:format-list-checks",color:"#2E6CA5",todo_entity:""}:settings.lists[index]));const body=`<div class="editor-grid"><section class="editor-section span2"><label>Naam<input id="ed-list-title" value="${esc(l.title||"")}"></label><div class="editor-two"><label>Kleur<input id="ed-list-color" type="color" value="${esc(l.color||"#2E6CA5")}"></label><div><label>Icoon</label>${iconPicker(l.icon||"mdi:format-list-checks",'id="ed-list-icon"',true)}</div></div></section></div>`;const el=editorShell(index==null?"Lijst maken":"Lijst bewerken","Na Opslaan is de lijst direct beschikbaar.",body,"Opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-list-title").value.trim();if(!title)return toast("Geef de lijst een naam.");const next={...l,id:l.id||uid("list"),title,color:el.querySelector("#ed-list-color").value,icon:el.querySelector("#ed-list-icon").value};const inserted=index==null;if(inserted)settings.lists.push(next);else settings.lists[index]=next;const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";const ok=await saveSection("lists",inserted?"Lijst opgeslagen":"Lijst bijgewerkt");if(ok){closeEditor();renderLists()}else{if(inserted)settings.lists.pop();else settings.lists[index]=l;btn.disabled=false;btn.textContent="Opslaan"}}}
 function renderLists(){const root=$("lists"),items=settings.lists||[];root.className="manage-grid";root.innerHTML=items.length?items.map((l,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(l.icon)[1]}</div><div class="manage-main"><strong>${esc(l.title)}</strong><div class="manage-meta"><span><i class="color-dot" style="background:${esc(l.color||"#2E6CA5")}"></i> Gedeelde lijst</span></div></div>${actionButtons("list",i,l.id!=="shopping")}</article>`).join(""):managementEmpty("Nog geen extra lijstjes");bindListActions(root)}
-function openRewardEditor(index=null,seed=null){const r=deepClone(seed||(index==null?{title:"",cost:50,icon:"mdi:gift",member_id:""}:settings.rewards[index]));const body=`<div class="editor-grid"><section class="editor-section span2"><label>Beloning<input id="ed-reward-title" value="${esc(r.title||"")}" placeholder="Bijv. film kiezen"></label><div class="editor-two"><label>Punten nodig<input id="ed-reward-cost" type="number" min="1" value="${Number(r.cost||50)}"></label><label>Voor wie?<select id="ed-reward-member">${memberOptions(r.member_id,"Iedereen")}</select></label></div><label>Icoon</label>${iconPicker(r.icon||"mdi:gift",'id="ed-reward-icon"',true)}</section></div>`;const el=editorShell(index==null?"Beloning maken":"Beloning bewerken","Na Opslaan is de beloning direct beschikbaar.",body,"Opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-reward-title").value.trim();if(!title)return toast("Geef de beloning een naam.");const next={...r,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-reward-cost").value||1),member_id:el.querySelector("#ed-reward-member").value,icon:el.querySelector("#ed-reward-icon").value};const inserted=index==null;if(inserted)settings.rewards.push(next);else settings.rewards[index]=next;const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";const ok=await saveSection("rewards",inserted?"Beloning opgeslagen":"Beloning bijgewerkt");if(ok){closeEditor();renderRewards()}else{if(inserted)settings.rewards.pop();else settings.rewards[index]=r;btn.disabled=false;btn.textContent="Opslaan"}}}
-function renderRewards(){const root=$("rewards"),items=settings.rewards||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(r.icon)[1]}</div><div class="manage-main"><strong>${esc(r.title)}</strong><div class="manage-meta"><span>⭐ ${Number(r.cost||0)} punten</span><span>👤 ${r.member_id?esc(memberName(r.member_id)):"Iedereen"}</span></div></div>${actionButtons("reward",i)}</article>`).join(""):managementEmpty("Nog geen beloningen");bindRewardActions(root)}
+function rewardCycleLabel(cycle){return ({balance:"Doorlopend sparen",daily:"Iedere dag",weekly:"Iedere week",monthly:"Iedere maand"})[cycle]||"Doorlopend sparen"}
+function openRewardEditor(index=null,seed=null){
+ const r=deepClone(seed||(index==null?{title:"",cost:50,icon:"mdi:gift",member_id:"",cycle:"balance"}:settings.rewards[index]));
+ const body=`<div class="editor-grid">
+  <section class="editor-section span2">
+   <h3>Beloning</h3>
+   <label>Wat is de beloning?<input id="ed-reward-title" value="${esc(r.title||"")}" placeholder="Bijv. snoepje, film kiezen of uitje"></label>
+   <div class="editor-two">
+    <label>Punten nodig<input id="ed-reward-cost" type="number" min="1" value="${Number(r.cost||50)}"></label>
+    <label>Voor wie?<select id="ed-reward-member">${memberOptions(r.member_id,"Iedereen")}</select></label>
+   </div>
+  </section>
+  <section class="editor-section">
+   <h3>Hoe vaak begint de teller opnieuw?</h3>
+   <label>Periode<select id="ed-reward-cycle">
+    <option value="daily" ${r.cycle==="daily"?"selected":""}>Iedere dag</option>
+    <option value="weekly" ${r.cycle==="weekly"?"selected":""}>Iedere week</option>
+    <option value="monthly" ${r.cycle==="monthly"?"selected":""}>Iedere maand</option>
+    <option value="balance" ${!r.cycle||r.cycle==="balance"?"selected":""}>Doorlopend sparen</option>
+   </select></label>
+   <p class="help-inline"><b>Dag/week/maand:</b> Family Hub telt alleen punten uit die periode. De teller begint daarna vanzelf opnieuw. <b>Doorlopend:</b> punten blijven staan en worden bij inwisselen afgetrokken.</p>
+  </section>
+  <section class="editor-section"><h3>Icoon</h3>${iconPicker(r.icon||"mdi:gift",'id="ed-reward-icon"',true)}</section>
+ </div>`;
+ const el=editorShell(index==null?"Beloning maken":"Beloning bewerken","Kies of er per dag, week, maand of doorlopend gespaard wordt.",body,"Opslaan");
+ el.querySelector("[data-editor-save]").onclick=async()=>{
+  const title=el.querySelector("#ed-reward-title").value.trim();if(!title)return toast("Geef de beloning een naam.");
+  const next={...r,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-reward-cost").value||1),member_id:el.querySelector("#ed-reward-member").value,cycle:el.querySelector("#ed-reward-cycle").value,icon:el.querySelector("#ed-reward-icon").value};
+  const inserted=index==null;if(inserted)settings.rewards.push(next);else settings.rewards[index]=next;
+  const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
+  const ok=await saveSection("rewards",inserted?"Beloning opgeslagen":"Beloning bijgewerkt");
+  if(ok){closeEditor();renderRewards()}else{if(inserted)settings.rewards.pop();else settings.rewards[index]=r;btn.disabled=false;btn.textContent="Opslaan"}
+ };
+}
+function renderRewards(){const root=$("rewards"),items=settings.rewards||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(r.icon)[1]}</div><div class="manage-main"><strong>${esc(r.title)}</strong><div class="manage-meta"><span>⭐ ${Number(r.cost||0)} punten</span><span>🔁 ${esc(rewardCycleLabel(r.cycle))}</span><span>👤 ${r.member_id?esc(memberName(r.member_id)):"Iedereen"}</span></div></div>${actionButtons("reward",i)}</article>`).join(""):managementEmpty("Nog geen beloningen");bindRewardActions(root)}
 function openDepartureEditor(index=null,seed=null){const r=deepClone(seed||(index==null?{match:"",lead_minutes:45,icon:"mdi:bag-personal",checklist:[]}:settings.departure_rules[index]));const body=`<div class="editor-grid" data-departure="editor"><section class="editor-section span2"><label>Bij welke afspraak?<input id="ed-depart-match" value="${esc(r.match||"")}" placeholder="Bijv. voetbal"><small>Family Hub kijkt of dit woord in de afspraak staat.</small></label><div class="editor-two"><label>Hoe lang vooraf?<select id="ed-depart-lead">${[15,30,45,60,90,120].map(v=>`<option value="${v}" ${Number(r.lead_minutes||45)===v?"selected":""}>${v<60?v+" min":v===60?"1 uur":v===90?"1,5 uur":"2 uur"}</option>`).join("")}</select></label><div><label>Icoon</label>${iconPicker(r.icon||"mdi:bag-personal",'id="ed-depart-icon"',true)}</div></div></section><section class="editor-section span2"><div class="builder-head"><div><h3>Checklist</h3><p>Wat moet mee of klaar zijn?</p></div><button type="button" class="secondary small-btn" data-add-check>+ Regel</button></div><div class="checklist-editor">${(r.checklist||[]).map((x,i)=>checklistRowHtml(x,i)).join("")||'<div class="builder-empty">Nog geen regels.</div>'}</div></section></div>`;const el=editorShell(index==null?"Vertrekhulp maken":"Vertrekhulp bewerken","Na Opslaan gebruikt Family Hub deze vertrekhulp direct.",body,"Opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const match=el.querySelector("#ed-depart-match").value.trim(),checklist=[...el.querySelectorAll("[data-checklist-text]")].map(x=>x.value.trim()).filter(Boolean);if(!match)return toast("Vul in bij welke afspraak dit hoort.");const next={...r,id:r.id||uid("departure"),match,lead_minutes:Number(el.querySelector("#ed-depart-lead").value||45),icon:el.querySelector("#ed-depart-icon").value,checklist};const inserted=index==null;if(inserted)settings.departure_rules.push(next);else settings.departure_rules[index]=next;const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";const ok=await saveSection("departure_rules",inserted?"Vertrekhulp opgeslagen":"Vertrekhulp bijgewerkt");if(ok){closeEditor();renderDepartures()}else{if(inserted)settings.departure_rules.pop();else settings.departure_rules[index]=r;btn.disabled=false;btn.textContent="Opslaan"}}}
 function renderDepartures(){const root=$("departures"),items=settings.departure_rules||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(r.icon)[1]}</div><div class="manage-main"><strong>${esc(r.match)}</strong><div class="manage-meta"><span>⏱ ${Number(r.lead_minutes||45)} min vooraf</span><span>☑ ${(r.checklist||[]).length} checklistregels</span></div></div>${actionButtons("departure",i)}</article>`).join(""):managementEmpty("Nog geen vertrekhulp");bindDepartureActions(root)}
 async function loadSuggestions(){try{const d=await api("api/suggestions");suggestions=d.suggestions||[];renderSuggestions()}catch(e){console.warn("[Family Hub] aanbevelingen laden mislukt",e)}}
@@ -506,7 +568,7 @@ function bind(){
  window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue=""}})
 }
 (async()=>{
-  console.info("[Family Hub] beheerinterface 0.8.3 start");
+  console.info("[Family Hub] beheerinterface 0.9.0 start");
   try{bind()}catch(e){console.error("[Family Hub] bind-fout",e)}
   startVersionWatch();
   const saveButton=$("save");
