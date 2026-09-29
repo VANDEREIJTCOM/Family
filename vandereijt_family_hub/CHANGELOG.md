@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.9 — beheer van ingevoerde externe agenda's
+- Onder **Agenda's** staat nu een overzicht van alle Home Assistant **Remote Calendar**-agenda's.
+- Per agenda zie je naam, status, bronhost, calendar-entity, SSL-status en aan welke gezinsleden de agenda gekoppeld is.
+- Een koppeling kan **gepauzeerd** en later hervat worden zonder de gezinskoppeling te verliezen.
+- Een agenda kan vanuit Family Hub worden **bewerkt**: naam, iCal/ICS-link en SSL-controle. Family Hub controleert de nieuwe bron eerst en bewaart de koppelingen met gezinsleden.
+- Omdat Home Assistant Remote Calendar zelf geen reconfigure-flow voor de bron-URL aanbiedt, vervangt Family Hub bij een echte wijziging de config-entry veilig. Als dat mislukt probeert Family Hub automatisch de oorspronkelijke agenda te herstellen.
+- Een agenda kan **verwijderd** worden. Daarbij worden Family Hub-koppelingen naar die calendar-entity automatisch leeggemaakt; de externe bronagenda (Google/Outlook/etc.) wordt nooit verwijderd.
+- Geheime iCal-links worden niet in het overzicht getoond. De volledige URL wordt alleen lokaal opgehaald wanneer je expliciet op **Bewerken** klikt.
+- Ook bestaande Remote Calendar-agenda's die eerder rechtstreeks in Home Assistant zijn toegevoegd verschijnen in het overzicht.
+
+
 ## 0.9.8 — scherpere tekst en volledig werkend gezinsfilter
 - De lettergrootte-slider gebruikt nu **echte gehele pixelgroottes**. Family Hub zoomt de interface niet en gebruikt geen decimale lettergroottes meer. Hierdoor blijft tekst op wanddisplays scherper, ook bij bijvoorbeeld 120%.
 - De slider blijft van 80% tot 140% werken, maar vertaalt iedere basislettergrootte naar de dichtstbijzijnde hele pixelwaarde.

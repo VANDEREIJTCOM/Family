@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.8"
+APP_VERSION = "0.9.9"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -39,6 +39,7 @@ CARD_TARGET = WWW_DIR / "family-hub-card.js"
 LEGACY_CARD_TARGET = HA_CONFIG / "www" / "family-hub-card.js"
 STATIC_DIR = BASE_DIR / "static"
 RUNTIME_FILE = DATA_DIR / "runtime.json"
+HA_CONFIG_ENTRIES_FILE = HA_CONFIG / ".storage" / "core.config_entries"
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
 DEFAULT_NAVIGATION = [
@@ -1175,15 +1176,19 @@ def normalize_remote_calendar_url(url):
     return raw
 
 
-def inspect_remote_calendar_url(url, verify_ssl=True):
+def inspect_remote_calendar_url(url, verify_ssl=True, username=None, password=None):
     parsed = urlparse(url)
     host = parsed.hostname or parsed.netloc or "onbekend"
+    headers = {
+        "User-Agent": f"VANDEREIJT.COM Family Hub/{APP_VERSION}",
+        "Accept": "text/calendar,text/plain;q=0.9,*/*;q=0.1",
+    }
+    if username is not None:
+        token = base64.b64encode(f"{username}:{password or ''}".encode("utf-8")).decode("ascii")
+        headers["Authorization"] = f"Basic {token}"
     request = urllib.request.Request(
         url,
-        headers={
-            "User-Agent": f"VANDEREIJT.COM Family Hub/{APP_VERSION}",
-            "Accept": "text/calendar,text/plain;q=0.9,*/*;q=0.1",
-        },
+        headers=headers,
         method="GET",
     )
     context = ssl.create_default_context() if verify_ssl else ssl._create_unverified_context()
@@ -1265,6 +1270,249 @@ def _remote_calendar_error(result):
             "Voeg hem voorlopig via Instellingen → Apparaten & diensten → Integratie toevoegen → Remote Calendar toe."
         )
     return f"Home Assistant kon de agenda niet toevoegen{': ' + str(code) if code else ''}."
+
+
+def _remote_calendar_storage_map():
+    """Read Remote Calendar config data without writing Home Assistant storage directly."""
+    try:
+        raw = json.loads(HA_CONFIG_ENTRIES_FILE.read_text(encoding="utf-8"))
+        entries = ((raw.get("data") or {}).get("entries") or [])
+    except Exception as exc:
+        print(f"[Family Hub] Remote calendar storage read warning: {exc}", flush=True)
+        return {}
+    return {
+        str(item.get("entry_id")): item
+        for item in entries
+        if isinstance(item, dict)
+        and item.get("domain") == "remote_calendar"
+        and item.get("entry_id")
+    }
+
+
+def _remote_calendar_entry(entry_id):
+    entry_id = str(entry_id or "")
+    return next((entry for entry in _remote_calendar_entries() if entry.get("entry_id") == entry_id), None)
+
+
+def _remote_calendar_entity_map():
+    with HomeAssistantWebSocket() as ha:
+        registry = ha.call({"type": "config/entity_registry/list"}) or []
+    grouped = defaultdict(list)
+    for item in registry:
+        entry_id = item.get("config_entry_id")
+        entity_id = str(item.get("entity_id") or "")
+        if entry_id and entity_id.startswith("calendar."):
+            grouped[str(entry_id)].append(item)
+    return grouped
+
+
+def _remote_calendar_linked_members(entity_ids):
+    wanted = set(entity_ids or [])
+    return [
+        {"id": member.get("id"), "name": member.get("name")}
+        for member in load_settings().get("members", [])
+        if member.get("calendar") in wanted
+    ]
+
+
+def external_calendars_overview():
+    storage = _remote_calendar_storage_map()
+    entity_map = _remote_calendar_entity_map()
+    out = []
+    for entry in _remote_calendar_entries():
+        entry_id = str(entry.get("entry_id") or "")
+        stored = storage.get(entry_id) or {}
+        data = stored.get("data") if isinstance(stored.get("data"), dict) else {}
+        entities = entity_map.get(entry_id, [])
+        entity_ids = [x.get("entity_id") for x in entities if x.get("entity_id")]
+        url = str(data.get("url") or "")
+        parsed = urlparse(url) if url else None
+        linked = _remote_calendar_linked_members(entity_ids)
+        out.append({
+            "entry_id": entry_id,
+            "name": str(data.get("calendar_name") or entry.get("title") or "Externe agenda"),
+            "title": str(entry.get("title") or ""),
+            "state": str(entry.get("state") or "unknown"),
+            "paused": bool(entry.get("disabled_by")),
+            "disabled_by": entry.get("disabled_by"),
+            "entity_id": entity_ids[0] if entity_ids else "",
+            "entity_ids": entity_ids,
+            "linked_members": linked,
+            "host": (parsed.hostname or "") if parsed else "",
+            "verify_ssl": data.get("verify_ssl", True) is not False,
+            "has_auth": bool(data.get("username") or data.get("password")),
+            "editable": bool(url),
+        })
+    return out
+
+
+def external_calendar_details(entry_id):
+    entry = _remote_calendar_entry(entry_id)
+    if not entry:
+        raise ValueError("Deze agenda bestaat niet meer in Home Assistant.")
+    stored = _remote_calendar_storage_map().get(str(entry_id)) or {}
+    data = stored.get("data") if isinstance(stored.get("data"), dict) else {}
+    url = str(data.get("url") or "")
+    if not url:
+        raise RuntimeError(
+            "Family Hub kan de bronlink van deze agenda niet uitlezen. "
+            "Pauzeren en verwijderen kan wel; bewerken moet voor deze agenda via Home Assistant."
+        )
+    entities = _remote_calendar_registry_entities(entry_id)
+    entity_ids = [x.get("entity_id") for x in entities if x.get("entity_id")]
+    return {
+        "entry_id": str(entry_id),
+        "name": str(data.get("calendar_name") or entry.get("title") or "Externe agenda"),
+        "url": url,
+        "verify_ssl": data.get("verify_ssl", True) is not False,
+        "has_auth": bool(data.get("username") or data.get("password")),
+        "paused": bool(entry.get("disabled_by")),
+        "entity_ids": entity_ids,
+        "linked_members": _remote_calendar_linked_members(entity_ids),
+    }
+
+
+def _set_remote_calendar_paused(entry_id, paused):
+    entry = _remote_calendar_entry(entry_id)
+    if not entry:
+        raise ValueError("Deze agenda bestaat niet meer in Home Assistant.")
+    with HomeAssistantWebSocket() as ha:
+        result = ha.call({
+            "type": "config_entries/disable",
+            "entry_id": str(entry_id),
+            "disabled_by": "user" if paused else None,
+        }) or {}
+    return {
+        "entry_id": str(entry_id),
+        "paused": bool(paused),
+        "require_restart": bool(result.get("require_restart")),
+    }
+
+
+def _relink_calendar_members(previous_entity_ids, new_entity_id, member_ids=None):
+    settings = load_settings()
+    previous = set(previous_entity_ids or [])
+    member_ids = set(member_ids or [])
+    changed = False
+    for member in settings.get("members", []):
+        member_id = member.get("id")
+        current = member.get("calendar")
+        if current in previous or current == new_entity_id:
+            desired = new_entity_id if member_id in member_ids and new_entity_id else ""
+            if current != desired:
+                member["calendar"] = desired
+                changed = True
+        elif member_id in member_ids and new_entity_id and current != new_entity_id:
+            member["calendar"] = new_entity_id
+            changed = True
+    return save_settings(settings) if changed else settings
+
+
+def delete_remote_calendar(entry_id):
+    entry = _remote_calendar_entry(entry_id)
+    if not entry:
+        raise ValueError("Deze agenda bestaat niet meer in Home Assistant.")
+    entity_ids = [
+        x.get("entity_id")
+        for x in _remote_calendar_registry_entities(entry_id)
+        if x.get("entity_id")
+    ]
+    ha_api("DELETE", f"config/config_entries/entry/{entry_id}", None, timeout=45)
+    settings = _relink_calendar_members(entity_ids, "", [])
+    return {"entry_id": str(entry_id), "settings": settings}
+
+
+def edit_remote_calendar(entry_id, name, url, verify_ssl=True):
+    entry = _remote_calendar_entry(entry_id)
+    if not entry:
+        raise ValueError("Deze agenda bestaat niet meer in Home Assistant.")
+
+    storage = _remote_calendar_storage_map()
+    stored = storage.get(str(entry_id)) or {}
+    old_data = stored.get("data") if isinstance(stored.get("data"), dict) else {}
+    old_url = str(old_data.get("url") or "")
+    if not old_url:
+        raise RuntimeError("Deze agenda kan niet veilig vanuit Family Hub worden bewerkt.")
+
+    old_name = str(old_data.get("calendar_name") or entry.get("title") or "Externe agenda")
+    old_verify = old_data.get("verify_ssl", True) is not False
+    username = old_data.get("username")
+    password = old_data.get("password")
+    new_name = str(name or old_name).strip()[:80] or old_name
+    new_url = normalize_remote_calendar_url(url or old_url)
+    new_verify = verify_ssl is not False
+
+    # Validate before removing the working entry.
+    inspect_remote_calendar_url(
+        new_url,
+        verify_ssl=new_verify,
+        username=username,
+        password=password,
+    )
+
+    old_entities = [
+        x.get("entity_id")
+        for x in _remote_calendar_registry_entities(entry_id)
+        if x.get("entity_id")
+    ]
+    linked_members = _remote_calendar_linked_members(old_entities)
+    linked_ids = [x.get("id") for x in linked_members if x.get("id")]
+    was_paused = bool(entry.get("disabled_by"))
+
+    ha_api("DELETE", f"config/config_entries/entry/{entry_id}", None, timeout=45)
+    time.sleep(0.8)
+    try:
+        created = create_remote_calendar(
+            new_name,
+            new_url,
+            verify_ssl=new_verify,
+            username=username,
+            password=password,
+        )
+        ready = created.get("calendar") or {}
+        new_entity = ready.get("entity_id") or ""
+        new_entry_id = ready.get("entry_id") or ""
+        settings = _relink_calendar_members(old_entities, new_entity, linked_ids)
+        if was_paused and new_entry_id:
+            _set_remote_calendar_paused(new_entry_id, True)
+        return {
+            "calendar": created,
+            "settings": settings,
+            "replaced_entry_id": str(entry_id),
+            "entry_id": new_entry_id,
+            "entity_id": new_entity,
+            "paused": was_paused,
+        }
+    except Exception as edit_exc:
+        try:
+            restored = create_remote_calendar(
+                old_name,
+                old_url,
+                verify_ssl=old_verify,
+                username=username,
+                password=password,
+            )
+            ready = restored.get("calendar") or {}
+            restored_entity = ready.get("entity_id") or ""
+            restored_entry = ready.get("entry_id") or ""
+            _relink_calendar_members(old_entities, restored_entity, linked_ids)
+            if was_paused and restored_entry:
+                _set_remote_calendar_paused(restored_entry, True)
+            raise RuntimeError(
+                f"Wijzigen is niet gelukt ({edit_exc}). De oorspronkelijke agenda is automatisch hersteld."
+            ) from edit_exc
+        except RuntimeError as restore_status:
+            if "automatisch hersteld" in str(restore_status):
+                raise
+            raise RuntimeError(
+                f"Wijzigen is niet gelukt ({edit_exc}) en automatisch herstellen is ook mislukt ({restore_status}). "
+                "Voeg de agenda opnieuw toe met de oorspronkelijke iCal-link."
+            ) from edit_exc
+        except Exception as restore_exc:
+            raise RuntimeError(
+                f"Wijzigen is niet gelukt ({edit_exc}) en automatisch herstellen is ook mislukt ({restore_exc}). "
+                "Voeg de agenda opnieuw toe met de oorspronkelijke iCal-link."
+            ) from edit_exc
 
 
 def _remote_calendar_entries():
@@ -1391,10 +1639,15 @@ def _ensure_remote_calendar_ready(entry, calendar_name):
     }
 
 
-def create_remote_calendar(name, url, verify_ssl=True):
+def create_remote_calendar(name, url, verify_ssl=True, username=None, password=None):
     calendar_name = str(name or "Externe agenda").strip()[:80] or "Externe agenda"
     calendar_url = normalize_remote_calendar_url(url)
-    preflight = inspect_remote_calendar_url(calendar_url, verify_ssl=verify_ssl)
+    preflight = inspect_remote_calendar_url(
+        calendar_url,
+        verify_ssl=verify_ssl,
+        username=username,
+        password=password,
+    )
 
     flow = ha_api("POST", "config/config_entries/flow", {"handler": "remote_calendar"})
     if flow.get("type") == "abort":
@@ -1413,6 +1666,13 @@ def create_remote_calendar(name, url, verify_ssl=True):
         },
         timeout=45,
     )
+    if result.get("type") == "form" and result.get("step_id") == "auth" and username is not None:
+        result = ha_api(
+            "POST",
+            f"config/config_entries/flow/{flow_id}",
+            {"username": username, "password": password or ""},
+            timeout=45,
+        )
     if result.get("type") == "create_entry":
         entry = result.get("result") or _remote_calendar_entry_for_name(calendar_name)
         ready = _ensure_remote_calendar_ready(entry, calendar_name)
@@ -1849,6 +2109,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, {"ok": True, "settings": load_settings()})
         if path == "/api/entities":
             return self._json(HTTPStatus.OK, {"ok": True, "entities": grouped_entities()})
+        if path == "/api/external-calendars":
+            try:
+                return self._json(HTTPStatus.OK, {"ok": True, "calendars": external_calendars_overview()})
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
         if path == "/api/suggestions":
             return self._json(HTTPStatus.OK, {"ok": True, "suggestions": build_suggestions(load_settings())})
         if path == "/api/status":
@@ -2008,6 +2273,40 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 error = str(exc)
                 print(f"[Family Hub] External calendar error: {error}", flush=True)
+                return self._json(HTTPStatus.OK, {"ok": False, "error": error})
+
+        if path == "/api/external-calendar/manage":
+            try:
+                action = str(payload.get("action") or "").strip().lower()
+                entry_id = str(payload.get("entry_id") or "").strip()
+                if not entry_id:
+                    raise ValueError("Agenda-ID ontbreekt")
+                if action == "details":
+                    result = external_calendar_details(entry_id)
+                    return self._json(HTTPStatus.OK, {"ok": True, "calendar": result})
+                if action == "pause":
+                    result = _set_remote_calendar_paused(entry_id, True)
+                    return self._json(HTTPStatus.OK, {"ok": True, "result": result, "calendars": external_calendars_overview()})
+                if action == "resume":
+                    result = _set_remote_calendar_paused(entry_id, False)
+                    return self._json(HTTPStatus.OK, {"ok": True, "result": result, "calendars": external_calendars_overview()})
+                if action == "delete":
+                    result = delete_remote_calendar(entry_id)
+                    return self._json(HTTPStatus.OK, {"ok": True, "result": result, "settings": result.get("settings"), "calendars": external_calendars_overview()})
+                if action == "edit":
+                    name = str(payload.get("name") or "").strip()
+                    url = str(payload.get("url") or "").strip()
+                    if not name:
+                        raise ValueError("Geef de agenda een naam")
+                    if not url:
+                        raise ValueError("Vul een ICS/webcal URL in")
+                    verify_ssl = payload.get("verify_ssl", True) is not False
+                    result = edit_remote_calendar(entry_id, name, url, verify_ssl=verify_ssl)
+                    return self._json(HTTPStatus.OK, {"ok": True, "result": result, "settings": result.get("settings"), "calendars": external_calendars_overview()})
+                raise ValueError("Onbekende agenda-actie")
+            except Exception as exc:
+                error = str(exc)
+                print(f"[Family Hub] External calendar manage error: {error}", flush=True)
                 return self._json(HTTPStatus.OK, {"ok": False, "error": error})
 
         if path == "/api/provision":
