@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.2 — volledig scherm voor wanddisplays
+- Nieuwe instelling **Family Hub schermvullend weergeven** onder **Schermen & navigatie**.
+- In volledig-schermmodus wordt de Home Assistant-zijbalk verborgen via de ingebouwde kioskmodus van Home Assistant.
+- De Lovelace-bovenbalk en de gereserveerde ruimte erboven worden alleen voor de Family Hub-view verborgen, zodat de Hub het hele browservenster benut.
+- De Family Hub-kaart gebruikt in deze modus de volledige viewporthoogte.
+- Onderaan de Family Hub-navigatie verschijnt automatisch een vaste knop **Home Assistant** met het Home Assistant-icoon.
+- De knop **Home Assistant** schakelt de schermvullende modus eerst uit en opent daarna het normale Home Assistant Overzicht.
+- Bij het verlaten of verwijderen van de Family Hub-view wordt de kioskmodus netjes hersteld, zodat andere Home Assistant-schermen normaal blijven werken.
+
+
 ## 0.9.1 — punten en externe agenda
 - De puntenstrook bovenaan **Punten & beloningen** toont nu expliciet de punten van **vandaag**. Daardoor klopt Lonneke bijvoorbeeld met haar dagbeloning en wordt het doorlopende saldo niet meer als dagtotaal gepresenteerd.
 - De externe-agenda-wizard wacht nu maximaal 50 seconden op Home Assistant; de Remote Calendar-integratie kan zelf tot 30 seconden nodig hebben om een ICS-feed te lezen.

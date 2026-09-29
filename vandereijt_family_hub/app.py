@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.1"
+APP_VERSION = "0.9.2"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -78,6 +78,7 @@ DEFAULTS = {
     "dashboard_title": "Family Hub",
     "idle_minutes": 5,
     "idle_show_clock": True,
+    "fullscreen_mode": False,
     "members": [],
     "navigation": DEFAULT_NAVIGATION,
     "home_sections": DEFAULT_HOME_SECTIONS,
@@ -307,6 +308,7 @@ def normalize_settings(data):
 
     out["show_household_status"] = bool(src.get("show_household_status", True))
     out["idle_show_clock"] = bool(src.get("idle_show_clock", True))
+    out["fullscreen_mode"] = bool(src.get("fullscreen_mode", False))
     out["dashboard_managed"] = bool(src.get("dashboard_managed", False))
     out["dashboard_show_sidebar"] = bool(src.get("dashboard_show_sidebar", True))
     out["dashboard_title"] = str(src.get("dashboard_title") or "Family Hub")[:80]

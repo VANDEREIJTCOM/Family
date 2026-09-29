@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.9.1
+ * v0.9.2
  */
-const FH_VERSION="0.9.1";
+const FH_VERSION="0.9.2";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -41,6 +41,8 @@ class FamilyHubCard extends HTMLElement{
     this._profileId=null;
     this._lastInteraction=Date.now();
     this._screensaver=false;
+    this._fullscreenApplied=false;
+    this._fullscreenRoot=null;
     this.shadowRoot.addEventListener("pointerdown",()=>this._touch(),{passive:true});
     this.shadowRoot.addEventListener("keydown",e=>{
       this._touch();
@@ -70,14 +72,21 @@ class FamilyHubCard extends HTMLElement{
     if(!this._modal)this._render();
   }
 
-  connectedCallback(){this._restartTimers();this._restartVersionWatch();}
-  disconnectedCallback(){clearInterval(this._timer);clearInterval(this._clockTimer);clearInterval(this._idleTimer);clearInterval(this._versionTimer);}
+  connectedCallback(){
+    this._restartTimers();
+    this._restartVersionWatch();
+    requestAnimationFrame(()=>this._syncFullscreenChrome());
+  }
+  disconnectedCallback(){
+    clearInterval(this._timer);clearInterval(this._clockTimer);clearInterval(this._idleTimer);clearInterval(this._versionTimer);
+    this._setFullscreenChrome(false);
+  }
   getCardSize(){return 12;}
 
   _defaults(){return {
     title:"Familie",subtitle:"",weather:"",shopping_list:"",meals_todo:"",show_household_status:true,
     refresh_interval:120,max_tasks_per_member:4,background_url:"",background_overlay:82,accent_color:"#2E6CA5",
-    idle_minutes:5,idle_show_clock:true,members:[],routines:[],smart_tasks:[],rewards:[],lists:[],departure_rules:[],
+    idle_minutes:5,idle_show_clock:true,fullscreen_mode:false,members:[],routines:[],smart_tasks:[],rewards:[],lists:[],departure_rules:[],
     home_entities:[],notification_entities:[],photos:[],home_sections:["departures","today","tasks","routines","meals","notifications","house_status"],
     navigation:[
       {id:"home",label:"Vandaag",icon:"mdi:home",enabled:true},{id:"calendar",label:"Agenda",icon:"mdi:calendar-month",enabled:true},
@@ -148,6 +157,72 @@ class FamilyHubCard extends HTMLElement{
     if(idle!==this._screensaver){this._screensaver=idle;this._render();}
   }
 
+  _findComposedAncestor(tagName){
+    const wanted=String(tagName||"").toLowerCase();
+    let node=this;
+    for(let i=0;node&&i<40;i++){
+      if(node.nodeType===1&&node.localName===wanted)return node;
+      if(node.parentElement){node=node.parentElement;continue}
+      const root=node.getRootNode?.();
+      node=root?.host||null;
+    }
+    return null;
+  }
+
+  _installFullscreenStyle(){
+    const root=this._findComposedAncestor("hui-root");
+    const shadow=root?.shadowRoot;
+    if(!shadow)return false;
+    let style=shadow.querySelector("#vandereijt-family-hub-fullscreen-style");
+    if(!style){
+      style=document.createElement("style");
+      style.id="vandereijt-family-hub-fullscreen-style";
+      style.textContent=`
+        .header{display:none!important}
+        hui-view-container,
+        hui-view-container.has-tab-bar{
+          padding-top:var(--safe-area-inset-top,0px)!important;
+          min-height:100vh!important;
+        }
+      `;
+      shadow.appendChild(style);
+    }
+    this._fullscreenRoot=root;
+    return true;
+  }
+
+  _removeFullscreenStyle(){
+    const roots=[this._fullscreenRoot,this._findComposedAncestor("hui-root")].filter(Boolean);
+    for(const root of new Set(roots))root.shadowRoot?.querySelector("#vandereijt-family-hub-fullscreen-style")?.remove();
+    this._fullscreenRoot=null;
+  }
+
+  _setFullscreenChrome(enable){
+    enable=Boolean(enable);
+    if(enable){
+      if(!this._fullscreenApplied){
+        window.dispatchEvent(new CustomEvent("hass-kiosk-mode",{detail:{enable:true}}));
+        this._fullscreenApplied=true;
+      }
+      if(!this._installFullscreenStyle())setTimeout(()=>{if(this.isConnected&&this._config?.fullscreen_mode)this._installFullscreenStyle()},250);
+    }else{
+      this._removeFullscreenStyle();
+      if(this._fullscreenApplied){
+        window.dispatchEvent(new CustomEvent("hass-kiosk-mode",{detail:{enable:false}}));
+        this._fullscreenApplied=false;
+      }
+    }
+  }
+
+  _syncFullscreenChrome(){
+    this._setFullscreenChrome(Boolean(this.isConnected&&this._config?.fullscreen_mode));
+  }
+
+  _openHomeAssistant(){
+    this._setFullscreenChrome(false);
+    window.location.assign("/lovelace");
+  }
+
   async _loadRemote(force){
     if(!this._configUrl)return;
     if(!force&&Date.now()-this._configFetched<60000)return;
@@ -161,6 +236,7 @@ class FamilyHubCard extends HTMLElement{
       this._config={...this._defaults(),...overrides,...remote};
       this._configFetched=Date.now();
       this._restartTimers();
+      requestAnimationFrame(()=>this._syncFullscreenChrome());
       const enabled=(this._config.navigation||[]).filter(x=>x.enabled!==false).map(x=>x.id);
       if(!enabled.includes(this._screen)&&this._screen!=="profile")this._screen=enabled[0]||"home";
     }catch(err){console.error("[Family Hub] configuratie laden mislukt",err);}
@@ -416,7 +492,8 @@ class FamilyHubCard extends HTMLElement{
 
   _navigation(){
     const items=(this._config.navigation||[]).filter(x=>x.enabled!==false);
-    return `<nav class="bottom-nav">${items.map(n=>`<button class="${this._screen===n.id||this._screen==="profile"&&n.id==="profiles"?"active":""}" data-screen="${this._esc(n.id)}"><ha-icon icon="${this._esc(n.icon||"mdi:circle")}"></ha-icon><span>${this._esc(n.label||n.id)}</span></button>`).join("")}</nav>`;
+    const homeAssistant=this._config.fullscreen_mode?`<button class="ha-return" data-ha-overview title="Terug naar Home Assistant"><ha-icon icon="mdi:home-assistant"></ha-icon><span>Home Assistant</span></button>`:"";
+    return `<nav class="bottom-nav">${items.map(n=>`<button class="${this._screen===n.id||this._screen==="profile"&&n.id==="profiles"?"active":""}" data-screen="${this._esc(n.id)}"><ha-icon icon="${this._esc(n.icon||"mdi:circle")}"></ha-icon><span>${this._esc(n.label||n.id)}</span></button>`).join("")}${homeAssistant}</nav>`;
   }
 
   _header(){
@@ -572,7 +649,7 @@ class FamilyHubCard extends HTMLElement{
 
   _css(){return `
 :host{display:block;font-family:Lato,Arial,sans-serif;--dark:#0A1628;--blue:#2E6CA5;--blue2:#23527D;--yellow:#FFDD00;--soft:#F6F8FA;--line:#DEE5EC;--muted:#6B7785}
-ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-radius:0;overflow:hidden;background:#fff}
+ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-radius:0;overflow:hidden;background:#fff}ha-card.fullscreen{height:100vh;min-height:100vh}
 .hub{height:100%;position:relative;display:flex;flex-direction:column;background:#F7F9FB;color:#111;overflow:hidden}.wall{position:absolute;inset:0;background:var(--wall) center/cover no-repeat;opacity:calc(1 - var(--overlay));pointer-events:none}.hub-header,.content,.bottom-nav{position:relative;z-index:1}
 .hub-header{height:82px;flex:0 0 82px;background:rgba(10,22,40,.96);color:#fff;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 24px;border-bottom:4px solid var(--yellow)}.brand strong{display:block;color:var(--yellow);font-size:12px;letter-spacing:.05em}.brand span{display:block;font-size:18px;font-weight:900}.brand small{display:block;color:#ffffff99;font-size:9px;margin-top:2px}.clock{text-align:center;text-transform:capitalize;font-size:11px;color:#ffffffba}.clock b{display:block;font-size:26px;color:#fff;margin-top:2px}.weather{justify-self:end;display:flex;gap:8px;align-items:center;font-weight:900}
 .content{flex:1;min-height:0;overflow:auto;padding:18px 20px 16px;background:rgba(247,249,251,var(--overlay))}.home-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}.panel-block,.screen-card,.member-column,.list-card,.routine-card,.shopping-preview{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:0 3px 18px #0A162808}.panel-block h2{font-size:15px;margin:0;color:var(--dark)}.block-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.mini{border:0;background:#E5EDF6;color:var(--blue2);width:31px;height:31px;border-radius:9px;font-weight:900;cursor:pointer}.empty{font-size:10px;color:var(--muted);padding:9px 2px}.empty.small{padding:4px 0}.empty.big{background:#fff;border:1px dashed var(--line);border-radius:16px;padding:30px;text-align:center;grid-column:1/-1}.empty-action{width:100%;min-height:70px;border:1px dashed var(--line);background:#FAFBFC;border-radius:12px;color:var(--muted);cursor:pointer}
@@ -583,7 +660,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
 .screen-heading,.screen-title{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}.screen-heading small,.screen-title small{font-size:9px;letter-spacing:.12em;color:var(--blue);font-weight:900}.screen-heading h1,.screen-title h1{font-size:24px;margin:4px 0 0;color:var(--dark)}.primary-btn{border:0;background:var(--blue);color:#fff;border-radius:11px;padding:10px 13px;font-weight:900;cursor:pointer}.screen-title button{border:0;background:#E9EEF3;border-radius:9px;padding:7px 10px;margin-left:4px;color:var(--dark);font-weight:900}
 .calendar-screen{height:100%;display:flex;flex-direction:column}.week-head,.week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}.week-head{height:58px}.week-head button{border:0;background:transparent;border-radius:11px}.week-head span{display:block;font-size:9px;text-transform:uppercase;color:var(--muted)}.week-head b{display:block;font-size:18px;margin-top:3px}.week-head .today{background:var(--blue);color:#fff}.week-head .today span{color:#fff}.week-grid{flex:1;min-height:0}.day-col{background:#F4F6F8;border:1px solid transparent;border-radius:12px;padding:6px;overflow:auto}.day-col.today{border-color:#2E6CA555}.event{background:#fff;border-left:4px solid var(--member);padding:7px;border-radius:8px;margin-bottom:6px}.event small,.event strong,.event span{display:block}.event small{font-size:8px;color:var(--muted)}.event strong{font-size:10px;margin-top:3px}.event span{font-size:8px;color:var(--muted);margin-top:3px}.day-empty{width:100%;height:100%;min-height:100px;border:0;background:transparent;color:#97A2AD;cursor:pointer}.day-empty span{display:block;font-size:8px;margin-top:4px}
 .member-columns,.routine-grid,.list-grid,.reward-grid,.profile-grid,.house-screen-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.member-column{border-top:5px solid var(--member)}.member-column-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}.member-column-head>div{flex:1}.member-column-head strong,.member-column-head span{display:block}.member-column-head strong{font-size:12px}.member-column-head span{font-size:8px;color:var(--muted)}.member-column-head button,.list-head button{border:0;background:#E9EEF3;border-radius:8px;width:30px;height:30px}.routine-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.list-card{border-top:5px solid var(--list)}.list-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.list-head>div{display:flex;align-items:center;gap:7px}.list-head ha-icon{color:var(--list)}.list-head strong{font-size:12px}.meal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.meal-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;min-height:140px}.meal-card.today{border-color:var(--blue);box-shadow:0 0 0 2px #2E6CA515}.meal-card small,.meal-card strong,.meal-card span{display:block}.meal-card small{font-size:9px;color:var(--muted);text-transform:capitalize}.meal-card strong{font-size:12px;margin-top:10px}.meal-card span{font-size:8px;color:var(--muted);margin-top:5px}.meal-card>button{margin-top:11px;border:0;background:#E9EEF3;border-radius:8px;padding:6px 7px;font-size:8px}.meal-empty{width:100%;height:90px;background:transparent!important;color:var(--muted)}.shopping-preview{margin-top:14px;max-width:600px}.points-strip{display:flex;gap:8px;overflow:auto;margin-bottom:14px}.points-strip button{border:0;background:#fff;border-bottom:4px solid var(--member);border-radius:13px;padding:8px 13px;display:flex;align-items:center;gap:7px}.points-strip span{font-size:10px}.points-strip strong{font-size:11px;color:#B88400}.points-strip .points-today{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1}.points-strip .points-today small{font-size:7px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.reward-card{text-align:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}.reward-card>ha-icon{color:#D5A500;--mdc-icon-size:34px}.reward-card>strong,.reward-card>span{display:block}.reward-card>strong{font-size:13px;margin-top:8px}.reward-card>span{font-size:20px;font-weight:900;color:#B88400;margin:7px}.reward-card>div{display:flex;gap:5px;justify-content:center;flex-wrap:wrap}.reward-card button{border:0;border-radius:8px;padding:6px 8px;background:#E9EEF3;font-size:8px}.profile-card{border:0;background:#fff;border-bottom:6px solid var(--member);border-radius:18px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:7px;box-shadow:0 3px 18px #0A16280b}.profile-card strong{font-size:15px}.profile-card span{font-size:9px;color:var(--muted)}.profile-card b{color:#B88400}.profile-hero{background:linear-gradient(135deg,var(--member),#0A1628);border-radius:18px;padding:20px;color:#fff;display:flex;align-items:center;gap:16px}.profile-hero>button{border:0;background:#ffffff20;color:#fff;border-radius:9px;width:34px;height:34px}.profile-hero small{font-size:8px;letter-spacing:.1em}.profile-hero h1{margin:3px 0;font-size:26px}.profile-hero strong{color:#FFE55C}.profile-columns{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}.house-screen-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.house-big{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;gap:12px;align-items:center}.house-big ha-icon{color:var(--blue);--mdc-icon-size:30px}.house-big small,.house-big strong{display:block}.house-big small{font-size:9px;color:var(--muted)}.house-big strong{font-size:15px;margin-top:3px}
-.bottom-nav{height:72px;flex:0 0 72px;background:rgba(255,255,255,.97);border-top:1px solid var(--line);display:flex;justify-content:center;gap:4px;padding:6px 10px;overflow-x:auto}.bottom-nav button{min-width:76px;border:0;background:transparent;border-radius:12px;color:#6C7885;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}.bottom-nav button ha-icon{--mdc-icon-size:21px}.bottom-nav button span{font-size:8px;font-weight:900}.bottom-nav button.active{background:#E7EFF8;color:var(--blue2)}
+.bottom-nav{height:72px;flex:0 0 72px;background:rgba(255,255,255,.97);border-top:1px solid var(--line);display:flex;justify-content:center;gap:4px;padding:6px 10px;overflow-x:auto}.bottom-nav button{min-width:76px;border:0;background:transparent;border-radius:12px;color:#6C7885;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}.bottom-nav .ha-return{margin-left:8px;padding-left:12px;border-left:1px solid var(--line);color:var(--blue2)}.bottom-nav .ha-return ha-icon{color:var(--blue)}.bottom-nav button ha-icon{--mdc-icon-size:21px}.bottom-nav button span{font-size:8px;font-weight:900}.bottom-nav button.active{background:#E7EFF8;color:var(--blue2)}
 .modal-wrap{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#0008;backdrop-filter:blur(3px);padding:18px}.modal{width:min(450px,95vw);background:#fff;border-radius:20px;padding:20px}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}.modal-head small{display:block;color:var(--blue);font-size:8px;font-weight:900}.modal-head strong{display:block;font-size:21px;margin-top:3px}.modal-head button{border:0;background:transparent;font-size:28px;color:var(--muted)}.modal label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:10px;font-weight:900;margin:11px 0}.modal input,.modal select,.modal textarea{border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}.modal-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.modal .check{flex-direction:row;align-items:center}.save{width:100%;border:0;border-radius:11px;padding:12px;background:var(--blue);color:#fff;font-weight:900}.screensaver{position:absolute;inset:0;z-index:99999;background:#0A1628 center/cover no-repeat;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}.screensaver-brand{position:absolute;top:28px;left:32px;font-size:13px;font-weight:900;color:var(--yellow)}.screensaver-brand span{color:#fff}.screensaver-clock{text-align:center;text-shadow:0 2px 18px #0008}.screensaver-clock strong{display:block;font-size:88px;line-height:1}.screensaver-clock span{display:block;font-size:22px;text-transform:capitalize;margin-top:10px}.screensaver>small{position:absolute;bottom:28px;color:#ffffff99}
 
 /* 0.9 interactive UX */
@@ -614,8 +691,9 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
     if(!this._config){this.shadowRoot.innerHTML="";return;}
     if(this._screensaver){this.shadowRoot.innerHTML=`<style>${this._css()}</style>${this._screensaverHtml()}`;return;}
     const bg=this._config.background_url?`--wall:url('${this._esc(this._config.background_url)}');`:"",overlay=Math.max(0,Math.min(100,Number(this._config.background_overlay??82)))/100;
-    this.shadowRoot.innerHTML=`<style>${this._css()}</style><ha-card><div class="hub" style="--blue:${this._config.accent_color||"#2E6CA5"};--overlay:${overlay};${bg}"><div class="wall"></div>${this._header()}<main class="content">${this._screenHtml()}</main>${this._navigation()}${this._modalHtml()}</div></ha-card>`;
+    this.shadowRoot.innerHTML=`<style>${this._css()}</style><ha-card class="${this._config.fullscreen_mode?"fullscreen":""}"><div class="hub" style="--blue:${this._config.accent_color||"#2E6CA5"};--overlay:${overlay};${bg}"><div class="wall"></div>${this._header()}<main class="content">${this._screenHtml()}</main>${this._navigation()}${this._modalHtml()}</div></ha-card>`;
     this._bind();
+    requestAnimationFrame(()=>this._syncFullscreenChrome());
   }
 
   _findTodoItem(id){
@@ -625,6 +703,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
   _bind(){
     const q=s=>this.shadowRoot.querySelector(s);
     this.shadowRoot.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>{this._screen=b.dataset.screen;this._profileId=null;this._modal=null;this._render()});
+    q("[data-ha-overview]")&&(q("[data-ha-overview]").onclick=()=>this._openHomeAssistant());
     this.shadowRoot.querySelectorAll("[data-profile]").forEach(b=>b.onclick=()=>{this._profileId=b.dataset.profile;this._screen="profile";this._modal=null;this._render()});
     q("[data-profile-back]")&&(q("[data-profile-back]").onclick=()=>{this._screen="profiles";this._profileId=null;this._render()});
     this.shadowRoot.querySelectorAll("[data-more-info]").forEach(b=>b.onclick=()=>this._showMoreInfo(b.dataset.moreInfo));
