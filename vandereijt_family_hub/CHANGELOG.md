@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0 — interactieve Family Hub
+- Dashboardinformatie is veel vaker direct aanklikbaar: agenda-items, taken, personen, routines, maaltijden, meldingen en huisstatus leiden naar detail of de juiste Family Hub-weergave.
+- Klik op een persoon om direct naar de persoonlijke kaart te gaan.
+- Taken openen nu een detailvenster; het vinkje is een aparte actie.
+- Afgeronde taken blijven dezelfde dag zichtbaar met afgevinkte styling en kunnen weer opengezet worden.
+- Bij terugzetten worden eerder toegekende punten ook teruggedraaid.
+- Routinestappen blijven zichtbaar nadat ze zijn afgerond en kunnen eveneens worden teruggezet.
+- De gezinsagenda projecteert routines en terugkerende taken rechtstreeks vanuit hun weekschema, zodat alle ingestelde dagen in huidige en toekomstige weken zichtbaar zijn.
+- Terugkerende taken hebben een optie **Ook tonen in de gezinsagenda**.
+- Agenda-items openen een detailvenster en kunnen direct doorlinken naar het betreffende gezinslid.
+- Huis-entiteiten en meldingen openen de normale Home Assistant meer-info.
+- Beloningen ondersteunen nu vier puntmodellen: **Iedere dag**, **Iedere week**, **Iedere maand** en **Doorlopend sparen**.
+- Dag/week/maandbeloningen tellen alleen punten die in de huidige periode daadwerkelijk zijn verdiend en starten vanzelf opnieuw in de volgende periode.
+- Een periodieke beloning kan één keer per periode als behaald worden gemarkeerd zonder punten van andere spaardoelen af te trekken.
+- Doorlopend sparen houdt het bestaande gedrag: punten blijven staan en worden bij inwisselen afgetrokken.
+- Beloningskaarten tonen per kind de actuele voortgang, bijvoorbeeld **7/10 ★**, en daarna **Behaald ✓**.
+
+
 ## 0.8.3 — item-autosave
 - Gezinsleden worden automatisch opgeslagen zodra hun gegevens bruikbaar zijn; bestaande gezinsleden worden stil op de achtergrond bijgewerkt.
 - Nieuw aangemaakte gezinsleden krijgen één bevestiging zodra ze daadwerkelijk zijn opgeslagen.
