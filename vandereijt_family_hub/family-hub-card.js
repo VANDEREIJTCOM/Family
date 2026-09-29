@@ -488,7 +488,7 @@ class FamilyHubCard extends HTMLElement{
   _notificationsSection(){
     const inactive=new Set(["off","closed","idle","home","0","unknown","unavailable","none",""]);
     const active=(this._config.notification_entities||[]).map(id=>this._hass?.states?.[id]).filter(s=>s&&!inactive.has(String(s.state).toLowerCase()));
-    const html=active.length?active.slice(0,6).map(s=>`<div class="notice"><ha-icon icon="${this._esc(s.attributes?.icon||"mdi:bell-outline")}"></ha-icon><div><strong>${this._esc(s.attributes?.friendly_name||s.entity_id)}</strong><span>${this._esc(s.state)}</span></div></div>`).join(""):'<div class="empty">Geen meldingen.</div>';
+    const html=active.length?active.slice(0,6).map(s=>`<button class="notice" data-more-info="${this._esc(s.entity_id)}"><ha-icon icon="${this._esc(s.attributes?.icon||"mdi:bell-outline")}"></ha-icon><div><strong>${this._esc(s.attributes?.friendly_name||s.entity_id)}</strong><span>${this._esc(s.state)}</span></div><b>›</b></button>`).join(""):'<div class="empty">Geen meldingen.</div>';
     return this._section("Meldingen",html,"","house");
   }
   _houseSection(){
@@ -557,7 +557,7 @@ class FamilyHubCard extends HTMLElement{
 
   _houseScreen(){
     const ids=this._config.home_entities||[];
-    return `<div class="screen-heading"><div><small>SLIM HUIS</small><h1>Thuis in één oogopslag</h1></div></div><div class="house-screen-grid">${ids.length?ids.map(id=>{const s=this._hass?.states?.[id];return `<article class="house-big"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><div><small>${this._esc(s?.attributes?.friendly_name||id)}</small><strong>${this._esc(this._stateText(id))}</strong></div></article>`}).join(""):'<div class="empty big">Kies Home Assistant-entiteiten in de Family Hub App.</div>'}</div>${this._notificationsSection()}`;
+    return `<div class="screen-heading"><div><small>SLIM HUIS</small><h1>Thuis in één oogopslag</h1></div></div><div class="house-screen-grid">${ids.length?ids.map(id=>{const s=this._hass?.states?.[id];return `<button class="house-big" data-more-info="${this._esc(id)}"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><div><small>${this._esc(s?.attributes?.friendly_name||id)}</small><strong>${this._esc(this._stateText(id))}</strong></div><b>›</b></button>`}).join(""):'<div class="empty big">Kies Home Assistant-entiteiten in de Family Hub App.</div>'}</div>${this._notificationsSection()}`;
   }
 
   _screenHtml(){
@@ -609,9 +609,13 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
   }
   _bind(){
     const q=s=>this.shadowRoot.querySelector(s);
-    this.shadowRoot.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>{this._screen=b.dataset.screen;this._profileId=null;this._render()});
-    this.shadowRoot.querySelectorAll("[data-profile]").forEach(b=>b.onclick=()=>{this._profileId=b.dataset.profile;this._screen="profile";this._render()});
+    this.shadowRoot.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>{this._screen=b.dataset.screen;this._profileId=null;this._modal=null;this._render()});
+    this.shadowRoot.querySelectorAll("[data-profile]").forEach(b=>b.onclick=()=>{this._profileId=b.dataset.profile;this._screen="profile";this._modal=null;this._render()});
     q("[data-profile-back]")&&(q("[data-profile-back]").onclick=()=>{this._screen="profiles";this._profileId=null;this._render()});
+    this.shadowRoot.querySelectorAll("[data-more-info]").forEach(b=>b.onclick=()=>this._showMoreInfo(b.dataset.moreInfo));
+    this.shadowRoot.querySelectorAll("[data-event-detail]").forEach(b=>b.onclick=()=>this._open("eventDetail",{memberId:b.dataset.eventMember,start:b.dataset.eventStart,summary:b.dataset.eventSummary}));
+    this.shadowRoot.querySelectorAll("[data-task-detail]").forEach(b=>b.onclick=()=>this._open("taskDetail",{entity:b.dataset.taskEntity,itemId:b.dataset.taskId,memberId:b.dataset.taskMember}));
+    this.shadowRoot.querySelectorAll("[data-toggle-task-entity]").forEach(b=>b.onclick=async()=>{const it=this._findTodoItem(b.dataset.toggleTaskId);if(it)await this._toggleTodo(b.dataset.toggleTaskEntity,it)});
     this.shadowRoot.querySelectorAll("[data-add-event]").forEach(b=>b.onclick=()=>this._open("event"));
     this.shadowRoot.querySelectorAll("[data-add-event-date]").forEach(b=>b.onclick=()=>this._open("event",{date:b.dataset.addEventDate}));
     this.shadowRoot.querySelectorAll("[data-add-task]").forEach(b=>b.onclick=()=>this._open("task"));
@@ -621,7 +625,6 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
     this.shadowRoot.querySelectorAll("[data-add-meal-date]").forEach(b=>b.onclick=()=>this._open("meal",{date:b.dataset.addMealDate}));
     q("[data-week-prev]")&&(q("[data-week-prev]").onclick=()=>{this._weekOffset--;this._load()});q("[data-week-next]")&&(q("[data-week-next]").onclick=()=>{this._weekOffset++;this._load()});q("[data-week-today]")&&(q("[data-week-today]").onclick=()=>{this._weekOffset=0;this._load()});
 
-    this.shadowRoot.querySelectorAll("[data-complete-entity]").forEach(b=>b.onclick=()=>{const it=this._findTodoItem(b.dataset.completeId);if(it)this._complete(b.dataset.completeEntity,it)});
     this.shadowRoot.querySelectorAll("[data-complete-list]").forEach(b=>b.onclick=()=>{const l=(this._config.lists||[]).find(x=>x.id===b.dataset.completeList),it=this._findTodoItem(b.dataset.completeId);if(l&&it)this._complete(l.todo_entity,it)});
     this.shadowRoot.querySelectorAll("[data-complete-shopping]").forEach(b=>b.onclick=()=>{const it=this._findTodoItem(b.dataset.completeShopping);if(it)this._complete(this._config.shopping_list,it)});
     this.shadowRoot.querySelectorAll("[data-redeem]").forEach(b=>b.onclick=()=>{const r=(this._config.rewards||[]).find(x=>x.id===b.dataset.redeem),m=this._member(b.dataset.redeemMember);if(r&&m)this._redeem(r,m)});
@@ -630,6 +633,9 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
 
     if(this._modal){
       q("#fh-close")&&(q("#fh-close").onclick=()=>{this._modal=null;this._render()});
+      q("#fh-close-detail")&&(q("#fh-close-detail").onclick=()=>{this._modal=null;this._render()});
+      q("#fh-detail-profile")&&(q("#fh-detail-profile").onclick=()=>{const id=this._modal?.memberId;if(id){this._modal=null;this._profileId=id;this._screen="profile";this._render()}});
+      q("#fh-task-toggle")&&(q("#fh-task-toggle").onclick=async()=>{const item=this._findTodoItem(this._modal?.itemId);if(item){await this._toggleTodo(this._modal.entity,item);this._modal=null;this._render()}});
       q("#fh-save")&&(q("#fh-save").onclick=async()=>{try{
         const summary=(q("#fh-summary")?.value||"").trim();if(!summary)return;
         if(this._modal.kind==="event")await this._addEvent(q("#fh-who").value,summary,q("#fh-date").value,q("#fh-time").value,q("#fh-all").checked);
