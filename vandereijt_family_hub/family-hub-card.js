@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.9.7
+ * v0.9.8
  */
-const FH_VERSION="0.9.7";
+const FH_VERSION="0.9.8";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -311,7 +311,7 @@ class FamilyHubCard extends HTMLElement{
   _fontSizeVars(){
     const scale=Math.max(80,Math.min(140,Number(this._config?.font_scale||100)))/100;
     const sizes=[7,8,9,10,11,12,13,14,15,16,17,18,20,21,22,24,26,28,30,60,88];
-    return sizes.map(n=>`--fh-fs-${n}:${(n*scale).toFixed(2)}px`).join(";");
+    return sizes.map(n=>`--fh-fs-${n}:${Math.max(1,Math.round(n*scale))}px`).join(";");
   }
   _member(id){return (this._config.members||[]).find(m=>m.id===id);}
   _memberByName(name){return (this._config.members||[]).find(m=>m.name===name);}
@@ -413,6 +413,7 @@ class FamilyHubCard extends HTMLElement{
       if(r.enabled===false||r.show_in_calendar===false||!(r.days||[]).map(Number).includes(weekday))continue;
       for(const m of this._routineMembers(r)){
         if(memberId&&m.id!==memberId)continue;
+        if(!memberId&&!this._memberVisible(m))continue;
         const when=makeTimed(r.time||"07:00",r.duration_minutes||30);
         out.push({member:m,event:{summary:r.title||"Routine",...when,_fhSynthetic:true,_fhKind:"routine",_fhId:r.id}});
       }
@@ -420,6 +421,7 @@ class FamilyHubCard extends HTMLElement{
     for(const t of (this._config.smart_tasks||[])){
       if(t.enabled===false||t.show_in_calendar===false||!(t.days||[]).map(Number).includes(weekday))continue;
       const m=this._member(t.member_id);if(!m||memberId&&m.id!==memberId)continue;
+      if(!memberId&&!this._memberVisible(m))continue;
       if(t.due_time){
         const when=makeTimed(t.due_time,30);
         out.push({member:m,event:{summary:t.title||"Taak",...when,_fhSynthetic:true,_fhKind:"task",_fhId:t.id}});

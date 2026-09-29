@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.8 — scherpere tekst en volledig werkend gezinsfilter
+- De lettergrootte-slider gebruikt nu **echte gehele pixelgroottes**. Family Hub zoomt de interface niet en gebruikt geen decimale lettergroottes meer. Hierdoor blijft tekst op wanddisplays scherper, ook bij bijvoorbeeld 120%.
+- De slider blijft van 80% tot 140% werken, maar vertaalt iedere basislettergrootte naar de dichtstbijzijnde hele pixelwaarde.
+- Het gezinsfilter is gecorrigeerd voor automatisch gegenereerde agenda-items. Routines en terugkerende taken werden eerder na het filteren opnieuw aan de agenda toegevoegd, waardoor uitgezette gezinsleden toch zichtbaar bleven.
+- Dezelfde correctie werkt door op **Vandaag**, **Agenda** en **Vertrekhulp**, omdat deze schermen dezelfde gecombineerde agenda gebruiken.
+- Taken, routines, punten en gezinskaarten blijven de bestaande filtering gebruiken.
+
+
 ## 0.9.7 — instelbare lettergrootte
 - Onder **Uiterlijk → Kleuren & leesbaarheid** staat nu een slider **Lettergrootte**.
 - De schaal loopt van **80% tot 140%** in stappen van 5%; **100%** is de bestaande Family Hub-weergave.
