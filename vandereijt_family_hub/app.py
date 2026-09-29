@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.8.3"
+APP_VERSION = "0.9.0"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -224,6 +224,7 @@ def normalize_settings(data):
             "points": max(0, min(500, int(task.get("points") or 0))),
             "days": [int(x) for x in (task.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
             "due_time": str(task.get("due_time") or "")[:5],
+            "show_in_calendar": bool(task.get("show_in_calendar", True)),
             "enabled": bool(task.get("enabled", True)),
         })
     out["smart_tasks"] = smart_tasks[:100]
@@ -235,12 +236,16 @@ def normalize_settings(data):
         title = str(reward.get("title") or "").strip()
         if not title:
             continue
+        cycle = str(reward.get("cycle") or "balance").lower()
+        if cycle not in {"balance", "daily", "weekly", "monthly"}:
+            cycle = "balance"
         rewards.append({
             "id": _clean_id(reward.get("id"), f"reward_{idx+1}"),
             "title": title[:100],
             "cost": max(1, min(100000, int(reward.get("cost") or 1))),
             "icon": str(reward.get("icon") or "mdi:gift")[:80],
             "member_id": str(reward.get("member_id") or "")[:80],
+            "cycle": cycle,
         })
     out["rewards"] = rewards[:100]
 
