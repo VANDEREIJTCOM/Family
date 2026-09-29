@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.8.3
+ * v0.9.0
  */
-const FH_VERSION="0.8.3";
+const FH_VERSION="0.9.0";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -244,14 +244,44 @@ class FamilyHubCard extends HTMLElement{
     }finally{this._busy=false;if(!this._modal)this._render();}
   }
 
+  _scheduledForDay(day,memberId=null){
+    const out=[],weekday=(day.getDay()+6)%7,date=this._dateISO(day);
+    const makeTimed=(time,duration=30)=>{
+      const start=new Date(date+"T"+(time||"07:00")+":00"),end=new Date(start);
+      end.setMinutes(end.getMinutes()+Math.max(5,Number(duration||30)));
+      return {start:start.toISOString(),end:end.toISOString()};
+    };
+    for(const r of (this._config.routines||[])){
+      if(r.enabled===false||r.show_in_calendar===false||!(r.days||[]).map(Number).includes(weekday))continue;
+      for(const m of this._routineMembers(r)){
+        if(memberId&&m.id!==memberId)continue;
+        const when=makeTimed(r.time||"07:00",r.duration_minutes||30);
+        out.push({member:m,event:{summary:r.title||"Routine",...when,_fhSynthetic:true,_fhKind:"routine",_fhId:r.id}});
+      }
+    }
+    for(const t of (this._config.smart_tasks||[])){
+      if(t.enabled===false||t.show_in_calendar===false||!(t.days||[]).map(Number).includes(weekday))continue;
+      const m=this._member(t.member_id);if(!m||memberId&&m.id!==memberId)continue;
+      if(t.due_time){
+        const when=makeTimed(t.due_time,30);
+        out.push({member:m,event:{summary:t.title||"Taak",...when,_fhSynthetic:true,_fhKind:"task",_fhId:t.id}});
+      }else{
+        const end=new Date(day);end.setDate(end.getDate()+1);
+        out.push({member:m,event:{summary:t.title||"Taak",start:date,end:this._dateISO(end),_fhSynthetic:true,_fhKind:"task",_fhId:t.id}});
+      }
+    }
+    return out;
+  }
   _eventsForDay(day,memberId=null){
-    const out=[];
+    const out=[],seen=new Set(),key=x=>x.member.id+"|"+String(x.event.summary||"").toLowerCase()+"|"+this._time(x.event);
     for(const m of this._config.members||[]){
       if(memberId&&m.id!==memberId)continue;
-      for(const ev of this._events[m.id]||[])if(this._eventOnDay(ev,day))out.push({member:m,event:ev});
+      for(const ev of this._events[m.id]||[])if(this._eventOnDay(ev,day)){const x={member:m,event:ev};out.push(x);seen.add(key(x))}
     }
+    for(const x of this._scheduledForDay(day,memberId)){const k=key(x);if(!seen.has(k)){out.push(x);seen.add(k)}}
     return out.sort((a,b)=>this._dateValue(a.event.start)-this._dateValue(b.event.start));
   }
+
   _personState(m){return m?.person&&this._hass?.states?.[m.person]||null;}
   _avatar(m,size="normal"){
     const s=this._personState(m),pic=s?.attributes?.entity_picture;
@@ -260,6 +290,33 @@ class FamilyHubCard extends HTMLElement{
   _points(m){const s=m?.points_entity&&this._hass?.states?.[m.points_entity];return Math.max(0,Number(s?.state||0)||0);}
   _friendly(entityId){const s=this._hass?.states?.[entityId];return s?.attributes?.friendly_name||entityId;}
   _stateText(entityId){const s=this._hass?.states?.[entityId];if(!s)return "—";const unit=s.attributes?.unit_of_measurement||"";return `${s.state}${unit?" "+unit:""}`;}
+  _showMoreInfo(entityId){if(!entityId)return;this.dispatchEvent(new CustomEvent("hass-more-info",{detail:{entityId},bubbles:true,composed:true}));}
+  _periodKey(cycle,date=new Date()){
+    if(cycle==="daily")return this._dateISO(date);
+    if(cycle==="weekly"){const d=new Date(date);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return this._dateISO(d)}
+    if(cycle==="monthly")return date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0");
+    return "balance";
+  }
+  _dateInCycle(dateText,cycle){
+    if(!dateText)return false;const d=this._dateValue(String(dateText).slice(0,10)),now=new Date();
+    if(cycle==="daily")return this._dateISO(d)===this._dateISO(now);
+    if(cycle==="weekly")return this._periodKey("weekly",d)===this._periodKey("weekly",now);
+    if(cycle==="monthly")return this._periodKey("monthly",d)===this._periodKey("monthly",now);
+    return true;
+  }
+  _periodPoints(member,cycle){
+    if(!member)return 0;if(!cycle||cycle==="balance")return this._points(member);
+    return (this._todoAll[member.id]||[]).reduce((sum,item)=>{
+      if(item.status!=="completed")return sum;const meta=this._meta(item);
+      if(!meta||meta.kind==="reward_claim"||!Number(meta.points||0)||!this._dateInCycle(meta.date||item.due||item.due_date||item.due_datetime,cycle))return sum;
+      return sum+Number(meta.points||0);
+    },0);
+  }
+  _rewardClaimed(reward,member){
+    const cycle=reward.cycle||"balance";if(cycle==="balance")return false;
+    const key=this._periodKey(cycle);
+    return (this._todoAll[member.id]||[]).some(item=>{const meta=this._meta(item);return meta?.kind==="reward_claim"&&meta.reward_id===reward.id&&meta.member_id===member.id&&meta.period_key===key});
+  }
   _weather(){const s=this._config.weather&&this._hass?.states?.[this._config.weather];if(!s)return "";const temp=s.attributes?.temperature;return `<div class="weather"><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon><span>${this._esc(temp==null?s.state:temp+"°")}</span></div>`;}
 
   _meta(item){
@@ -286,6 +343,16 @@ class FamilyHubCard extends HTMLElement{
     if(meta?.points&&meta?.points_entity)await this._award(meta.points_entity,meta.points);
     await this._load();
   }
+  async _toggleTodo(entity,item){
+    if(!entity||!item)return;
+    const meta=this._meta(item),completed=item.status==="completed",next=completed?"needs_action":"completed";
+    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next},{entity_id:entity});
+    if(meta?.points&&meta?.points_entity){
+      const current=Math.max(0,Number(this._hass?.states?.[meta.points_entity]?.state||0)||0);
+      await this._setPoints(meta.points_entity,completed?Math.max(0,current-Number(meta.points||0)):current+Number(meta.points||0));
+    }
+    await this._load();
+  }
   async _addTodo(entity,summary,description="",dueDate="",dueTime=""){
     if(!entity||!summary)return;
     const data={item:summary};if(description)data.description=description;if(dueDate&&dueTime)data.due_datetime=`${dueDate} ${dueTime}:00`;else if(dueDate)data.due_date=dueDate;
@@ -298,9 +365,21 @@ class FamilyHubCard extends HTMLElement{
     await this._hass.callService("calendar","create_event",data,{entity_id:entity});await this._load();
   }
   async _redeem(reward,member){
-    const current=this._points(member),cost=Number(reward.cost||0);if(current<cost)return;
-    if(!confirm(`${member.name}: ${reward.title} inwisselen voor ${cost} punten?`))return;
-    await this._setPoints(member.points_entity,current-cost);this._render();
+    const cycle=reward.cycle||"balance",cost=Number(reward.cost||0);
+    if(cycle==="balance"){
+      const current=this._points(member);if(current<cost)return;
+      if(!confirm(`${member.name}: ${reward.title} inwisselen voor ${cost} punten?`))return;
+      await this._setPoints(member.points_entity,current-cost);this._render();return;
+    }
+    const earned=this._periodPoints(member,cycle);if(earned<cost||this._rewardClaimed(reward,member)||!member.todo)return;
+    const labels={daily:"vandaag",weekly:"deze week",monthly:"deze maand"};
+    if(!confirm(`${member.name} heeft ${earned} punten ${labels[cycle]||""}. ‘${reward.title}’ als behaald markeren?`))return;
+    const meta={kind:"reward_claim",reward_id:reward.id,member_id:member.id,period_key:this._periodKey(cycle),cycle,date:this._dateISO(new Date()),points:0};
+    await this._hass.callService("todo","add_item",{item:"Beloning: "+reward.title,description:"FH_META:"+JSON.stringify(meta),due_date:this._dateISO(new Date())},{entity_id:member.todo});
+    await this._load();
+    const claim=(this._todoAll[member.id]||[]).find(item=>{const x=this._meta(item);return x?.kind==="reward_claim"&&x.reward_id===reward.id&&x.period_key===meta.period_key});
+    if(claim&&claim.status!=="completed")await this._hass.callService("todo","update_item",{item:claim.uid||claim.summary,status:"completed"},{entity_id:member.todo});
+    await this._load();
   }
 
   _open(kind,opts={}){
@@ -309,15 +388,30 @@ class FamilyHubCard extends HTMLElement{
     else if(kind==="task")this._modal={kind,title:"Nieuwe taak",choices:members.filter(m=>m.todo),memberId:opts.memberId||""};
     else if(kind==="list")this._modal={kind,title:"Item toevoegen",listId:opts.listId};
     else if(kind==="meal")this._modal={kind,title:"Maaltijd plannen",date:opts.date||this._dateISO(new Date())};
+    else if(kind==="taskDetail"){const item=this._findTodoItem(opts.itemId);this._modal={kind,title:item?.summary||"Taak",entity:opts.entity,itemId:opts.itemId,memberId:opts.memberId||this._meta(item)?.member_id||""}}
+    else if(kind==="eventDetail"){
+      const member=this._member(opts.memberId),day=this._dateValue(opts.start),match=this._eventsForDay(day,opts.memberId).find(x=>String(x.event.start||"")===String(opts.start||"")&&String(x.event.summary||"")===String(opts.summary||""));
+      this._modal={kind,title:match?.event?.summary||opts.summary||"Afspraak",memberId:opts.memberId,event:match?.event||{summary:opts.summary,start:opts.start},member};
+    }
     this._render();
   }
+
   _modalHtml(){
-    const m=this._modal;if(!m)return "";let body="";
+    const m=this._modal;if(!m)return "";let body="",footer='<button id="fh-save" class="save">Opslaan</button>';
     if(m.kind==="event")body=`<label>Voor<select id="fh-who">${m.choices.map(x=>`<option value="${this._esc(x.calendar)}">${this._esc(x.name)}</option>`).join("")}</select></label><label>Afspraak<input id="fh-summary" type="text"></label><div class="modal-row"><label>Datum<input id="fh-date" type="date" value="${this._esc(m.date)}"></label><label>Tijd<input id="fh-time" type="time" value="18:00"></label></div><label class="check"><input id="fh-all" type="checkbox"> Hele dag</label>`;
     else if(m.kind==="task")body=`<label>Voor<select id="fh-who">${m.choices.map(x=>`<option value="${this._esc(x.todo)}" ${x.id===m.memberId?"selected":""}>${this._esc(x.name)}</option>`).join("")}</select></label><label>Taak<input id="fh-summary" type="text"></label><div class="modal-row"><label>Datum<input id="fh-date" type="date" value="${this._dateISO(new Date())}"></label><label>Punten<input id="fh-points" type="number" min="0" value="0"></label></div>`;
     else if(m.kind==="list")body=`<label>Item<input id="fh-summary" type="text"></label>`;
     else if(m.kind==="meal")body=`<label>Maaltijd<input id="fh-summary" type="text" placeholder="Bijv. pasta pesto"></label><label>Datum<input id="fh-date" type="date" value="${this._esc(m.date)}"></label><label>Ingrediënten<textarea id="fh-ingredients" rows="7" placeholder="Pasta\nPesto\nTomaat"></textarea></label>`;
-    return `<div class="modal-wrap"><div class="modal"><div class="modal-head"><div><small>VANDEREIJT.COM FAMILY HUB</small><strong>${this._esc(m.title)}</strong></div><button id="fh-close">×</button></div>${body}<button id="fh-save" class="save">Opslaan</button></div></div>`;
+    else if(m.kind==="taskDetail"){
+      const item=this._findTodoItem(m.itemId),meta=this._meta(item),member=this._member(m.memberId),done=item?.status==="completed";
+      body=`<div class="detail-card"><div class="detail-icon">${done?"✓":"○"}</div><div><small>${member?this._esc(member.name):"Taak"}</small><h3>${this._esc(item?.summary||m.title)}</h3><p>${this._itemDate(item)?this._esc(this._itemDate(item)):"Geen datum"}${Number(meta?.points||0)?` · ${Number(meta.points)} punten`:""}</p></div></div>`;
+      footer=`<button id="fh-task-toggle" class="save ${done?"secondary-action":""}">${done?"Weer openzetten":"Markeer als gedaan"}</button>${member?`<button id="fh-detail-profile" class="detail-secondary">Naar ${this._esc(member.name)}</button>`:""}`;
+    }else if(m.kind==="eventDetail"){
+      const ev=m.event||{},member=m.member,kind=ev._fhKind==="routine"?"Routine":ev._fhKind==="task"?"Terugkerende taak":"Afspraak";
+      body=`<div class="detail-card event-detail"><div class="detail-icon">🗓</div><div><small>${this._esc(kind)} · ${member?this._esc(member.name):""}</small><h3>${this._esc(ev.summary||m.title)}</h3><p>${this._esc(this._time(ev))} · ${this._esc(this._dateValue(ev.start).toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"}))}</p></div></div>`;
+      footer=member?`<button id="fh-detail-profile" class="save">Naar ${this._esc(member.name)}</button>`:'<button id="fh-close-detail" class="save">Sluiten</button>';
+    }
+    return `<div class="modal-wrap"><div class="modal"><div class="modal-head"><div><small>VANDEREIJT.COM FAMILY HUB</small><strong>${this._esc(m.title)}</strong></div><button id="fh-close">×</button></div>${body}<div class="modal-actions">${footer}</div></div></div>`;
   }
 
   _navigation(){
@@ -330,28 +424,35 @@ class FamilyHubCard extends HTMLElement{
     return `<header class="hub-header"><div class="brand"><strong>VANDEREIJT.COM</strong><span>Family Hub</span><small>${this._esc(this._config.subtitle||"for Home Assistant")}</small></div><div class="clock"><div>${now.toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"})}</div><b>${now.toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})}</b></div>${this._weather()}</header>`;
   }
 
-  _section(title,content,extra=""){return `<section class="panel-block"><div class="block-head"><div><h2>${this._esc(title)}</h2></div>${extra}</div>${content}</section>`;}
+  _section(title,content,extra="",target=""){const heading=target?`<button class="section-link" data-screen="${this._esc(target)}"><h2>${this._esc(title)}</h2><span>›</span></button>`:`<div><h2>${this._esc(title)}</h2></div>`;return `<section class="panel-block"><div class="block-head">${heading}${extra}</div>${content}</section>`;}
   _todayAgenda(){
     const ev=this._eventsForDay(new Date());
-    const html=ev.length?ev.slice(0,8).map(x=>`<div class="agenda-row" style="--member:${x.member.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}</span></div></div>`).join(""):'<div class="empty">Geen afspraken vandaag.</div>';
-    return this._section("Vandaag",html,'<button class="mini" data-add-event>＋</button>');
+    const html=ev.length?ev.slice(0,8).map(x=>`<button class="agenda-row agenda-click" data-event-detail data-event-member="${this._esc(x.member.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${x.member.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}${x.event._fhSynthetic?" · Family Hub":""}</span></div><b>›</b></button>`).join(""):'<div class="empty">Geen afspraken vandaag.</div>';
+    return this._section("Vandaag",html,'<button class="mini" data-add-event>＋</button>',"calendar");
   }
   _taskSection(){
     let rows="";
     for(const m of this._config.members||[]){
-      const items=this._regularTodos(m).slice(0,3),routineGroups=this._routineTodoGroups(m);
-      const routineHint=routineGroups.length?`<div class="routine-hint"><ha-icon icon="mdi:progress-check"></ha-icon><span>${routineGroups.length} routine${routineGroups.length===1?"":"s"} actief</span></div>`:"";
-      rows+=`<div class="person-mini"><div class="person-title">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span></div>${items.length?items.map(it=>this._taskRow(m.todo,it)).join(""):""}${routineHint}${!items.length&&!routineGroups.length?'<div class="empty small">Geen open taken</div>':""}</div>`;
+      const items=this._regularTodos(m).slice(0,4),routineGroups=this._routineTodoGroups(m);
+      const routineHint=routineGroups.length?`<button class="routine-hint" data-screen="routines"><ha-icon icon="mdi:progress-check"></ha-icon><span>${routineGroups.length} routine${routineGroups.length===1?"":"s"} vandaag</span><b>›</b></button>`:"";
+      rows+=`<div class="person-mini"><button class="person-title person-link" data-profile="${this._esc(m.id)}">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span><b>›</b></button>${items.length?items.map(it=>this._taskRow(m.todo,it,m.id)).join(""):""}${routineHint}${!items.length&&!routineGroups.length?'<div class="empty small">Geen taken vandaag</div>':""}</div>`;
     }
-    return this._section("Taken",rows,'<button class="mini" data-add-task>＋</button>');
+    return this._section("Taken",rows,'<button class="mini" data-add-task>＋</button>',"tasks");
   }
-  _taskRow(entity,item){const meta=this._meta(item),points=Number(meta?.points||0);return `<button class="check-row" data-complete-entity="${this._esc(entity)}" data-complete-id="${this._esc(item.uid||item.summary)}"><span class="box">✓</span><span>${this._esc(item.summary||"Taak")}</span>${points?`<em>+${points} ★</em>`:""}</button>`;}
-  _regularTodos(m){return (this._todos[m.id]||[]).filter(item=>this._meta(item)?.kind!=="routine_step");}
+  _itemDate(item){const meta=this._meta(item);return String(meta?.date||item?.due||item?.due_date||item?.due_datetime||"").slice(0,10)}
+  _taskRow(entity,item,memberId=""){
+    const meta=this._meta(item),points=Number(meta?.points||0),completed=item.status==="completed",id=item.uid||item.summary,mid=memberId||meta?.member_id||"";
+    return `<div class="check-row ${completed?"completed":""}"><button class="task-toggle box" data-toggle-task-entity="${this._esc(entity)}" data-toggle-task-id="${this._esc(id)}" title="${completed?"Terugzetten":"Afronden"}">${completed?"✓":""}</button><button class="task-open" data-task-detail data-task-entity="${this._esc(entity)}" data-task-id="${this._esc(id)}" data-task-member="${this._esc(mid)}"><span>${this._esc(item.summary||"Taak")}</span>${completed?"<small>Afgerond · klik om te bekijken</small>":""}</button>${points?`<em>${completed?"":"+"}${points} ★</em>`:""}<span class="row-arrow">›</span></div>`;
+  }
+  _regularTodos(m){
+    const today=this._dateISO(new Date()),all=this._todoAll[m.id]||this._todos[m.id]||[];
+    return all.filter(item=>{const meta=this._meta(item);if(meta?.kind==="routine_step"||meta?.kind==="reward_claim")return false;if(item.status!=="completed")return true;return this._itemDate(item)===today}).sort((a,b)=>(a.status==="completed")-(b.status==="completed"));
+  }
   _routineTodoGroups(m){
-    const groups=new Map();
-    for(const item of (this._todos[m.id]||[])){
+    const groups=new Map(),today=this._dateISO(new Date());
+    for(const item of (this._todoAll[m.id]||[])){
       const meta=this._meta(item);
-      if(meta?.kind!=="routine_step")continue;
+      if(meta?.kind!=="routine_step"||meta?.date!==today)continue;
       const id=meta.routine_id||"routine",title=meta.routine_title||"Routine";
       if(!groups.has(id))groups.set(id,{id,title,items:[]});
       groups.get(id).items.push(item);
@@ -359,8 +460,10 @@ class FamilyHubCard extends HTMLElement{
     return [...groups.values()];
   }
   _routineTaskGroup(m,group){
-    return `<div class="routine-task-group"><div class="routine-task-head"><ha-icon icon="mdi:progress-check"></ha-icon><strong>${this._esc(group.title)}</strong><span>${group.items.length} open</span></div>${group.items.map(it=>this._taskRow(m.todo,it)).join("")}</div>`;
+    const done=group.items.filter(x=>x.status==="completed").length;
+    return `<div class="routine-task-group"><button class="routine-task-head" data-screen="routines"><ha-icon icon="mdi:progress-check"></ha-icon><strong>${this._esc(group.title)}</strong><span>${done}/${group.items.length} klaar</span><b>›</b></button>${group.items.map(it=>this._taskRow(m.todo,it,m.id)).join("")}</div>`;
   }
+
   _routineSection(){
     const today=(new Date().getDay()+6)%7;
     const cards=[];
@@ -368,29 +471,30 @@ class FamilyHubCard extends HTMLElement{
       for(const m of this._routineMembers(r))cards.push(this._routineCard(r,true,m));
     }
     const html=cards.length?cards.slice(0,6).join(""):'<div class="empty">Geen routines vandaag.</div>';
-    return this._section("Routines",html);
+    return this._section("Routines",html,"","routines");
   }
   _routineCard(r,compact=false,mOverride=null){
     const m=mOverride||this._routineMembers(r)[0]||null,items=this._routineItems(r,m);
     const total=(r.steps||[]).length||items.length,done=items.filter(x=>x.status==="completed").length,progress=total?Math.round(done/total*100):0;
     const entity=m?.todo||r.todo_entity||"";
-    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}"><div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b></div><div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.length?items.map(it=>it.status==="completed"?`<div class="done-step"><span>✓</span>${this._esc(it.summary)}</div>`:this._taskRow(entity,it)).join(""):'<div class="empty small">De stappen worden automatisch klaargezet.</div>'}</div>`}</article>`;
+    const top=compact?`<button class="routine-top routine-link" data-screen="routines">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b><i>›</i></button>`:`<div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b></div>`;
+    return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}">${top}<div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.length?items.map(it=>this._taskRow(entity,it,m?.id||"")).join(""):'<div class="empty small">De stappen worden automatisch klaargezet.</div>'}</div>`}</article>`;
   }
   _mealSection(){
     const today=this._dateISO(new Date());const item=this._meals.find(x=>String(x.due||"").slice(0,10)===today);
-    const html=item?`<div class="meal-today"><ha-icon icon="mdi:silverware-fork-knife"></ha-icon><div><small>Vanavond</small><strong>${this._esc(item.summary)}</strong></div></div>`:'<button class="empty-action" data-add-meal>＋ Maaltijd plannen</button>';
-    return this._section("Eten",html);
+    const html=item?`<button class="meal-today meal-link" data-screen="meals"><ha-icon icon="mdi:silverware-fork-knife"></ha-icon><div><small>Vanavond</small><strong>${this._esc(item.summary)}</strong></div><b>›</b></button>`:'<button class="empty-action" data-add-meal>＋ Maaltijd plannen</button>';
+    return this._section("Eten",html,"","meals");
   }
   _notificationsSection(){
     const inactive=new Set(["off","closed","idle","home","0","unknown","unavailable","none",""]);
     const active=(this._config.notification_entities||[]).map(id=>this._hass?.states?.[id]).filter(s=>s&&!inactive.has(String(s.state).toLowerCase()));
-    const html=active.length?active.slice(0,6).map(s=>`<div class="notice"><ha-icon icon="${this._esc(s.attributes?.icon||"mdi:bell-outline")}"></ha-icon><div><strong>${this._esc(s.attributes?.friendly_name||s.entity_id)}</strong><span>${this._esc(s.state)}</span></div></div>`).join(""):'<div class="empty">Geen meldingen.</div>';
-    return this._section("Meldingen",html);
+    const html=active.length?active.slice(0,6).map(s=>`<button class="notice" data-more-info="${this._esc(s.entity_id)}"><ha-icon icon="${this._esc(s.attributes?.icon||"mdi:bell-outline")}"></ha-icon><div><strong>${this._esc(s.attributes?.friendly_name||s.entity_id)}</strong><span>${this._esc(s.state)}</span></div><b>›</b></button>`).join(""):'<div class="empty">Geen meldingen.</div>';
+    return this._section("Meldingen",html,"","house");
   }
   _houseSection(){
     const ids=this._config.home_entities||[];
-    const html=ids.length?`<div class="house-grid">${ids.slice(0,8).map(id=>{const s=this._hass?.states?.[id];return `<div class="house-tile"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><span>${this._esc(s?.attributes?.friendly_name||id)}</span><strong>${this._esc(this._stateText(id))}</strong></div>`}).join("")}</div>`:'<div class="empty">Nog geen huis-entiteiten gekozen.</div>';
-    return this._section("Huis",html);
+    const html=ids.length?`<div class="house-grid">${ids.slice(0,8).map(id=>{const s=this._hass?.states?.[id];return `<button class="house-tile" data-more-info="${this._esc(id)}"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><span>${this._esc(s?.attributes?.friendly_name||id)}</span><strong>${this._esc(this._stateText(id))}</strong></button>`}).join("")}</div>`:'<div class="empty">Nog geen huis-entiteiten gekozen.</div>';
+    return this._section("Huis",html,"","house");
   }
   _departuresSection(){
     const now=new Date();const cards=[];
@@ -414,11 +518,11 @@ class FamilyHubCard extends HTMLElement{
 
   _calendarScreen(){
     const days=this._days(),today=new Date(),first=days[0],last=days[6];
-    return `<section class="screen-card calendar-screen"><div class="screen-title"><div><small>GEZINSAGENDA</small><h1>${first.toLocaleDateString("nl-NL",{day:"numeric",month:"short"})} – ${last.toLocaleDateString("nl-NL",{day:"numeric",month:"short",year:"numeric"})}</h1></div><div><button data-week-prev>‹</button><button data-week-today>Vandaag</button><button data-week-next>›</button></div></div><div class="week-head">${days.map(d=>`<button class="${this._sameDay(d,today)?"today":""}" data-add-event-date="${this._dateISO(d)}"><span>${d.toLocaleDateString("nl-NL",{weekday:"short"})}</span><b>${d.getDate()}</b></button>`).join("")}</div><div class="week-grid">${days.map(d=>{const ev=this._eventsForDay(d);return `<div class="day-col ${this._sameDay(d,today)?"today":""}">${ev.length?ev.map(x=>`<div class="event" style="--member:${x.member.color}"><small>${this._esc(this._time(x.event))}</small><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}</span></div>`).join(""):`<button class="day-empty" data-add-event-date="${this._dateISO(d)}">＋<span>Afspraak</span></button>`}</div>`}).join("")}</div></section>`;
+    return `<section class="screen-card calendar-screen"><div class="screen-title"><div><small>GEZINSAGENDA</small><h1>${first.toLocaleDateString("nl-NL",{day:"numeric",month:"short"})} – ${last.toLocaleDateString("nl-NL",{day:"numeric",month:"short",year:"numeric"})}</h1></div><div><button data-week-prev>‹</button><button data-week-today>Vandaag</button><button data-week-next>›</button></div></div><div class="week-head">${days.map(d=>`<button class="${this._sameDay(d,today)?"today":""}" data-add-event-date="${this._dateISO(d)}"><span>${d.toLocaleDateString("nl-NL",{weekday:"short"})}</span><b>${d.getDate()}</b></button>`).join("")}</div><div class="week-grid">${days.map(d=>{const ev=this._eventsForDay(d);return `<div class="day-col ${this._sameDay(d,today)?"today":""}">${ev.length?ev.map(x=>`<button class="event event-click ${x.event._fhSynthetic?"family-generated":""}" data-event-detail data-event-member="${this._esc(x.member.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${x.member.color}"><small>${this._esc(this._time(x.event))}</small><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}</span>${x.event._fhSynthetic?`<em>${x.event._fhKind==="routine"?"Routine":"Taak"}</em>`:""}</button>`).join(""):`<button class="day-empty" data-add-event-date="${this._dateISO(d)}">＋<span>Afspraak</span></button>`}</div>`}).join("")}</div></section>`;
   }
 
   _tasksScreen(){
-    return `<div class="screen-heading"><div><small>TAKEN</small><h1>Wat moet er gebeuren?</h1></div><button class="primary-btn" data-add-task>＋ Taak</button></div><div class="member-columns">${(this._config.members||[]).map(m=>{const normal=this._regularTodos(m),groups=this._routineTodoGroups(m);return `<section class="member-column" style="--member:${m.color}"><div class="member-column-head">${this._avatar(m)}<div><strong>${this._esc(m.name)}</strong><span>${this._points(m)} punten</span></div><button data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan 🎉</div>':""}</section>`}).join("")}</div>`;
+    return `<div class="screen-heading"><div><small>TAKEN</small><h1>Wat moet er gebeuren?</h1></div><button class="primary-btn" data-add-task>＋ Taak</button></div><div class="member-columns">${(this._config.members||[]).map(m=>{const normal=this._regularTodos(m),groups=this._routineTodoGroups(m);return `<section class="member-column" style="--member:${m.color}"><div class="member-column-head"><button class="member-link" data-profile="${this._esc(m.id)}">${this._avatar(m)}<div><strong>${this._esc(m.name)}</strong><span>${this._points(m)} punten</span></div><b>›</b></button><button class="member-add" data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it,m.id)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan 🎉</div>':""}</section>`}).join("")}</div>`;
   }
 
   _routinesScreen(){
@@ -439,22 +543,21 @@ class FamilyHubCard extends HTMLElement{
   }
 
   _rewardsScreen(){
-    const members=(this._config.members||[]).filter(m=>m.role==="child"||m.points_entity);
-    const rewards=this._config.rewards||[];
-    return `<div class="screen-heading"><div><small>PUNTEN & BELONINGEN</small><h1>Sparen voor iets leuks</h1></div></div><div class="points-strip">${members.map(m=>`<button data-profile="${this._esc(m.id)}" style="--member:${m.color}">${this._avatar(m,"small")}<span>${this._esc(m.name)}</span><strong>${this._points(m)} ★</strong></button>`).join("")}</div><div class="reward-grid">${rewards.length?rewards.map(r=>`<article class="reward-card"><ha-icon icon="${this._esc(r.icon||"mdi:gift")}"></ha-icon><strong>${this._esc(r.title)}</strong><span>${Number(r.cost||0)} ★</span><div>${members.filter(m=>!r.member_id||r.member_id===m.id).map(m=>`<button data-redeem="${this._esc(r.id)}" data-redeem-member="${this._esc(m.id)}" ${this._points(m)<Number(r.cost||0)?"disabled":""}>${this._esc(m.name)}</button>`).join("")}</div></article>`).join(""):'<div class="empty big">Maak beloningen aan in de Family Hub App.</div>'}</div>`;
+    const members=(this._config.members||[]).filter(m=>m.role==="child"||m.points_entity),rewards=this._config.rewards||[],labels={balance:"Doorlopend",daily:"Vandaag",weekly:"Deze week",monthly:"Deze maand"};
+    return `<div class="screen-heading"><div><small>PUNTEN & BELONINGEN</small><h1>Sparen voor iets leuks</h1></div></div><div class="points-strip">${members.map(m=>`<button data-profile="${this._esc(m.id)}" style="--member:${m.color}">${this._avatar(m,"small")}<span>${this._esc(m.name)}</span><strong>${this._points(m)} ★</strong></button>`).join("")}</div><div class="reward-grid">${rewards.length?rewards.map(r=>{const cycle=r.cycle||"balance",cost=Number(r.cost||0);return `<article class="reward-card"><ha-icon icon="${this._esc(r.icon||"mdi:gift")}"></ha-icon><strong>${this._esc(r.title)}</strong><span>${cost} ★</span><small class="reward-period">${labels[cycle]||labels.balance}</small><div class="reward-people">${members.filter(m=>!r.member_id||r.member_id===m.id).map(m=>{const score=cycle==="balance"?this._points(m):this._periodPoints(m,cycle),claimed=this._rewardClaimed(r,m),ready=score>=cost&&!claimed;return `<button class="${claimed?"claimed":ready?"ready":""}" data-redeem="${this._esc(r.id)}" data-redeem-member="${this._esc(m.id)}" ${!ready?"disabled":""}><span>${this._esc(m.name)}</span><strong>${claimed?"Behaald ✓":score+"/"+cost+" ★"}</strong></button>`}).join("")}</div></article>`}).join(""):'<div class="empty big">Maak beloningen aan in de Family Hub App.</div>'}</div>`;
   }
 
   _profilesScreen(){return `<div class="screen-heading"><div><small>GEZIN</small><h1>Iedereen in beeld</h1></div></div><div class="profile-grid">${(this._config.members||[]).map(m=>{const s=this._personState(m);return `<button class="profile-card" data-profile="${this._esc(m.id)}" style="--member:${m.color}">${this._avatar(m,"large")}<strong>${this._esc(m.name)}</strong><span>${s?.state==="home"?"Thuis":s?.state||""}</span><b>${this._points(m)} ★</b></button>`}).join("")}</div>`;}
 
   _profileScreen(){
     const m=this._member(this._profileId);if(!m){this._screen="profiles";return this._profilesScreen();}
-    const ev=this._eventsForDay(new Date(),m.id),tasks=this._todos[m.id]||[],routines=(this._config.routines||[]).filter(r=>this._routineMemberIds(r).includes(m.id));
-    return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><h2>Vandaag</h2>${ev.length?ev.map(x=>`<div class="agenda-row" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div></div>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><h2>Taken</h2><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${this._regularTodos(m).map(it=>this._taskRow(m.todo,it)).join("")}${this._routineTodoGroups(m).map(g=>this._routineTaskGroup(m,g)).join("")}${!tasks.length?'<div class="empty">Alles gedaan.</div>':""}</section><section class="panel-block"><h2>Routines</h2>${routines.length?routines.map(r=>this._routineCard(r,true,m)).join(""):'<div class="empty">Geen routines.</div>'}</section></div></div>`;
+    const ev=this._eventsForDay(new Date(),m.id),normal=this._regularTodos(m),groups=this._routineTodoGroups(m),routines=(this._config.routines||[]).filter(r=>this._routineMemberIds(r).includes(m.id));
+    return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="calendar"><h2>Vandaag</h2><span>›</span></button></div>${ev.length?ev.map(x=>`<button class="agenda-row agenda-click" data-event-detail data-event-member="${this._esc(m.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div><b>›</b></button>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="tasks"><h2>Taken</h2><span>›</span></button><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it,m.id)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan.</div>':""}</section><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="routines"><h2>Routines</h2><span>›</span></button></div>${routines.length?routines.map(r=>this._routineCard(r,true,m)).join(""):'<div class="empty">Geen routines.</div>'}</section></div></div>`;
   }
 
   _houseScreen(){
     const ids=this._config.home_entities||[];
-    return `<div class="screen-heading"><div><small>SLIM HUIS</small><h1>Thuis in één oogopslag</h1></div></div><div class="house-screen-grid">${ids.length?ids.map(id=>{const s=this._hass?.states?.[id];return `<article class="house-big"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><div><small>${this._esc(s?.attributes?.friendly_name||id)}</small><strong>${this._esc(this._stateText(id))}</strong></div></article>`}).join(""):'<div class="empty big">Kies Home Assistant-entiteiten in de Family Hub App.</div>'}</div>${this._notificationsSection()}`;
+    return `<div class="screen-heading"><div><small>SLIM HUIS</small><h1>Thuis in één oogopslag</h1></div></div><div class="house-screen-grid">${ids.length?ids.map(id=>{const s=this._hass?.states?.[id];return `<button class="house-big" data-more-info="${this._esc(id)}"><ha-icon icon="${this._esc(s?.attributes?.icon||"mdi:home-outline")}"></ha-icon><div><small>${this._esc(s?.attributes?.friendly_name||id)}</small><strong>${this._esc(this._stateText(id))}</strong></div><b>›</b></button>`}).join(""):'<div class="empty big">Kies Home Assistant-entiteiten in de Family Hub App.</div>'}</div>${this._notificationsSection()}`;
   }
 
   _screenHtml(){
@@ -482,6 +585,21 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
 .member-columns,.routine-grid,.list-grid,.reward-grid,.profile-grid,.house-screen-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.member-column{border-top:5px solid var(--member)}.member-column-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}.member-column-head>div{flex:1}.member-column-head strong,.member-column-head span{display:block}.member-column-head strong{font-size:12px}.member-column-head span{font-size:8px;color:var(--muted)}.member-column-head button,.list-head button{border:0;background:#E9EEF3;border-radius:8px;width:30px;height:30px}.routine-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.list-card{border-top:5px solid var(--list)}.list-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.list-head>div{display:flex;align-items:center;gap:7px}.list-head ha-icon{color:var(--list)}.list-head strong{font-size:12px}.meal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.meal-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;min-height:140px}.meal-card.today{border-color:var(--blue);box-shadow:0 0 0 2px #2E6CA515}.meal-card small,.meal-card strong,.meal-card span{display:block}.meal-card small{font-size:9px;color:var(--muted);text-transform:capitalize}.meal-card strong{font-size:12px;margin-top:10px}.meal-card span{font-size:8px;color:var(--muted);margin-top:5px}.meal-card>button{margin-top:11px;border:0;background:#E9EEF3;border-radius:8px;padding:6px 7px;font-size:8px}.meal-empty{width:100%;height:90px;background:transparent!important;color:var(--muted)}.shopping-preview{margin-top:14px;max-width:600px}.points-strip{display:flex;gap:8px;overflow:auto;margin-bottom:14px}.points-strip button{border:0;background:#fff;border-bottom:4px solid var(--member);border-radius:13px;padding:8px 13px;display:flex;align-items:center;gap:7px}.points-strip span{font-size:10px}.points-strip strong{font-size:11px;color:#B88400}.reward-card{text-align:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}.reward-card>ha-icon{color:#D5A500;--mdc-icon-size:34px}.reward-card>strong,.reward-card>span{display:block}.reward-card>strong{font-size:13px;margin-top:8px}.reward-card>span{font-size:20px;font-weight:900;color:#B88400;margin:7px}.reward-card>div{display:flex;gap:5px;justify-content:center;flex-wrap:wrap}.reward-card button{border:0;border-radius:8px;padding:6px 8px;background:#E9EEF3;font-size:8px}.profile-card{border:0;background:#fff;border-bottom:6px solid var(--member);border-radius:18px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:7px;box-shadow:0 3px 18px #0A16280b}.profile-card strong{font-size:15px}.profile-card span{font-size:9px;color:var(--muted)}.profile-card b{color:#B88400}.profile-hero{background:linear-gradient(135deg,var(--member),#0A1628);border-radius:18px;padding:20px;color:#fff;display:flex;align-items:center;gap:16px}.profile-hero>button{border:0;background:#ffffff20;color:#fff;border-radius:9px;width:34px;height:34px}.profile-hero small{font-size:8px;letter-spacing:.1em}.profile-hero h1{margin:3px 0;font-size:26px}.profile-hero strong{color:#FFE55C}.profile-columns{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}.house-screen-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.house-big{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;gap:12px;align-items:center}.house-big ha-icon{color:var(--blue);--mdc-icon-size:30px}.house-big small,.house-big strong{display:block}.house-big small{font-size:9px;color:var(--muted)}.house-big strong{font-size:15px;margin-top:3px}
 .bottom-nav{height:72px;flex:0 0 72px;background:rgba(255,255,255,.97);border-top:1px solid var(--line);display:flex;justify-content:center;gap:4px;padding:6px 10px;overflow-x:auto}.bottom-nav button{min-width:76px;border:0;background:transparent;border-radius:12px;color:#6C7885;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}.bottom-nav button ha-icon{--mdc-icon-size:21px}.bottom-nav button span{font-size:8px;font-weight:900}.bottom-nav button.active{background:#E7EFF8;color:var(--blue2)}
 .modal-wrap{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#0008;backdrop-filter:blur(3px);padding:18px}.modal{width:min(450px,95vw);background:#fff;border-radius:20px;padding:20px}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}.modal-head small{display:block;color:var(--blue);font-size:8px;font-weight:900}.modal-head strong{display:block;font-size:21px;margin-top:3px}.modal-head button{border:0;background:transparent;font-size:28px;color:var(--muted)}.modal label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:10px;font-weight:900;margin:11px 0}.modal input,.modal select,.modal textarea{border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}.modal-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.modal .check{flex-direction:row;align-items:center}.save{width:100%;border:0;border-radius:11px;padding:12px;background:var(--blue);color:#fff;font-weight:900}.screensaver{position:absolute;inset:0;z-index:99999;background:#0A1628 center/cover no-repeat;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}.screensaver-brand{position:absolute;top:28px;left:32px;font-size:13px;font-weight:900;color:var(--yellow)}.screensaver-brand span{color:#fff}.screensaver-clock{text-align:center;text-shadow:0 2px 18px #0008}.screensaver-clock strong{display:block;font-size:88px;line-height:1}.screensaver-clock span{display:block;font-size:22px;text-transform:capitalize;margin-top:10px}.screensaver>small{position:absolute;bottom:28px;color:#ffffff99}
+
+/* 0.9 interactive UX */
+.section-link{border:0;background:transparent;padding:0;display:flex;align-items:center;gap:7px;color:var(--dark);cursor:pointer}.section-link h2{margin:0}.section-link span{color:var(--blue);font-size:18px;line-height:1}.section-link:hover h2{color:var(--blue2)}
+.agenda-click{width:100%;border-top:0;border-right:0;border-bottom:0;grid-template-columns:46px 1fr auto;text-align:left;cursor:pointer;color:inherit}.agenda-click>b{align-self:center;color:#9AA7B2;font-size:17px}.agenda-click:hover{background:#EEF4F9}
+.person-link{width:100%;border:0;background:transparent;padding:0;color:inherit;text-align:left;cursor:pointer}.person-link>b{margin-left:2px;color:#9AA7B2}.person-link:hover strong{color:var(--blue2)}
+.check-row{cursor:default}.check-row .task-toggle{width:21px;height:21px;border:1.5px solid #CBD4DC;border-radius:6px;display:grid;place-items:center;color:#fff;background:#fff;flex:0 0 auto;padding:0;cursor:pointer}.check-row .task-toggle:hover{background:var(--blue);border-color:var(--blue)}.check-row .task-open{min-width:0;flex:1;border:0;background:transparent;text-align:left;padding:2px 0;color:#111;cursor:pointer}.check-row .task-open>span{display:block;font-size:10px}.check-row .task-open>small{display:block;font-size:8px;color:#8A97A2;margin-top:2px}.check-row.completed{background:#F7FAF8}.check-row.completed .task-toggle{background:#34A568;border-color:#34A568}.check-row.completed .task-open>span{text-decoration:line-through;color:#7E8A94}.check-row.completed em{color:#7E8A94}.row-arrow{color:#A0ABB5;font-size:15px}.check-row:hover{background:#EEF3F7}
+.routine-hint,.routine-task-head,.routine-link{border:0;cursor:pointer;text-align:left}.routine-hint{width:100%}.routine-hint b,.routine-task-head b{margin-left:auto;color:#8DA0B1}.routine-task-head{width:100%;background:transparent}.routine-link{width:100%;background:transparent;padding:0;color:inherit}.routine-link>i{font-style:normal;color:#9AA7B2;font-size:17px}.routine-link:hover strong,.routine-task-head:hover strong{color:var(--blue2)}
+.meal-link{width:100%;border:0;text-align:left;cursor:pointer}.meal-link>b{margin-left:auto;color:#A79546}
+.notice{width:100%;border:0;text-align:left;color:inherit;cursor:pointer}.notice>b{margin-left:auto;color:#B78655}.notice:hover{filter:brightness(.98)}
+.house-tile{border:0;text-align:left;color:inherit;cursor:pointer}.house-tile:hover{background:#EDF3F8}
+.event-click{width:100%;border-top:0;border-right:0;border-bottom:0;text-align:left;color:inherit;cursor:pointer}.event-click:hover{box-shadow:0 2px 8px #0A162814}.event.family-generated{background:#F4F8FC}.event em{display:inline-block;margin-top:4px;font-style:normal;font-size:7px;font-weight:900;color:var(--blue2);background:#E6EFF8;border-radius:999px;padding:2px 5px}
+.member-column-head{justify-content:space-between}.member-column-head .member-link{display:flex;align-items:center;gap:8px;flex:1}.member-column-head .member-link>div{flex:1}.member-column-head .member-link>b{color:#9AA7B2;font-size:17px}.member-column-head .member-add{flex:0 0 30px;cursor:pointer}
+.reward-period{display:inline-block;background:#F0F4F7;border-radius:999px;padding:4px 8px;font-size:8px;color:var(--muted);font-weight:900}.reward-people{display:flex;flex-direction:column!important;gap:6px!important;margin-top:10px}.reward-people button{display:flex;justify-content:space-between;gap:10px;width:100%;font-size:9px!important;padding:8px 10px!important}.reward-people button strong{color:#735F1A}.reward-people button.ready{background:#FFF1A8;color:#594600;cursor:pointer;box-shadow:0 0 0 1px #EACB42 inset}.reward-people button.claimed{background:#E7F5EC;color:#2E7D4B}.reward-people button:disabled{opacity:.75}.reward-people button.claimed:disabled{opacity:1}
+.house-big{width:100%;text-align:left;color:inherit;cursor:pointer}.house-big>b{margin-left:auto;color:#A0ABB5;font-size:18px}.house-big:hover{border-color:#B8CADB;box-shadow:0 4px 16px #0A162810}
+.modal-actions{display:flex;gap:8px;margin-top:12px}.modal-actions .save{flex:1}.detail-secondary{border:0;border-radius:11px;padding:12px 14px;background:#E8EEF4;color:var(--blue2);font-weight:900;cursor:pointer}.secondary-action{background:#E8EEF4;color:var(--blue2)}.detail-card{display:flex;gap:13px;align-items:center;background:#F6F8FA;border:1px solid var(--line);border-radius:14px;padding:15px}.detail-icon{width:43px;height:43px;flex:0 0 43px;border-radius:12px;background:#E4EDF6;color:var(--blue2);display:grid;place-items:center;font-size:20px;font-weight:900}.detail-card small{display:block;font-size:8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.06em}.detail-card h3{margin:3px 0;font-size:16px}.detail-card p{margin:0;color:var(--muted);font-size:9px}.event-detail .detail-icon{background:#FFF5BF}
 @media(max-width:1100px){.home-grid{grid-template-columns:repeat(2,1fr)}.member-columns,.list-grid,.reward-grid,.profile-grid{grid-template-columns:repeat(2,1fr)}.meal-grid{grid-template-columns:repeat(4,1fr)}.house-screen-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:800px){ha-card{height:auto;min-height:100vh}.hub-header{grid-template-columns:1fr auto}.clock{display:none}.home-grid,.member-columns,.routine-grid,.list-grid,.reward-grid,.profile-grid,.profile-columns{grid-template-columns:1fr}.meal-grid{grid-template-columns:repeat(2,1fr)}.house-screen-grid{grid-template-columns:repeat(2,1fr)}.calendar-screen{min-height:650px}.bottom-nav{justify-content:flex-start;position:sticky;bottom:0}.content{padding:12px}.screensaver-clock strong{font-size:60px}}
 .update-screen{height:100%;min-height:650px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#F7F9FB;color:var(--dark);text-align:center}.update-screen strong{font-size:22px}.update-screen span{font-size:13px;color:var(--blue2);font-weight:900}.update-screen small{font-size:10px;color:var(--muted)}.update-spinner{width:36px;height:36px;border:4px solid #D9E4EE;border-top-color:var(--blue);border-radius:50%;animation:fh-spin .8s linear infinite}@keyframes fh-spin{to{transform:rotate(360deg)}}
@@ -506,9 +624,13 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
   }
   _bind(){
     const q=s=>this.shadowRoot.querySelector(s);
-    this.shadowRoot.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>{this._screen=b.dataset.screen;this._profileId=null;this._render()});
-    this.shadowRoot.querySelectorAll("[data-profile]").forEach(b=>b.onclick=()=>{this._profileId=b.dataset.profile;this._screen="profile";this._render()});
+    this.shadowRoot.querySelectorAll("[data-screen]").forEach(b=>b.onclick=()=>{this._screen=b.dataset.screen;this._profileId=null;this._modal=null;this._render()});
+    this.shadowRoot.querySelectorAll("[data-profile]").forEach(b=>b.onclick=()=>{this._profileId=b.dataset.profile;this._screen="profile";this._modal=null;this._render()});
     q("[data-profile-back]")&&(q("[data-profile-back]").onclick=()=>{this._screen="profiles";this._profileId=null;this._render()});
+    this.shadowRoot.querySelectorAll("[data-more-info]").forEach(b=>b.onclick=()=>this._showMoreInfo(b.dataset.moreInfo));
+    this.shadowRoot.querySelectorAll("[data-event-detail]").forEach(b=>b.onclick=()=>this._open("eventDetail",{memberId:b.dataset.eventMember,start:b.dataset.eventStart,summary:b.dataset.eventSummary}));
+    this.shadowRoot.querySelectorAll("[data-task-detail]").forEach(b=>b.onclick=()=>this._open("taskDetail",{entity:b.dataset.taskEntity,itemId:b.dataset.taskId,memberId:b.dataset.taskMember}));
+    this.shadowRoot.querySelectorAll("[data-toggle-task-entity]").forEach(b=>b.onclick=async()=>{const it=this._findTodoItem(b.dataset.toggleTaskId);if(it)await this._toggleTodo(b.dataset.toggleTaskEntity,it)});
     this.shadowRoot.querySelectorAll("[data-add-event]").forEach(b=>b.onclick=()=>this._open("event"));
     this.shadowRoot.querySelectorAll("[data-add-event-date]").forEach(b=>b.onclick=()=>this._open("event",{date:b.dataset.addEventDate}));
     this.shadowRoot.querySelectorAll("[data-add-task]").forEach(b=>b.onclick=()=>this._open("task"));
@@ -518,7 +640,6 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
     this.shadowRoot.querySelectorAll("[data-add-meal-date]").forEach(b=>b.onclick=()=>this._open("meal",{date:b.dataset.addMealDate}));
     q("[data-week-prev]")&&(q("[data-week-prev]").onclick=()=>{this._weekOffset--;this._load()});q("[data-week-next]")&&(q("[data-week-next]").onclick=()=>{this._weekOffset++;this._load()});q("[data-week-today]")&&(q("[data-week-today]").onclick=()=>{this._weekOffset=0;this._load()});
 
-    this.shadowRoot.querySelectorAll("[data-complete-entity]").forEach(b=>b.onclick=()=>{const it=this._findTodoItem(b.dataset.completeId);if(it)this._complete(b.dataset.completeEntity,it)});
     this.shadowRoot.querySelectorAll("[data-complete-list]").forEach(b=>b.onclick=()=>{const l=(this._config.lists||[]).find(x=>x.id===b.dataset.completeList),it=this._findTodoItem(b.dataset.completeId);if(l&&it)this._complete(l.todo_entity,it)});
     this.shadowRoot.querySelectorAll("[data-complete-shopping]").forEach(b=>b.onclick=()=>{const it=this._findTodoItem(b.dataset.completeShopping);if(it)this._complete(this._config.shopping_list,it)});
     this.shadowRoot.querySelectorAll("[data-redeem]").forEach(b=>b.onclick=()=>{const r=(this._config.rewards||[]).find(x=>x.id===b.dataset.redeem),m=this._member(b.dataset.redeemMember);if(r&&m)this._redeem(r,m)});
@@ -527,6 +648,9 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
 
     if(this._modal){
       q("#fh-close")&&(q("#fh-close").onclick=()=>{this._modal=null;this._render()});
+      q("#fh-close-detail")&&(q("#fh-close-detail").onclick=()=>{this._modal=null;this._render()});
+      q("#fh-detail-profile")&&(q("#fh-detail-profile").onclick=()=>{const id=this._modal?.memberId;if(id){this._modal=null;this._profileId=id;this._screen="profile";this._render()}});
+      q("#fh-task-toggle")&&(q("#fh-task-toggle").onclick=async()=>{const item=this._findTodoItem(this._modal?.itemId);if(item){await this._toggleTodo(this._modal.entity,item);this._modal=null;this._render()}});
       q("#fh-save")&&(q("#fh-save").onclick=async()=>{try{
         const summary=(q("#fh-summary")?.value||"").trim();if(!summary)return;
         if(this._modal.kind==="event")await this._addEvent(q("#fh-who").value,summary,q("#fh-date").value,q("#fh-time").value,q("#fh-all").checked);

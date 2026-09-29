@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.8.3"
+APP_VERSION = "0.9.0"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -224,6 +224,7 @@ def normalize_settings(data):
             "points": max(0, min(500, int(task.get("points") or 0))),
             "days": [int(x) for x in (task.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
             "due_time": str(task.get("due_time") or "")[:5],
+            "show_in_calendar": bool(task.get("show_in_calendar", True)),
             "enabled": bool(task.get("enabled", True)),
         })
     out["smart_tasks"] = smart_tasks[:100]
@@ -235,12 +236,16 @@ def normalize_settings(data):
         title = str(reward.get("title") or "").strip()
         if not title:
             continue
+        cycle = str(reward.get("cycle") or "balance").lower()
+        if cycle not in {"balance", "daily", "weekly", "monthly"}:
+            cycle = "balance"
         rewards.append({
             "id": _clean_id(reward.get("id"), f"reward_{idx+1}"),
             "title": title[:100],
             "cost": max(1, min(100000, int(reward.get("cost") or 1))),
             "icon": str(reward.get("icon") or "mdi:gift")[:80],
             "member_id": str(reward.get("member_id") or "")[:80],
+            "cycle": cycle,
         })
     out["rewards"] = rewards[:100]
 
@@ -1139,20 +1144,79 @@ def family_scheduler_loop():
         time.sleep(60)
 
 
+def normalize_remote_calendar_url(url):
+    raw = str(url or "").strip()
+    if raw.startswith("webcal://"):
+        raw = "https://" + raw[len("webcal://"):]
+    parsed = urlparse(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Gebruik een geldige https:// of webcal:// agenda-link.")
+
+    host = parsed.netloc.lower().split(":", 1)[0]
+    path = parsed.path.lower()
+    if host in {"calendar.google.com", "www.google.com"} and "/calendar/ical/" not in path:
+        raise ValueError(
+            "Dit is een Google Agenda-deellink, geen iCal/ICS-link. "
+            "Open Google Agenda op een computer en ga naar Instellingen → kies de agenda → "
+            "Agenda integreren. Kopieer daar 'Geheim adres in iCal-indeling' "
+            "(of 'Openbaar adres in iCal-indeling' voor een openbare agenda)."
+        )
+    return raw
+
+
+def _remote_calendar_error(result):
+    errors = result.get("errors") or {}
+    code = errors.get("base") or next(iter(errors.values()), "")
+    messages = {
+        "invalid_ics_file": (
+            "De link levert geen geldige iCal/ICS-agenda op. "
+            "Gebruik niet de gewone deel- of browserlink, maar de echte .ics/iCal-link."
+        ),
+        "cannot_connect": "Home Assistant kan deze agenda-link niet bereiken. Controleer de URL en probeer opnieuw.",
+        "timeout_connect": "De agenda-server reageert niet op tijd. Probeer het later opnieuw.",
+        "forbidden": "De agenda-server weigert toegang tot deze link.",
+        "invalid_auth": "De gebruikersnaam of het wachtwoord voor deze agenda is niet geldig.",
+    }
+    if code in messages:
+        return messages[code]
+    if result.get("step_id") == "auth":
+        return (
+            "Deze agenda vraagt HTTP Basic Authentication. "
+            "Voeg hem voorlopig via Instellingen → Apparaten & diensten → Integratie toevoegen → Remote Calendar toe."
+        )
+    return f"Home Assistant kon de agenda niet toevoegen{': ' + str(code) if code else ''}."
+
+
 def create_remote_calendar(name, url):
-    result = _create_local_config_entry(
-        "remote_calendar",
+    calendar_name = str(name or "Externe agenda").strip()[:80] or "Externe agenda"
+    calendar_url = normalize_remote_calendar_url(url)
+
+    flow = ha_api("POST", "config/config_entries/flow", {"handler": "remote_calendar"})
+    if flow.get("type") == "abort":
+        raise RuntimeError(f"Remote Calendar kon niet worden gestart: {flow.get('reason') or 'onbekend'}")
+    flow_id = flow.get("flow_id")
+    if not flow_id:
+        raise RuntimeError("Home Assistant kon Remote Calendar niet starten.")
+
+    result = ha_api(
+        "POST",
+        f"config/config_entries/flow/{flow_id}",
         {
-            "calendar_name": str(name or "Externe agenda")[:80],
-            "url": str(url or "").strip(),
+            "calendar_name": calendar_name,
+            "url": calendar_url,
             "verify_ssl": True,
         },
     )
     if result.get("type") == "create_entry":
         return result
     if result.get("type") == "abort":
-        raise RuntimeError(f"Agenda bestaat al: {result.get('reason') or 'onbekend'}")
-    raise RuntimeError("Deze agenda vraagt extra authenticatie. Voeg die eerst als integratie toe in Home Assistant.")
+        reason = result.get("reason") or "onbekend"
+        if reason in {"already_configured", "already_in_progress"}:
+            raise RuntimeError("Deze agenda is al aan Home Assistant toegevoegd.")
+        raise RuntimeError(f"Agenda kon niet worden toegevoegd: {reason}")
+    if result.get("type") == "form":
+        raise RuntimeError(_remote_calendar_error(result))
+    raise RuntimeError(_remote_calendar_error(result))
 
 
 def family_hub_view(title="Family Hub"):
