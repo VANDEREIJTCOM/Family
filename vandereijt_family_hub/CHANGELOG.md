@@ -16,6 +16,8 @@
 - Een periodieke beloning kan één keer per periode als behaald worden gemarkeerd zonder punten van andere spaardoelen af te trekken.
 - Doorlopend sparen houdt het bestaande gedrag: punten blijven staan en worden bij inwisselen afgetrokken.
 - Beloningskaarten tonen per kind de actuele voortgang, bijvoorbeeld **7/10 ★**, en daarna **Behaald ✓**.
+- Externe agenda's geven begrijpelijke foutmeldingen terug vanuit Home Assistant in plaats van alleen een generieke 400-fout.
+- Google Agenda-deellinks worden herkend; Family Hub legt direct uit dat het **Geheim adres in iCal-indeling** of openbare iCal-adres nodig is.
 
 
 ## 0.8.3 — item-autosave
