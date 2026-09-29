@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.6"
+APP_VERSION = "0.9.7"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -76,6 +76,7 @@ DEFAULTS = {
     "max_tasks_per_member": 4,
     "background_url": "",
     "background_overlay": 82,
+    "font_scale": 100,
     "accent_color": "#2E6CA5",
     "dashboard_managed": False,
     "dashboard_show_sidebar": True,
@@ -301,6 +302,7 @@ def normalize_settings(data):
         out["accent_color"] = "#2E6CA5"
     for key, default, low, high in (
         ("background_overlay", 82, 0, 100),
+        ("font_scale", 100, 80, 140),
         ("refresh_interval", 120, 30, 3600),
         ("calendar_refresh_minutes", 5, 1, 1440),
         ("max_tasks_per_member", 4, 1, 20),

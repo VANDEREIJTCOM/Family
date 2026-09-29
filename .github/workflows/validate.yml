@@ -50,6 +50,8 @@ jobs:
           test -f vandereijt_family_hub/static/family-hub-admin-0.9.5.css
           test -f vandereijt_family_hub/static/family-hub-admin-0.9.6.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.9.6.css
+          test -f vandereijt_family_hub/static/family-hub-admin-0.9.7.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.9.7.css
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.3.css
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.2.css
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.1.css
@@ -82,12 +84,14 @@ jobs:
           node --check vandereijt_family_hub/static/family-hub-admin-0.9.4.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.9.5.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.9.6.js
+          node --check vandereijt_family_hub/static/family-hub-admin-0.9.7.js
           grep -q 'const FH_ADMIN_VERSION="0.9.1"' vandereijt_family_hub/static/family-hub-admin-0.9.1.js
           grep -q 'const FH_ADMIN_VERSION="0.9.2"' vandereijt_family_hub/static/family-hub-admin-0.9.2.js
           grep -q 'const FH_ADMIN_VERSION="0.9.3"' vandereijt_family_hub/static/family-hub-admin-0.9.3.js
           grep -q 'const FH_ADMIN_VERSION="0.9.4"' vandereijt_family_hub/static/family-hub-admin-0.9.4.js
           grep -q 'const FH_ADMIN_VERSION="0.9.5"' vandereijt_family_hub/static/family-hub-admin-0.9.5.js
           grep -q 'const FH_ADMIN_VERSION="0.9.6"' vandereijt_family_hub/static/family-hub-admin-0.9.6.js
+          grep -q 'const FH_ADMIN_VERSION="0.9.7"' vandereijt_family_hub/static/family-hub-admin-0.9.7.js
           grep -q '"panel": True' vandereijt_family_hub/app.py
           grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
           grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
@@ -111,8 +115,11 @@ jobs:
           grep -q 'lovelace/resources/delete' vandereijt_family_hub/app.py
           grep -q 'customElements.get("family-hub-card")' vandereijt_family_hub/family-hub-card.js
           grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
-          grep -q 'family-hub-admin-0.9.6.js' vandereijt_family_hub/static/index.html
-          grep -q 'family-hub-admin-0.9.6.css' vandereijt_family_hub/static/index.html
+          grep -q 'family-hub-admin-0.9.7.js' vandereijt_family_hub/static/index.html
+          grep -q 'family-hub-admin-0.9.7.css' vandereijt_family_hub/static/index.html
+          grep -q 'font_scale' vandereijt_family_hub/app.py
+          grep -q 'font_scale' vandereijt_family_hub/static/index.html
+          grep -q '_fontSizeVars' vandereijt_family_hub/family-hub-card.js
           grep -q '_memberLegend' vandereijt_family_hub/family-hub-card.js
           grep -q 'data-member-filter' vandereijt_family_hub/family-hub-card.js
           grep -q '_resetMemberFilter' vandereijt_family_hub/family-hub-card.js
@@ -190,4 +197,4 @@ jobs:
           NODE
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.9.6 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.9.7 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub

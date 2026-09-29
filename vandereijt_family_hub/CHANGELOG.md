@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.7 — instelbare lettergrootte
+- Onder **Uiterlijk → Kleuren & leesbaarheid** staat nu een slider **Lettergrootte**.
+- De schaal loopt van **80% tot 140%** in stappen van 5%; **100%** is de bestaande Family Hub-weergave.
+- De gekozen schaal wordt centraal opgeslagen en geldt voor de volledige Family Hub, inclusief navigatie, agenda, taken, routines, punten, legenda's, profielschermen en screensaver.
+- Alleen tekst schaalt mee; kaartafmetingen, marges en iconen blijven zoveel mogelijk gelijk zodat het dashboard niet onnodig groot wordt.
+- De beheerinterface toont de gekozen waarde direct naast de slider.
+
+
 ## 0.9.6 — klikbare kleurlegenda en gezinsfilter
 - Op alle schermen waar informatie van meerdere gezinsleden door elkaar kan staan — **Vandaag, Agenda, Taken, Routines, Punten en Gezin** — staat nu bovenaan een compacte legenda met de ingestelde kleur van ieder gezinslid.
 - De legenda is direct een filter: klik op een naam/kleur om dat gezinslid tijdelijk uit het huidige scherm te verbergen of weer te tonen.
