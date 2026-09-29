@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.8.3
+ * v0.9.0
  */
-const FH_VERSION="0.8.3";
+const FH_VERSION="0.9.0";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -244,14 +244,44 @@ class FamilyHubCard extends HTMLElement{
     }finally{this._busy=false;if(!this._modal)this._render();}
   }
 
+  _scheduledForDay(day,memberId=null){
+    const out=[],weekday=(day.getDay()+6)%7,date=this._dateISO(day);
+    const makeTimed=(time,duration=30)=>{
+      const start=new Date(date+"T"+(time||"07:00")+":00"),end=new Date(start);
+      end.setMinutes(end.getMinutes()+Math.max(5,Number(duration||30)));
+      return {start:start.toISOString(),end:end.toISOString()};
+    };
+    for(const r of (this._config.routines||[])){
+      if(r.enabled===false||r.show_in_calendar===false||!(r.days||[]).map(Number).includes(weekday))continue;
+      for(const m of this._routineMembers(r)){
+        if(memberId&&m.id!==memberId)continue;
+        const when=makeTimed(r.time||"07:00",r.duration_minutes||30);
+        out.push({member:m,event:{summary:r.title||"Routine",...when,_fhSynthetic:true,_fhKind:"routine",_fhId:r.id}});
+      }
+    }
+    for(const t of (this._config.smart_tasks||[])){
+      if(t.enabled===false||t.show_in_calendar===false||!(t.days||[]).map(Number).includes(weekday))continue;
+      const m=this._member(t.member_id);if(!m||memberId&&m.id!==memberId)continue;
+      if(t.due_time){
+        const when=makeTimed(t.due_time,30);
+        out.push({member:m,event:{summary:t.title||"Taak",...when,_fhSynthetic:true,_fhKind:"task",_fhId:t.id}});
+      }else{
+        const end=new Date(day);end.setDate(end.getDate()+1);
+        out.push({member:m,event:{summary:t.title||"Taak",start:date,end:this._dateISO(end),_fhSynthetic:true,_fhKind:"task",_fhId:t.id}});
+      }
+    }
+    return out;
+  }
   _eventsForDay(day,memberId=null){
-    const out=[];
+    const out=[],seen=new Set(),key=x=>x.member.id+"|"+String(x.event.summary||"").toLowerCase()+"|"+this._time(x.event);
     for(const m of this._config.members||[]){
       if(memberId&&m.id!==memberId)continue;
-      for(const ev of this._events[m.id]||[])if(this._eventOnDay(ev,day))out.push({member:m,event:ev});
+      for(const ev of this._events[m.id]||[])if(this._eventOnDay(ev,day)){const x={member:m,event:ev};out.push(x);seen.add(key(x))}
     }
+    for(const x of this._scheduledForDay(day,memberId)){const k=key(x);if(!seen.has(k)){out.push(x);seen.add(k)}}
     return out.sort((a,b)=>this._dateValue(a.event.start)-this._dateValue(b.event.start));
   }
+
   _personState(m){return m?.person&&this._hass?.states?.[m.person]||null;}
   _avatar(m,size="normal"){
     const s=this._personState(m),pic=s?.attributes?.entity_picture;
@@ -260,6 +290,33 @@ class FamilyHubCard extends HTMLElement{
   _points(m){const s=m?.points_entity&&this._hass?.states?.[m.points_entity];return Math.max(0,Number(s?.state||0)||0);}
   _friendly(entityId){const s=this._hass?.states?.[entityId];return s?.attributes?.friendly_name||entityId;}
   _stateText(entityId){const s=this._hass?.states?.[entityId];if(!s)return "—";const unit=s.attributes?.unit_of_measurement||"";return `${s.state}${unit?" "+unit:""}`;}
+  _showMoreInfo(entityId){if(!entityId)return;this.dispatchEvent(new CustomEvent("hass-more-info",{detail:{entityId},bubbles:true,composed:true}));}
+  _periodKey(cycle,date=new Date()){
+    if(cycle==="daily")return this._dateISO(date);
+    if(cycle==="weekly"){const d=new Date(date);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return this._dateISO(d)}
+    if(cycle==="monthly")return date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0");
+    return "balance";
+  }
+  _dateInCycle(dateText,cycle){
+    if(!dateText)return false;const d=this._dateValue(String(dateText).slice(0,10)),now=new Date();
+    if(cycle==="daily")return this._dateISO(d)===this._dateISO(now);
+    if(cycle==="weekly")return this._periodKey("weekly",d)===this._periodKey("weekly",now);
+    if(cycle==="monthly")return this._periodKey("monthly",d)===this._periodKey("monthly",now);
+    return true;
+  }
+  _periodPoints(member,cycle){
+    if(!member)return 0;if(!cycle||cycle==="balance")return this._points(member);
+    return (this._todoAll[member.id]||[]).reduce((sum,item)=>{
+      if(item.status!=="completed")return sum;const meta=this._meta(item);
+      if(!meta||meta.kind==="reward_claim"||!Number(meta.points||0)||!this._dateInCycle(meta.date||item.due||item.due_date||item.due_datetime,cycle))return sum;
+      return sum+Number(meta.points||0);
+    },0);
+  }
+  _rewardClaimed(reward,member){
+    const cycle=reward.cycle||"balance";if(cycle==="balance")return false;
+    const key=this._periodKey(cycle);
+    return (this._todoAll[member.id]||[]).some(item=>{const meta=this._meta(item);return meta?.kind==="reward_claim"&&meta.reward_id===reward.id&&meta.member_id===member.id&&meta.period_key===key});
+  }
   _weather(){const s=this._config.weather&&this._hass?.states?.[this._config.weather];if(!s)return "";const temp=s.attributes?.temperature;return `<div class="weather"><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon><span>${this._esc(temp==null?s.state:temp+"°")}</span></div>`;}
 
   _meta(item){
@@ -286,6 +343,16 @@ class FamilyHubCard extends HTMLElement{
     if(meta?.points&&meta?.points_entity)await this._award(meta.points_entity,meta.points);
     await this._load();
   }
+  async _toggleTodo(entity,item){
+    if(!entity||!item)return;
+    const meta=this._meta(item),completed=item.status==="completed",next=completed?"needs_action":"completed";
+    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next},{entity_id:entity});
+    if(meta?.points&&meta?.points_entity){
+      const current=Math.max(0,Number(this._hass?.states?.[meta.points_entity]?.state||0)||0);
+      await this._setPoints(meta.points_entity,completed?Math.max(0,current-Number(meta.points||0)):current+Number(meta.points||0));
+    }
+    await this._load();
+  }
   async _addTodo(entity,summary,description="",dueDate="",dueTime=""){
     if(!entity||!summary)return;
     const data={item:summary};if(description)data.description=description;if(dueDate&&dueTime)data.due_datetime=`${dueDate} ${dueTime}:00`;else if(dueDate)data.due_date=dueDate;
@@ -298,9 +365,21 @@ class FamilyHubCard extends HTMLElement{
     await this._hass.callService("calendar","create_event",data,{entity_id:entity});await this._load();
   }
   async _redeem(reward,member){
-    const current=this._points(member),cost=Number(reward.cost||0);if(current<cost)return;
-    if(!confirm(`${member.name}: ${reward.title} inwisselen voor ${cost} punten?`))return;
-    await this._setPoints(member.points_entity,current-cost);this._render();
+    const cycle=reward.cycle||"balance",cost=Number(reward.cost||0);
+    if(cycle==="balance"){
+      const current=this._points(member);if(current<cost)return;
+      if(!confirm(`${member.name}: ${reward.title} inwisselen voor ${cost} punten?`))return;
+      await this._setPoints(member.points_entity,current-cost);this._render();return;
+    }
+    const earned=this._periodPoints(member,cycle);if(earned<cost||this._rewardClaimed(reward,member)||!member.todo)return;
+    const labels={daily:"vandaag",weekly:"deze week",monthly:"deze maand"};
+    if(!confirm(`${member.name} heeft ${earned} punten ${labels[cycle]||""}. ‘${reward.title}’ als behaald markeren?`))return;
+    const meta={kind:"reward_claim",reward_id:reward.id,member_id:member.id,period_key:this._periodKey(cycle),cycle,date:this._dateISO(new Date()),points:0};
+    await this._hass.callService("todo","add_item",{item:"Beloning: "+reward.title,description:"FH_META:"+JSON.stringify(meta),due_date:this._dateISO(new Date())},{entity_id:member.todo});
+    await this._load();
+    const claim=(this._todoAll[member.id]||[]).find(item=>{const x=this._meta(item);return x?.kind==="reward_claim"&&x.reward_id===reward.id&&x.period_key===meta.period_key});
+    if(claim&&claim.status!=="completed")await this._hass.callService("todo","update_item",{item:claim.uid||claim.summary,status:"completed"},{entity_id:member.todo});
+    await this._load();
   }
 
   _open(kind,opts={}){
