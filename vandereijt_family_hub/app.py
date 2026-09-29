@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.3"
+APP_VERSION = "0.9.4"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -1263,6 +1263,130 @@ def _remote_calendar_error(result):
     return f"Home Assistant kon de agenda niet toevoegen{': ' + str(code) if code else ''}."
 
 
+def _remote_calendar_entries():
+    with HomeAssistantWebSocket() as ha:
+        return ha.call({"type": "config_entries/get", "domain": "remote_calendar"}) or []
+
+
+def _remote_calendar_registry_entities(entry_id):
+    with HomeAssistantWebSocket() as ha:
+        entries = ha.call({"type": "config/entity_registry/list"}) or []
+    return [
+        item for item in entries
+        if item.get("config_entry_id") == entry_id
+        and str(item.get("entity_id") or "").startswith("calendar.")
+    ]
+
+
+def _remote_calendar_entry_for_name(calendar_name):
+    wanted = str(calendar_name or "").strip().casefold()
+    matches = [
+        entry for entry in _remote_calendar_entries()
+        if str(entry.get("title") or "").strip().casefold() == wanted
+    ]
+    return matches[-1] if matches else None
+
+
+def _wait_for_entity_state(entity_id, timeout=20):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for state in ha_states():
+            if state.get("entity_id") == entity_id:
+                return state
+        time.sleep(0.75)
+    return None
+
+
+def _link_calendar_to_matching_member(calendar_name, entity_id):
+    settings = load_settings()
+    wanted = str(calendar_name or "").strip().casefold()
+    matched = None
+    changed = False
+    for member in settings.get("members", []):
+        if str(member.get("name") or "").strip().casefold() != wanted:
+            continue
+        matched = member.get("name")
+        if member.get("calendar") != entity_id:
+            member["calendar"] = entity_id
+            changed = True
+        break
+    if changed:
+        save_settings(settings)
+    return matched
+
+
+def _ensure_remote_calendar_ready(entry, calendar_name):
+    if not entry:
+        raise RuntimeError(
+            "De Remote Calendar-configuratie is aangemaakt, maar Family Hub kan de configuratie-entry niet terugvinden."
+        )
+    entry_id = entry.get("entry_id")
+    if not entry_id:
+        raise RuntimeError("De Remote Calendar-configuratie heeft geen geldig entry-ID.")
+
+    registry = _remote_calendar_registry_entities(entry_id)
+    if not registry:
+        try:
+            ha_api("POST", f"config/config_entries/entry/{entry_id}/reload", None, timeout=45)
+        except Exception as exc:
+            print(f"[Family Hub] Remote calendar reload warning: {exc}", flush=True)
+        time.sleep(1.5)
+        registry = _remote_calendar_registry_entities(entry_id)
+
+    if not registry:
+        latest = next((x for x in _remote_calendar_entries() if x.get("entry_id") == entry_id), entry)
+        state = latest.get("state") or "onbekend"
+        reason = latest.get("reason") or ""
+        detail = f" ({reason})" if reason else ""
+        raise RuntimeError(
+            f"De agenda-configuratie bestaat in Home Assistant, maar er is geen calendar-entity aangemaakt. "
+            f"Status van de integratie: {state}{detail}. Family Hub heeft automatisch geprobeerd de integratie opnieuw te laden."
+        )
+
+    reg = registry[0]
+    entity_id = reg.get("entity_id")
+    disabled_by = reg.get("disabled_by")
+    if disabled_by:
+        try:
+            with HomeAssistantWebSocket() as ha:
+                ha.call({
+                    "type": "config/entity_registry/update",
+                    "entity_id": entity_id,
+                    "disabled_by": None,
+                })
+            ha_api("POST", f"config/config_entries/entry/{entry_id}/reload", None, timeout=45)
+        except Exception as exc:
+            raise RuntimeError(
+                f"De agenda-entity {entity_id} bestaat, maar is uitgeschakeld ({disabled_by}) en kon niet automatisch worden ingeschakeld: {exc}"
+            ) from exc
+
+    state = _wait_for_entity_state(entity_id, timeout=18)
+    if not state:
+        try:
+            ha_api("POST", f"config/config_entries/entry/{entry_id}/reload", None, timeout=45)
+        except Exception as exc:
+            print(f"[Family Hub] Second remote calendar reload warning: {exc}", flush=True)
+        state = _wait_for_entity_state(entity_id, timeout=12)
+
+    if not state:
+        latest = next((x for x in _remote_calendar_entries() if x.get("entry_id") == entry_id), entry)
+        integration_state = latest.get("state") or "onbekend"
+        reason = latest.get("reason") or ""
+        detail = f" ({reason})" if reason else ""
+        raise RuntimeError(
+            f"De agenda-entity {entity_id} bestaat wel, maar Home Assistant heeft hem nog niet geladen. "
+            f"Integratiestatus: {integration_state}{detail}. Probeer de Remote Calendar-integratie in Home Assistant één keer te herladen."
+        )
+
+    linked_member = _link_calendar_to_matching_member(calendar_name, entity_id)
+    return {
+        "entry_id": entry_id,
+        "entity_id": entity_id,
+        "state": state.get("state"),
+        "linked_member": linked_member,
+    }
+
+
 def create_remote_calendar(name, url, verify_ssl=True):
     calendar_name = str(name or "Externe agenda").strip()[:80] or "Externe agenda"
     calendar_url = normalize_remote_calendar_url(url)
@@ -1286,11 +1410,20 @@ def create_remote_calendar(name, url, verify_ssl=True):
         timeout=45,
     )
     if result.get("type") == "create_entry":
-        return {"entry": result, "preflight": preflight}
+        entry = result.get("result") or _remote_calendar_entry_for_name(calendar_name)
+        ready = _ensure_remote_calendar_ready(entry, calendar_name)
+        return {"entry": result, "preflight": preflight, "calendar": ready}
     if result.get("type") == "abort":
         reason = result.get("reason") or "onbekend"
         if reason in {"already_configured", "already_in_progress"}:
-            raise RuntimeError("Deze agenda is al aan Home Assistant toegevoegd.")
+            entry = (result.get("result") if isinstance(result.get("result"), dict) else None) or _remote_calendar_entry_for_name(calendar_name)
+            if entry:
+                ready = _ensure_remote_calendar_ready(entry, calendar_name)
+                return {"entry": result, "preflight": preflight, "calendar": ready, "existing": True}
+            raise RuntimeError(
+                "Deze agenda is al aan Home Assistant toegevoegd, maar Family Hub kon de bestaande Remote Calendar-entry niet automatisch terugvinden. "
+                "Controleer in Home Assistant onder Instellingen → Apparaten & diensten → Remote Calendar."
+            )
         raise RuntimeError(f"Agenda kon niet worden toegevoegd: {reason}")
     if result.get("type") == "form":
         errors = result.get("errors") or {}

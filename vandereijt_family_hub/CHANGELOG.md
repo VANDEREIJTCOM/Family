@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.4 — externe agenda activeren en koppelen
+- Na het toevoegen van een Remote Calendar wacht Family Hub nu tot Home Assistant daadwerkelijk een `calendar.*` entity heeft aangemaakt.
+- Als de configuratie-entry bestaat maar de agenda-entity nog niet geladen is, probeert Family Hub de Remote Calendar-integratie automatisch opnieuw te laden.
+- Een nieuw aangemaakte maar uitgeschakelde calendar-entity wordt automatisch ingeschakeld.
+- Bij opnieuw toevoegen van een reeds bestaande agenda probeert Family Hub de bestaande Remote Calendar-entry nu te herstellen in plaats van alleen “bestaat al” te melden.
+- Als de naam van de externe agenda exact overeenkomt met een gezinslid (bijvoorbeeld **Pascal**), koppelt Family Hub de nieuwe agenda automatisch aan dat gezinslid.
+- De beheerinterface haalt daarna zowel de Home Assistant-entiteiten als de bijgewerkte Family Hub-instellingen opnieuw op, zodat de agenda direct in de keuzelijst verschijnt.
+
+
 ## 0.9.3 — diagnose externe agenda
 - Family Hub controleert een externe agenda-link nu eerst zelf voordat Home Assistant Remote Calendar wordt gestart.
 - De controle onderscheidt DNS-problemen, SSL-certificaatfouten, time-outs, HTTP 401/403/404, webpagina's in plaats van ICS en ongeldige ICS-inhoud.
