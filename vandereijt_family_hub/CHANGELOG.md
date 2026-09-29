@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.2 — één concept, één keer opslaan
+- Alle invoer in de beheerinterface wordt direct in een lokale **conceptstatus** bijgehouden.
+- Bij **+ Gezinslid** blijven eerder ingevulde gezinsleden volledig staan; tussentijds opslaan is niet meer nodig.
+- Wisselen tussen beheerpagina's bewaart alle nog niet opgeslagen invoer.
+- Verversen van Home Assistant-entiteiten bewaart het actieve concept voordat onderdelen opnieuw worden gerenderd.
+- Routine-, taak-, lijst-, beloning- en vertrekhulp-editors gebruiken **Toepassen**: ze wijzigen alleen het lokale concept.
+- Verwijderen van beheeritems blijft eveneens een conceptwijziging totdat rechtsboven op **Opslaan** wordt geklikt.
+- Daardoor is er voortaan één duidelijke opslagactie: stel meerdere onderdelen in en klik daarna één keer op **Opslaan**.
+- Onvolledige gezinsleden mogen tijdens het configureren bestaan; validatie gebeurt pas bij de uiteindelijke opslag.
+- Slimme aanbevelingen worden niet toegepast zolang er niet-opgeslagen wijzigingen zijn, zodat een oud backendmodel nooit een lokaal concept kan overschrijven.
+
+
 ## 0.8.1 — beheerinterface herstel en polish
 - Beheerinterface gebruikt voortaan **unieke CSS- én JavaScript-bestanden per release**, zodat Home Assistant, browser- of serviceworker-cache geen oude beheerlaag kan combineren met nieuwe markup.
 - Routinemanagement opnieuw visueel aangescherpt: echte kaarten, duidelijke hiërarchie, persoonchips, planning, stappen/punten en rustige statuslabels.
