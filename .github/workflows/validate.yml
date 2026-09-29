@@ -83,7 +83,6 @@ jobs:
           grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
           grep -q 'family-hub-admin-0.8.2.js' vandereijt_family_hub/static/index.html
           grep -q 'family-hub-admin-0.8.2.css' vandereijt_family_hub/static/index.html
-          grep -q 'family-hub-admin-0.8.1.css' vandereijt_family_hub/static/index.html
           grep -q 'beheerinterface 0.8.2 start' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
           grep -q 'function syncMembersDraft' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
           grep -q 'function syncStaticDraft' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
