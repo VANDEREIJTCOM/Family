@@ -70,9 +70,10 @@
     <section id="tab-calendars" class="tab">
       <div class="grid two">
         <article class="card"><h2>Agenda's van het gezin</h2><p>Family Hub maakt automatisch een agenda per gezinslid. Wil je liever een bestaande Google-, Outlook- of andere Home Assistant-agenda gebruiken? Dan kun je die bij het gezinslid kiezen onder <strong>Home Assistant-koppelingen</strong>.</p><button id="reload-entities" class="secondary">Agenda's opnieuw ophalen</button></article>
-        <article class="card"><h2>Extra agenda via een link</h2><p>Handig voor bijvoorbeeld school, sportclub of afvalkalender. Dit is alleen nodig als je zo'n openbare agenda-link hebt.</p>
+        <article class="card"><h2>Extra agenda via een link</h2><p>Handig voor bijvoorbeeld school, sportclub, afvalkalender of een Google Agenda. Family Hub heeft hiervoor de echte <strong>iCal/ICS-link</strong> nodig, niet de gewone deelpagina.</p>
           <label>Naam<input id="external_calendar_name" type="text" placeholder="Voetbal Fer"></label>
-          <label>ICS / webcal URL<input id="external_calendar_url" type="text" placeholder="https://.../calendar.ics"></label>
+          <label>iCal / ICS / webcal URL<input id="external_calendar_url" type="text" placeholder="https://.../basic.ics"></label>
+          <div class="helper-box"><strong>Google Agenda?</strong><span>Open Google Agenda op een computer → Instellingen → kies de agenda → <b>Agenda integreren</b> → kopieer <b>Geheim adres in iCal-indeling</b>. Voor een openbare agenda kan ook het openbare iCal-adres.</span></div>
           <button id="add-external-calendar" class="primary">Agenda toevoegen aan Home Assistant</button>
           <div id="external-calendar-result" class="inline-status"></div>
         </article>
