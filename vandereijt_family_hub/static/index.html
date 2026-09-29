@@ -7,13 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="static/family-hub-admin-0.9.4.css">
+  <link rel="stylesheet" href="static/family-hub-admin-0.9.5.css">
 </head>
 <body>
 <div class="shell">
   <aside>
     <div class="brand">
-      <img src="static/brand-icon.png?v=0.9.4" alt="VANDEREIJT.COM">
+      <img src="static/brand-icon.png?v=0.9.5" alt="VANDEREIJT.COM">
       <div><strong><span>VANDEREIJT.COM</span> Family Hub</strong><small>for Home Assistant</small></div>
     </div>
     <nav>
@@ -42,7 +42,7 @@
 
     <section id="tab-general" class="tab active">
       <div class="hero-card">
-        <div><span class="pill">Family Hub 0.9.4</span><h2>Het centrale scherm voor gezin én huis.</h2><p>Agenda, taken, routines, punten, lijstjes, maaltijden, vertrekhulp en Home Assistant-status in één interface.</p></div>
+        <div><span class="pill">Family Hub 0.9.5</span><h2>Het centrale scherm voor gezin én huis.</h2><p>Agenda, taken, routines, punten, lijstjes, maaltijden, vertrekhulp en Home Assistant-status in één interface.</p></div>
         <div class="hero-mark">FH</div>
       </div>
       <div class="section-head spaced"><div><h2>Aanbevelingen</h2><p>Family Hub kijkt naar terugkerende patronen en stelt handige automatiseringen voor. Jij beslist altijd zelf.</p></div></div>
@@ -69,7 +69,21 @@
 
     <section id="tab-calendars" class="tab">
       <div class="grid two">
-        <article class="card"><h2>Agenda's van het gezin</h2><p>Family Hub maakt automatisch een agenda per gezinslid. Wil je liever een bestaande Google-, Outlook- of andere Home Assistant-agenda gebruiken? Dan kun je die bij het gezinslid kiezen onder <strong>Home Assistant-koppelingen</strong>.</p><button id="reload-entities" class="secondary">Agenda's opnieuw ophalen</button></article>
+        <article class="card"><h2>Agenda's van het gezin</h2><p>Family Hub maakt automatisch een agenda per gezinslid. Wil je liever een bestaande Google-, Outlook- of andere Home Assistant-agenda gebruiken? Dan kun je die bij het gezinslid kiezen onder <strong>Home Assistant-koppelingen</strong>.</p>
+          <label>Externe agenda's vernieuwen
+            <select id="calendar_refresh_minutes">
+              <option value="1">Iedere minuut</option>
+              <option value="2">Iedere 2 minuten</option>
+              <option value="5">Iedere 5 minuten</option>
+              <option value="10">Iedere 10 minuten</option>
+              <option value="15">Iedere 15 minuten</option>
+              <option value="30">Iedere 30 minuten</option>
+              <option value="60">Ieder uur</option>
+            </select>
+          </label>
+          <small>Family Hub vraagt Home Assistant actief om gekoppelde agenda's te vernieuwen. Standaard: iedere 5 minuten.</small>
+          <button id="reload-entities" class="secondary">Agenda's opnieuw ophalen</button>
+        </article>
         <article class="card"><h2>Extra agenda via een link</h2><p>Handig voor bijvoorbeeld school, sportclub, afvalkalender of een Google Agenda. Family Hub heeft hiervoor de echte <strong>iCal/ICS-link</strong> nodig, niet de gewone deelpagina.</p>
           <label>Naam<input id="external_calendar_name" type="text" placeholder="Voetbal Fer"></label>
           <label>iCal / ICS / webcal URL<input id="external_calendar_url" type="text" placeholder="https://.../basic.ics"></label>
@@ -149,6 +163,6 @@
   </main>
 </div>
 <div id="toast" class="toast"></div>
-<script src="static/family-hub-admin-0.9.4.js" defer></script>
+<script src="static/family-hub-admin-0.9.5.js" defer></script>
 </body>
 </html>

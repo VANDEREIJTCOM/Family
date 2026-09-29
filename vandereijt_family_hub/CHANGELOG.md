@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.5 — agenda's actief verversen
+- Home Assistant Remote Calendar bewaart de opgehaalde ICS-data standaard veel langer dan de Family Hub-interface. Daardoor kon Family Hub wel iedere 2 minuten opnieuw tekenen, maar bleef een wijziging in Google Agenda nog uit de Home Assistant-cache komen.
+- Family Hub vraagt gekoppelde agenda-entiteiten nu actief om een update via `homeassistant.update_entity` vóór het opnieuw ophalen van afspraken.
+- Standaard gebeurt deze bronverversing iedere **5 minuten**. Dit interval is instelbaar onder **Agenda's** van 1 minuut tot 1 uur.
+- De gewone Family Hub-verversing blijft standaard iedere 2 minuten lopen voor taken, punten, statussen en reeds beschikbare agenda-data.
+- In het Family Hub-agendascherm staat nu een **↻**-knop om alle gekoppelde agenda's direct handmatig te vernieuwen.
+- Bij het openen/herladen van Family Hub wordt een gekoppelde externe agenda meteen één keer actief ververst.
+
+
 ## 0.9.4 — externe agenda activeren en koppelen
 - Na het toevoegen van een Remote Calendar wacht Family Hub nu tot Home Assistant daadwerkelijk een `calendar.*` entity heeft aangemaakt.
 - Als de configuratie-entry bestaat maar de agenda-entity nog niet geladen is, probeert Family Hub de Remote Calendar-integratie automatisch opnieuw te laden.

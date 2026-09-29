@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.9.4
+ * v0.9.5
  */
-const FH_VERSION="0.9.4";
+const FH_VERSION="0.9.5";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -37,6 +37,8 @@ class FamilyHubCard extends HTMLElement{
     this._versionTimer=null;
     this._updatePending="";
     this._configFetched=0;
+    this._lastCalendarSourceRefresh=0;
+    this._calendarRefreshing=false;
     this._screen="home";
     this._profileId=null;
     this._lastInteraction=Date.now();
@@ -85,7 +87,7 @@ class FamilyHubCard extends HTMLElement{
 
   _defaults(){return {
     title:"Familie",subtitle:"",weather:"",shopping_list:"",meals_todo:"",show_household_status:true,
-    refresh_interval:120,max_tasks_per_member:4,background_url:"",background_overlay:82,accent_color:"#2E6CA5",
+    refresh_interval:120,calendar_refresh_minutes:5,max_tasks_per_member:4,background_url:"",background_overlay:82,accent_color:"#2E6CA5",
     idle_minutes:5,idle_show_clock:true,fullscreen_mode:false,members:[],routines:[],smart_tasks:[],rewards:[],lists:[],departure_rules:[],
     home_entities:[],notification_entities:[],photos:[],home_sections:["departures","today","tasks","routines","meals","notifications","house_status"],
     navigation:[
@@ -250,6 +252,39 @@ class FamilyHubCard extends HTMLElement{
     for(const r of roots){if(r?.[id])return r[id];if(r?.response?.[id])return r.response[id];}
     return null;
   }
+  async _refreshCalendarSources(force=false){
+    if(!this._hass||!this._config)return false;
+    const minutes=Math.max(1,Number(this._config.calendar_refresh_minutes||5));
+    const now=Date.now();
+    if(!force&&this._lastCalendarSourceRefresh&&now-this._lastCalendarSourceRefresh<minutes*60000)return false;
+    const ids=[...new Set((this._config.members||[]).map(m=>m.calendar).filter(Boolean))];
+    if(!ids.length){this._lastCalendarSourceRefresh=now;return false}
+    try{
+      await this._call("homeassistant","update_entity",{}, {entity_id:ids}, false);
+      this._lastCalendarSourceRefresh=Date.now();
+      return true;
+    }catch(err){
+      console.warn("[Family Hub] agenda-bronnen vernieuwen mislukt",err);
+      if(force)throw err;
+      return false;
+    }
+  }
+
+  async _manualCalendarRefresh(){
+    if(this._calendarRefreshing||this._busy)return;
+    this._calendarRefreshing=true;
+    this._render();
+    try{
+      await this._refreshCalendarSources(true);
+      await this._load();
+    }catch(err){
+      console.error("[Family Hub] agenda handmatig vernieuwen mislukt",err);
+    }finally{
+      this._calendarRefreshing=false;
+      this._render();
+    }
+  }
+
   async _calendar(id,start,end){
     const r=await this._call("calendar","get_events",{start_date_time:start.toISOString(),end_date_time:end.toISOString()},{entity_id:id},true);
     return this._payload(r,id)?.events||[];
@@ -299,6 +334,7 @@ class FamilyHubCard extends HTMLElement{
     this._busy=true;
     try{
       await this._loadRemote(false);
+      await this._refreshCalendarSources(false);
       const {start,end}=this._week();
       const jobs=[];
       for(const m of this._config.members||[]){
@@ -595,7 +631,7 @@ class FamilyHubCard extends HTMLElement{
 
   _calendarScreen(){
     const days=this._days(),today=new Date(),first=days[0],last=days[6];
-    return `<section class="screen-card calendar-screen"><div class="screen-title"><div><small>GEZINSAGENDA</small><h1>${first.toLocaleDateString("nl-NL",{day:"numeric",month:"short"})} – ${last.toLocaleDateString("nl-NL",{day:"numeric",month:"short",year:"numeric"})}</h1></div><div><button data-week-prev>‹</button><button data-week-today>Vandaag</button><button data-week-next>›</button></div></div><div class="week-head">${days.map(d=>`<button class="${this._sameDay(d,today)?"today":""}" data-add-event-date="${this._dateISO(d)}"><span>${d.toLocaleDateString("nl-NL",{weekday:"short"})}</span><b>${d.getDate()}</b></button>`).join("")}</div><div class="week-grid">${days.map(d=>{const ev=this._eventsForDay(d);return `<div class="day-col ${this._sameDay(d,today)?"today":""}">${ev.length?ev.map(x=>`<button class="event event-click ${x.event._fhSynthetic?"family-generated":""}" data-event-detail data-event-member="${this._esc(x.member.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${x.member.color}"><small>${this._esc(this._time(x.event))}</small><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}</span>${x.event._fhSynthetic?`<em>${x.event._fhKind==="routine"?"Routine":"Taak"}</em>`:""}</button>`).join(""):`<button class="day-empty" data-add-event-date="${this._dateISO(d)}">＋<span>Afspraak</span></button>`}</div>`}).join("")}</div></section>`;
+    return `<section class="screen-card calendar-screen"><div class="screen-title"><div><small>GEZINSAGENDA</small><h1>${first.toLocaleDateString("nl-NL",{day:"numeric",month:"short"})} – ${last.toLocaleDateString("nl-NL",{day:"numeric",month:"short",year:"numeric"})}</h1></div><div><button data-calendar-refresh title="Agenda's nu vernieuwen">${this._calendarRefreshing?"↻…":"↻"}</button><button data-week-prev>‹</button><button data-week-today>Vandaag</button><button data-week-next>›</button></div></div><div class="week-head">${days.map(d=>`<button class="${this._sameDay(d,today)?"today":""}" data-add-event-date="${this._dateISO(d)}"><span>${d.toLocaleDateString("nl-NL",{weekday:"short"})}</span><b>${d.getDate()}</b></button>`).join("")}</div><div class="week-grid">${days.map(d=>{const ev=this._eventsForDay(d);return `<div class="day-col ${this._sameDay(d,today)?"today":""}">${ev.length?ev.map(x=>`<button class="event event-click ${x.event._fhSynthetic?"family-generated":""}" data-event-detail data-event-member="${this._esc(x.member.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${x.member.color}"><small>${this._esc(this._time(x.event))}</small><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}</span>${x.event._fhSynthetic?`<em>${x.event._fhKind==="routine"?"Routine":"Taak"}</em>`:""}</button>`).join(""):`<button class="day-empty" data-add-event-date="${this._dateISO(d)}">＋<span>Afspraak</span></button>`}</div>`}).join("")}</div></section>`;
   }
 
   _tasksScreen(){
@@ -717,6 +753,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
     this.shadowRoot.querySelectorAll("[data-add-list-item]").forEach(b=>b.onclick=()=>this._open("list",{listId:b.dataset.addListItem}));
     this.shadowRoot.querySelectorAll("[data-add-meal]").forEach(b=>b.onclick=()=>this._open("meal"));
     this.shadowRoot.querySelectorAll("[data-add-meal-date]").forEach(b=>b.onclick=()=>this._open("meal",{date:b.dataset.addMealDate}));
+    q("[data-calendar-refresh]")&&(q("[data-calendar-refresh]").onclick=()=>this._manualCalendarRefresh());
     q("[data-week-prev]")&&(q("[data-week-prev]").onclick=()=>{this._weekOffset--;this._load()});q("[data-week-next]")&&(q("[data-week-next]").onclick=()=>{this._weekOffset++;this._load()});q("[data-week-today]")&&(q("[data-week-today]").onclick=()=>{this._weekOffset=0;this._load()});
 
     this.shadowRoot.querySelectorAll("[data-complete-list]").forEach(b=>b.onclick=()=>{const l=(this._config.lists||[]).find(x=>x.id===b.dataset.completeList),it=this._findTodoItem(b.dataset.completeId);if(l&&it)this._complete(l.todo_entity,it)});

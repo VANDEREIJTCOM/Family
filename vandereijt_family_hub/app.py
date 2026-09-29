@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.4"
+APP_VERSION = "0.9.5"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -72,6 +72,7 @@ DEFAULTS = {
     "meals_todo": "",
     "show_household_status": True,
     "refresh_interval": 120,
+    "calendar_refresh_minutes": 5,
     "max_tasks_per_member": 4,
     "background_url": "",
     "background_overlay": 82,
@@ -301,6 +302,7 @@ def normalize_settings(data):
     for key, default, low, high in (
         ("background_overlay", 82, 0, 100),
         ("refresh_interval", 120, 30, 3600),
+        ("calendar_refresh_minutes", 5, 1, 1440),
         ("max_tasks_per_member", 4, 1, 20),
         ("idle_minutes", 5, 0, 120),
     ):
