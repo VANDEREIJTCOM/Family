@@ -1,10 +1,13 @@
 import base64
 import hashlib
+import html
 import json
 import mimetypes
 import os
 import re
 import shutil
+import socket
+import ssl
 import threading
 import time
 import urllib.error
@@ -19,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.2"
+APP_VERSION = "0.9.3"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -1147,7 +1150,9 @@ def family_scheduler_loop():
 
 
 def normalize_remote_calendar_url(url):
-    raw = str(url or "").strip()
+    raw = html.unescape(str(url or "")).strip()
+    raw = raw.strip(" \t\r\n'\"<>")
+    raw = re.sub(r"\\s+", "", raw)
     if raw.startswith("webcal://"):
         raw = "https://" + raw[len("webcal://"):]
     parsed = urlparse(raw)
@@ -1164,6 +1169,75 @@ def normalize_remote_calendar_url(url):
             "(of 'Openbaar adres in iCal-indeling' voor een openbare agenda)."
         )
     return raw
+
+
+def inspect_remote_calendar_url(url, verify_ssl=True):
+    parsed = urlparse(url)
+    host = parsed.hostname or parsed.netloc or "onbekend"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": f"VANDEREIJT.COM Family Hub/{APP_VERSION}",
+            "Accept": "text/calendar,text/plain;q=0.9,*/*;q=0.1",
+        },
+        method="GET",
+    )
+    context = ssl.create_default_context() if verify_ssl else ssl._create_unverified_context()
+    try:
+        with urllib.request.urlopen(request, timeout=35, context=context) as response:
+            status = int(response.getcode() or 200)
+            final_url = response.geturl() or url
+            final_host = urlparse(final_url).hostname or host
+            content_type = str(response.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+            body = response.read(262144)
+    except urllib.error.HTTPError as exc:
+        status = int(getattr(exc, "code", 0) or 0)
+        if status in {401, 403}:
+            raise RuntimeError(f"De agenda-server weigert toegang (HTTP {status}). Controleer of dit echt de geheime/openbare iCal-link is.") from exc
+        if status == 404:
+            raise RuntimeError("De agenda-link bestaat niet (HTTP 404). Waarschijnlijk is dit niet de juiste iCal/ICS-link.") from exc
+        raise RuntimeError(f"De agenda-server antwoordt met HTTP {status or 'fout'}. Controleer de iCal/ICS-link.") from exc
+    except urllib.error.URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        low = str(reason).lower()
+        if isinstance(reason, ssl.SSLCertVerificationError) or "certificate verify failed" in low:
+            raise RuntimeError(
+                "Het SSL-certificaat van de agenda-server kan niet worden gecontroleerd. "
+                "Laat 'SSL-certificaat controleren' aan voor publieke agenda's; zet het alleen uit als je deze server vertrouwt."
+            ) from exc
+        if isinstance(reason, socket.gaierror) or "name or service not known" in low or "temporary failure in name resolution" in low:
+            raise RuntimeError(f"De host '{host}' kan niet via DNS worden gevonden vanuit Home Assistant.") from exc
+        raise RuntimeError(f"De agenda-server is niet bereikbaar: {reason}") from exc
+    except TimeoutError as exc:
+        raise RuntimeError("De agenda-server reageert niet binnen 35 seconden.") from exc
+    except Exception as exc:
+        raise RuntimeError(f"De agenda-link kon niet worden gecontroleerd: {type(exc).__name__}: {exc}") from exc
+
+    text = body.decode("utf-8", errors="replace")
+    compact = text.lstrip("\ufeff \t\r\n")
+    if status < 200 or status >= 300:
+        raise RuntimeError(f"De agenda-server antwoordt met HTTP {status}.")
+    if compact.lower().startswith("<!doctype html") or compact.lower().startswith("<html"):
+        raise RuntimeError(
+            "Deze link opent een webpagina in plaats van een iCal/ICS-bestand. "
+            "Gebruik de echte agenda-link die een bestand met BEGIN:VCALENDAR teruggeeft."
+        )
+    if "BEGIN:VCALENDAR" not in text[:65536].upper():
+        detail = f" (Content-Type: {content_type})" if content_type else ""
+        raise RuntimeError(
+            "De link is bereikbaar, maar levert geen geldige iCal/ICS-agenda op"
+            + detail
+            + ". Gebruik de echte .ics/iCal-link."
+        )
+
+    return {
+        "status": status,
+        "host": host,
+        "final_host": final_host,
+        "content_type": content_type,
+        "redirected": final_url != url,
+        "valid_ics": True,
+    }
 
 
 def _remote_calendar_error(result):
@@ -1189,9 +1263,10 @@ def _remote_calendar_error(result):
     return f"Home Assistant kon de agenda niet toevoegen{': ' + str(code) if code else ''}."
 
 
-def create_remote_calendar(name, url):
+def create_remote_calendar(name, url, verify_ssl=True):
     calendar_name = str(name or "Externe agenda").strip()[:80] or "Externe agenda"
     calendar_url = normalize_remote_calendar_url(url)
+    preflight = inspect_remote_calendar_url(calendar_url, verify_ssl=verify_ssl)
 
     flow = ha_api("POST", "config/config_entries/flow", {"handler": "remote_calendar"})
     if flow.get("type") == "abort":
@@ -1206,18 +1281,30 @@ def create_remote_calendar(name, url):
         {
             "calendar_name": calendar_name,
             "url": calendar_url,
-            "verify_ssl": True,
+            "verify_ssl": bool(verify_ssl),
         },
         timeout=45,
     )
     if result.get("type") == "create_entry":
-        return result
+        return {"entry": result, "preflight": preflight}
     if result.get("type") == "abort":
         reason = result.get("reason") or "onbekend"
         if reason in {"already_configured", "already_in_progress"}:
             raise RuntimeError("Deze agenda is al aan Home Assistant toegevoegd.")
         raise RuntimeError(f"Agenda kon niet worden toegevoegd: {reason}")
     if result.get("type") == "form":
+        errors = result.get("errors") or {}
+        code = errors.get("base") or next(iter(errors.values()), "")
+        if code == "cannot_connect" and preflight.get("valid_ics"):
+            redirect_note = " via een redirect" if preflight.get("redirected") else ""
+            raise RuntimeError(
+                "De link is vanaf Family Hub bereikbaar en bevat geldige ICS-data"
+                + redirect_note
+                + f" (HTTP {preflight.get('status')}, host {preflight.get('final_host')}). "
+                "Home Assistant Remote Calendar weigert de verbinding echter zelf. "
+                "Probeer alleen bij een vertrouwde eigen agenda-server de optie 'SSL-certificaat controleren' uit te zetten; "
+                "bij Google/Outlook/iCloud moet SSL juist aan blijven."
+            )
         raise RuntimeError(_remote_calendar_error(result))
     raise RuntimeError(_remote_calendar_error(result))
 
@@ -1778,7 +1865,8 @@ class Handler(BaseHTTPRequestHandler):
                 url = str(payload.get("url") or "").strip()
                 if not url:
                     raise ValueError("Vul een ICS/webcal URL in")
-                result = create_remote_calendar(name, url)
+                verify_ssl = payload.get("verify_ssl", True) is not False
+                result = create_remote_calendar(name, url, verify_ssl=verify_ssl)
                 return self._json(HTTPStatus.OK, {"ok": True, "result": result})
             except Exception as exc:
                 error = str(exc)

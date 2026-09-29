@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.3 — diagnose externe agenda
+- Family Hub controleert een externe agenda-link nu eerst zelf voordat Home Assistant Remote Calendar wordt gestart.
+- De controle onderscheidt DNS-problemen, SSL-certificaatfouten, time-outs, HTTP 401/403/404, webpagina's in plaats van ICS en ongeldige ICS-inhoud.
+- Geheime agenda-URL's worden niet in foutmeldingen of logs uitgeschreven; alleen host/statusinformatie wordt gebruikt.
+- Gekopieerde links met HTML-entiteiten zoals `&amp;`, omringende quotes of verborgen witruimte worden automatisch opgeschoond.
+- Nieuwe optie **SSL-certificaat controleren**. Deze staat standaard en aanbevolen aan; uitschakelen is alleen bedoeld voor een vertrouwde eigen server met een zelfondertekend certificaat.
+- Als Family Hub een geldige ICS-feed kan ophalen maar Home Assistant alsnog `cannot_connect` geeft, wordt dit nu expliciet gemeld met de bereikbaarheidstest.
+
+
 ## 0.9.2 — volledig scherm voor wanddisplays
 - Nieuwe instelling **Family Hub schermvullend weergeven** onder **Schermen & navigatie**.
 - In volledig-schermmodus wordt de Home Assistant-zijbalk verborgen via de ingebouwde kioskmodus van Home Assistant.
