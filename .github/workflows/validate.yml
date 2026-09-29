@@ -35,6 +35,8 @@ jobs:
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.0.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.1.js
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.2.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.8.3.js
+          test -f vandereijt_family_hub/static/family-hub-admin-0.8.3.css
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.2.css
           test -f vandereijt_family_hub/static/family-hub-admin-0.8.1.css
           test -f vandereijt_family_hub/static/style.css
@@ -58,6 +60,7 @@ jobs:
           node --check vandereijt_family_hub/static/family-hub-admin-0.8.0.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.8.1.js
           node --check vandereijt_family_hub/static/family-hub-admin-0.8.2.js
+          node --check vandereijt_family_hub/static/family-hub-admin-0.8.3.js
           grep -q '"panel": True' vandereijt_family_hub/app.py
           grep -q 'static getStubConfig' vandereijt_family_hub/family-hub-card.js
           grep -q 'config_url:"/local/family-hub/settings.json"' vandereijt_family_hub/family-hub-card.js
@@ -81,9 +84,14 @@ jobs:
           grep -q 'lovelace/resources/delete' vandereijt_family_hub/app.py
           grep -q 'customElements.get("family-hub-card")' vandereijt_family_hub/family-hub-card.js
           grep -q 'no-store, no-cache, must-revalidate' vandereijt_family_hub/app.py
-          grep -q 'family-hub-admin-0.8.2.js' vandereijt_family_hub/static/index.html
-          grep -q 'family-hub-admin-0.8.2.css' vandereijt_family_hub/static/index.html
-          grep -q 'beheerinterface 0.8.2 start' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
+          grep -q 'family-hub-admin-0.8.3.js' vandereijt_family_hub/static/index.html
+          grep -q 'family-hub-admin-0.8.3.css' vandereijt_family_hub/static/index.html
+          grep -q 'beheerinterface 0.8.3 start' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
+          grep -q 'async function saveSection' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
+          grep -q 'function scheduleMemberAutosave' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
+          grep -q 'api("api/settings/section"' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
+          grep -q 'if(message)toast(message)' vandereijt_family_hub/static/family-hub-admin-0.8.3.js
+          grep -q 'allowed = {"members", "routines", "smart_tasks", "lists", "rewards", "departure_rules"}' vandereijt_family_hub/app.py
           grep -q 'function syncMembersDraft' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
           grep -q 'function syncStaticDraft' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
           grep -q 'function syncDraftFromDom' vandereijt_family_hub/static/family-hub-admin-0.8.2.js
@@ -127,4 +135,4 @@ jobs:
           NODE
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.8.2 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.8.3 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub

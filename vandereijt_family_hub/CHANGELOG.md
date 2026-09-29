@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.3 — item-autosave
+- Gezinsleden worden automatisch opgeslagen zodra hun gegevens bruikbaar zijn; bestaande gezinsleden worden stil op de achtergrond bijgewerkt.
+- Nieuw aangemaakte gezinsleden krijgen één bevestiging zodra ze daadwerkelijk zijn opgeslagen.
+- Routines, terugkerende taken, lijstjes, beloningen en vertrekhulp slaan direct op vanuit hun eigen editor.
+- De editor-knop heet weer **Opslaan**; een tweede klik op de hoofdknop is niet meer nodig.
+- Verwijderen van deze items wordt direct opgeslagen.
+- Item-opslag gebruikt een aparte section-endpoint zodat half ingevulde algemene instellingen niet per ongeluk worden meegeschreven.
+- De hoofdknop rechtsboven is alleen actief als er nog algemene instellingen niet zijn opgeslagen.
+- Gelijktijdige gezinslid-autosaves worden veilig opnieuw aangeboden zodat snelle invoer niet verloren gaat.
+- Bij een mislukte item-save wordt een nieuw item teruggedraaid en blijft de editor open voor een nieuwe poging.
+- Unieke 0.8.3 CSS/JS-assets voorkomen stale beheerbestanden.
+
+
 ## 0.8.2 — één concept, één keer opslaan
 - Alle invoer in de beheerinterface wordt direct in een lokale **conceptstatus** bijgehouden.
 - Bij **+ Gezinslid** blijven eerder ingevulde gezinsleden volledig staan; tussentijds opslaan is niet meer nodig.

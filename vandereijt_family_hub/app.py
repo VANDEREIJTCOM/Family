@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.8.2"
+APP_VERSION = "0.8.3"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -1676,6 +1676,34 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
+
+        if path == "/api/settings/section":
+            try:
+                section = str(payload.get("section") or "")
+                allowed = {"members", "routines", "smart_tasks", "lists", "rewards", "departure_rules"}
+                if section not in allowed:
+                    raise ValueError("Onbekend onderdeel")
+                current = load_settings()
+                updated = dict(current)
+                updated[section] = payload.get("value") or []
+                if section != "members" and isinstance(payload.get("members"), list):
+                    updated["members"] = payload.get("members") or []
+                updated, provisioned, warnings = provision_family_features(updated)
+                cleanup_removed_routine_tasks(current, updated)
+                updated = save_settings(updated)
+                sync_generated_content()
+                return self._json(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        "settings": updated,
+                        "section": section,
+                        "provisioned": provisioned,
+                        "warnings": warnings,
+                    },
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
         if path == "/api/external-calendar":
             try:
