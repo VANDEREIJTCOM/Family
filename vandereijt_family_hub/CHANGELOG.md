@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.0 — puntenbeheer, puntenlogboek en snelle gezinsnavigatie
+- De overlappende **Verwijderen**-actie bij externe agenda's is hersteld. Pauzeren, Bewerken en Verwijderen hebben nu ieder een eigen duidelijke knop.
+- Onder **Punten & beloningen** staat nu het actuele puntensaldo van ieder gezinslid.
+- Per gezinslid zijn snelle **−1 / +1**-knoppen beschikbaar en via **Aanpassen** kun je punten toevoegen, aftrekken of het saldo exact instellen, met een optionele reden.
+- Family Hub houdt vanaf deze versie een **puntenlogboek** bij met datum/tijd, gezinslid, verschil, oud en nieuw saldo, bron en reden.
+- Het puntenlogboek luistert rechtstreeks naar wijzigingen van de Home Assistant-puntenhelpers. Daardoor worden ook puntenwijzigingen vastgelegd die via taken, routines, beloningen of rechtstreeks vanuit Home Assistant ontstaan.
+- Handmatige correcties vanuit de instellingen krijgen een eigen duidelijke logboekreden en worden niet dubbel gelogd.
+- De **Gezin**-knop in de onderste navigatie opent nu eerst een snelle, speelse personenkiezer boven de navigatie. De profielfoto's/namen staan zonder paneelachtergrond direct boven de knop.
+- Een tik op een gezinslid opent meteen diens persoonlijke overzicht. Via **Overzicht** blijft de bestaande pagina met alle gezinsleden bereikbaar.
+
+
 ## 0.9.9 — beheer van ingevoerde externe agenda's
 - Onder **Agenda's** staat nu een overzicht van alle Home Assistant **Remote Calendar**-agenda's.
 - Per agenda zie je naam, status, bronhost, calendar-entity, SSL-status en aan welke gezinsleden de agenda gekoppeld is.

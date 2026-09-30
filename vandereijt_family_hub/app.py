@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.9.9"
+APP_VERSION = "0.10.0"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -39,6 +39,7 @@ CARD_TARGET = WWW_DIR / "family-hub-card.js"
 LEGACY_CARD_TARGET = HA_CONFIG / "www" / "family-hub-card.js"
 STATIC_DIR = BASE_DIR / "static"
 RUNTIME_FILE = DATA_DIR / "runtime.json"
+POINTS_LOG_FILE = DATA_DIR / "points-log.json"
 HA_CONFIG_ENTRIES_FILE = HA_CONFIG / ".storage" / "core.config_entries"
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
@@ -546,6 +547,11 @@ def sync_member_lists(delay=10):
 
 
 
+POINTS_LOG_LOCK = threading.Lock()
+POINTS_SUPPRESS_LOCK = threading.Lock()
+POINTS_SUPPRESS = {}
+
+
 class HomeAssistantWebSocket:
     """Small synchronous client for the Supervisor-proxied HA WebSocket API."""
 
@@ -607,6 +613,205 @@ def save_runtime(runtime):
     tmp = RUNTIME_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(RUNTIME_FILE)
+
+
+def load_points_log(limit=500):
+    try:
+        with POINTS_LOG_LOCK:
+            if not POINTS_LOG_FILE.exists():
+                return []
+            data = json.loads(POINTS_LOG_FILE.read_text(encoding="utf-8"))
+        items = data if isinstance(data, list) else []
+    except Exception as exc:
+        print(f"[Family Hub] Point log read warning: {exc}", flush=True)
+        return []
+    limit = max(1, min(2000, int(limit or 500)))
+    return items[-limit:]
+
+
+def append_points_log(member, old_value, new_value, reason="", source="Family Hub"):
+    try:
+        old_value = max(0, int(round(float(old_value or 0))))
+        new_value = max(0, int(round(float(new_value or 0))))
+    except (TypeError, ValueError):
+        return None
+    if old_value == new_value:
+        return None
+    entry = {
+        "id": str(time.time_ns()),
+        "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "member_id": str((member or {}).get("id") or ""),
+        "member_name": str((member or {}).get("name") or ""),
+        "entity_id": str((member or {}).get("points_entity") or ""),
+        "old_value": old_value,
+        "new_value": new_value,
+        "delta": new_value - old_value,
+        "reason": str(reason or "").strip()[:160],
+        "source": str(source or "Family Hub").strip()[:80],
+    }
+    try:
+        with POINTS_LOG_LOCK:
+            items = []
+            if POINTS_LOG_FILE.exists():
+                try:
+                    raw = json.loads(POINTS_LOG_FILE.read_text(encoding="utf-8"))
+                    items = raw if isinstance(raw, list) else []
+                except Exception:
+                    items = []
+            items.append(entry)
+            items = items[-2000:]
+            tmp = POINTS_LOG_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(POINTS_LOG_FILE)
+        return entry
+    except Exception as exc:
+        print(f"[Family Hub] Point log write warning: {exc}", flush=True)
+        return None
+
+
+def _points_member_map():
+    return {
+        str(member.get("points_entity")): member
+        for member in load_settings().get("members", [])
+        if member.get("points_entity")
+    }
+
+
+def points_overview(limit=250):
+    state_map = {
+        str(state.get("entity_id")): state
+        for state in ha_states()
+        if str(state.get("entity_id") or "").startswith("input_number.")
+    }
+    members = []
+    for member in load_settings().get("members", []):
+        entity_id = str(member.get("points_entity") or "")
+        if not entity_id:
+            continue
+        raw = (state_map.get(entity_id) or {}).get("state", 0)
+        try:
+            balance = max(0, int(round(float(raw))))
+        except (TypeError, ValueError):
+            balance = 0
+        members.append({
+            "id": member.get("id"),
+            "name": member.get("name"),
+            "color": member.get("color"),
+            "role": member.get("role"),
+            "points_entity": entity_id,
+            "balance": balance,
+        })
+    log = list(reversed(load_points_log(limit)))
+    return {"members": members, "log": log}
+
+
+def adjust_member_points(member_id, mode, amount, reason=""):
+    settings = load_settings()
+    member = next((m for m in settings.get("members", []) if str(m.get("id")) == str(member_id)), None)
+    if not member or not member.get("points_entity"):
+        raise ValueError("Gezinslid of puntenhelper niet gevonden")
+    entity_id = member["points_entity"]
+    state = next((x for x in ha_states() if x.get("entity_id") == entity_id), None)
+    try:
+        current = max(0, int(round(float((state or {}).get("state", 0)))))
+        amount = int(round(float(amount)))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Vul een geldig aantal punten in") from exc
+    mode = str(mode or "add").lower()
+    if mode == "add":
+        target = max(0, current + abs(amount))
+    elif mode == "subtract":
+        target = max(0, current - abs(amount))
+    elif mode == "set":
+        target = max(0, amount)
+    else:
+        raise ValueError("Onbekende puntenactie")
+    target = min(100000, target)
+    if target == current:
+        return {"member": member, "old_value": current, "new_value": target, "log": None}
+    with POINTS_SUPPRESS_LOCK:
+        POINTS_SUPPRESS[entity_id] = {"new_value": target, "until": time.time() + 10}
+    try:
+        ha_service("input_number", "set_value", {"value": target}, entity_id)
+    except Exception:
+        with POINTS_SUPPRESS_LOCK:
+            POINTS_SUPPRESS.pop(entity_id, None)
+        raise
+    entry = append_points_log(
+        member,
+        current,
+        target,
+        reason or ("Saldo ingesteld" if mode == "set" else "Handmatige puntenaanpassing"),
+        "Family Hub instellingen",
+    )
+    return {"member": member, "old_value": current, "new_value": target, "log": entry}
+
+
+def points_state_watch_loop():
+    """Keep an audit trail for every points helper change, regardless of where it originated."""
+    while True:
+        ws = None
+        try:
+            if not SUPERVISOR_TOKEN:
+                time.sleep(10)
+                continue
+            ws = websocket.create_connection(HA_WS_URL, timeout=30)
+            hello = json.loads(ws.recv())
+            if hello.get("type") != "auth_required":
+                raise RuntimeError("Onverwachte WebSocket-handshake")
+            ws.send(json.dumps({"type": "auth", "access_token": SUPERVISOR_TOKEN}))
+            auth = json.loads(ws.recv())
+            if auth.get("type") != "auth_ok":
+                raise RuntimeError("WebSocket-authenticatie mislukt")
+            ws.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "state_changed"}))
+            while True:
+                raw = ws.recv()
+                if not raw:
+                    raise RuntimeError("WebSocket-verbinding verbroken")
+                msg = json.loads(raw)
+                if msg.get("type") != "event":
+                    continue
+                data = ((msg.get("event") or {}).get("data") or {})
+                entity_id = str(data.get("entity_id") or "")
+                member = _points_member_map().get(entity_id)
+                if not member:
+                    continue
+                old_state = (data.get("old_state") or {}).get("state")
+                new_state = (data.get("new_state") or {}).get("state")
+                try:
+                    old_value = max(0, int(round(float(old_state))))
+                    new_value = max(0, int(round(float(new_state))))
+                except (TypeError, ValueError):
+                    continue
+                if old_value == new_value:
+                    continue
+                suppressed = False
+                with POINTS_SUPPRESS_LOCK:
+                    marker = POINTS_SUPPRESS.get(entity_id)
+                    if marker and marker.get("until", 0) < time.time():
+                        POINTS_SUPPRESS.pop(entity_id, None)
+                        marker = None
+                    if marker and int(marker.get("new_value", -1)) == new_value:
+                        POINTS_SUPPRESS.pop(entity_id, None)
+                        suppressed = True
+                if suppressed:
+                    continue
+                append_points_log(
+                    member,
+                    old_value,
+                    new_value,
+                    "Punten toegekend" if new_value > old_value else "Punten afgetrokken",
+                    "Family Hub / Home Assistant",
+                )
+        except Exception as exc:
+            print(f"[Family Hub] Point watcher reconnect: {exc}", flush=True)
+            time.sleep(5)
+        finally:
+            if ws is not None:
+                try:
+                    ws.close()
+                except Exception:
+                    pass
 
 
 def _friendly_entity(domain, friendly_name):
@@ -2109,6 +2314,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, {"ok": True, "settings": load_settings()})
         if path == "/api/entities":
             return self._json(HTTPStatus.OK, {"ok": True, "entities": grouped_entities()})
+        if path == "/api/points":
+            try:
+                result = points_overview(500)
+                return self._json(HTTPStatus.OK, {"ok": True, **result})
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
         if path == "/api/external-calendars":
             try:
                 return self._json(HTTPStatus.OK, {"ok": True, "calendars": external_calendars_overview()})
@@ -2309,6 +2520,19 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"[Family Hub] External calendar manage error: {error}", flush=True)
                 return self._json(HTTPStatus.OK, {"ok": False, "error": error})
 
+        if path == "/api/points/adjust":
+            try:
+                result = adjust_member_points(
+                    payload.get("member_id"),
+                    payload.get("mode"),
+                    payload.get("amount"),
+                    payload.get("reason"),
+                )
+                overview = points_overview(500)
+                return self._json(HTTPStatus.OK, {"ok": True, "result": result, **overview})
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+
         if path == "/api/provision":
             try:
                 current = load_settings()
@@ -2394,6 +2618,7 @@ def main():
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
     threading.Thread(target=family_scheduler_loop, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()
+    threading.Thread(target=points_state_watch_loop, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
 
