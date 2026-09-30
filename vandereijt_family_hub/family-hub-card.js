@@ -1,9 +1,9 @@
 /*
  * VANDEREIJT.COM Family Hub
  * for Home Assistant
- * v0.10.0
+ * v0.10.1
  */
-const FH_VERSION="0.10.0";
+const FH_VERSION="0.10.1";
 
 if(typeof document!=="undefined"&&!document.getElementById("vandereijt-family-hub-font")){
   const l=document.createElement("link");
@@ -73,7 +73,7 @@ class FamilyHubCard extends HTMLElement{
     const first=!this._hass;
     this._hass=hass;
     if(first&&this._config)this._load();
-    if(!this._modal)this._render();
+    if(!this._modal&&!this._familyPicker)this._render();
   }
 
   connectedCallback(){
@@ -111,7 +111,7 @@ class FamilyHubCard extends HTMLElement{
     if(!this._config)return;
     const sec=Math.max(30,Number(this._config.refresh_interval||120));
     this._timer=setInterval(()=>this._load(),sec*1000);
-    this._clockTimer=setInterval(()=>{if(!this._modal)this._render()},30000);
+    this._clockTimer=setInterval(()=>{if(!this._modal&&!this._familyPicker)this._render()},30000);
     this._idleTimer=setInterval(()=>this._checkIdle(),10000);
   }
 
@@ -400,7 +400,7 @@ class FamilyHubCard extends HTMLElement{
       if(this._config.shopping_list)jobs.push(this._todo(this._config.shopping_list,["needs_action"]).then(v=>this._shopping=v).catch(()=>this._shopping=[]));
       if(this._config.meals_todo)jobs.push(this._todo(this._config.meals_todo,["needs_action"]).then(v=>this._meals=v).catch(()=>this._meals=[]));
       await Promise.all(jobs);
-    }finally{this._busy=false;if(!this._modal)this._render();}
+    }finally{this._busy=false;if(!this._modal&&!this._familyPicker)this._render();}
   }
 
   _scheduledForDay(day,memberId=null){
@@ -767,9 +767,9 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
 .bottom-nav{height:72px;flex:0 0 72px;background:rgba(255,255,255,.97);border-top:1px solid var(--line);display:flex;justify-content:center;gap:4px;padding:6px 10px;overflow-x:auto}.bottom-nav button{min-width:76px;border:0;background:transparent;border-radius:12px;color:#6C7885;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}.bottom-nav .ha-return{margin-left:8px;padding-left:12px;border-left:1px solid var(--line);color:var(--blue2)}.bottom-nav .ha-return ha-icon{color:var(--blue)}.bottom-nav button ha-icon{--mdc-icon-size:21px}.bottom-nav button span{font-size:var(--fh-fs-8,8px);font-weight:900}.bottom-nav button.active{background:#E7EFF8;color:var(--blue2)}
 .navigation-wrap{position:relative;z-index:20;flex:0 0 72px;height:72px;overflow:visible}
 .navigation-wrap .bottom-nav{height:72px;box-sizing:border-box}
-.family-quick-picker{position:absolute;z-index:30;left:50%;bottom:78px;transform:translateX(-50%);display:flex;align-items:flex-end;justify-content:center;gap:12px;max-width:calc(100vw - 24px);padding:0 8px;background:transparent;overflow-x:auto;overflow-y:visible;scrollbar-width:none;pointer-events:auto}
-.family-quick-picker::-webkit-scrollbar{display:none}.family-quick-picker button{border:0;background:transparent;padding:0 3px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:64px;color:var(--dark);cursor:pointer;animation:family-pop .22s ease both;animation-delay:var(--delay)}
-.family-quick-picker button .avatar{width:54px;height:54px;border:3px solid #fff;box-shadow:0 4px 16px #0A16283D,0 0 0 3px var(--member);transition:transform .15s ease}
+.family-quick-picker{position:absolute;z-index:30;left:50%;bottom:82px;transform:translateX(-50%);width:min(820px,calc(100vw - 30px));display:flex;align-items:flex-end;justify-content:center;flex-wrap:wrap;gap:12px;padding:12px 14px 8px;background:transparent;overflow:visible;pointer-events:none}
+.family-quick-picker button{pointer-events:auto;border:0;background:transparent;padding:0 3px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:64px;color:var(--dark);cursor:pointer;animation:family-pop .22s ease both;animation-delay:var(--delay)}
+.family-quick-picker button .avatar{width:54px;height:54px;border:3px solid #fff;box-shadow:0 4px 16px #0A16283D,0 0 0 3px var(--member);transition:transform .15s ease;overflow:hidden}
 .family-quick-picker button:hover .avatar{transform:translateY(-5px) scale(1.06)}
 .family-quick-picker button>span:last-child{font-size:var(--fh-fs-10,10px);font-weight:900;color:var(--dark);text-shadow:0 1px 2px #fff,0 0 5px #fff,0 0 8px #fff;white-space:nowrap}
 .family-overview-icon{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:#fff;border:3px solid #fff;box-shadow:0 4px 16px #0A16283D,0 0 0 3px var(--blue);color:var(--blue)}.family-overview-icon ha-icon{--mdc-icon-size:25px}

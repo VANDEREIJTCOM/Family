@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.1 — stabiele snelle gezinskiezer
+- De snelle **Gezin**-kiezer wordt niet meer opnieuw opgebouwd bij iedere Home Assistant state-update. Daardoor stopt het knipperen/opnieuw verschijnen zolang de kiezer openstaat.
+- Ook de 30-seconden klok-refresh en de periodieke Family Hub-datarefresh laten de open gezinskiezer met rust. De actuele Home Assistant-data blijft op de achtergrond wel bijgewerkt.
+- De profielfoto's/cirkels worden niet meer door een horizontale scroll-container afgeknipt. De transparante kiezer gebruikt nu zichtbare overflow en kan indien nodig netjes over meerdere regels verdelen.
+- De klikbare zone blijft beperkt tot de personen zelf; de transparante ruimte rond de kiezer blokkeert het dashboard erachter niet.
+
+
 ## 0.10.0 — puntenbeheer, puntenlogboek en snelle gezinsnavigatie
 - De overlappende **Verwijderen**-actie bij externe agenda's is hersteld. Pauzeren, Bewerken en Verwijderen hebben nu ieder een eigen duidelijke knop.
 - Onder **Punten & beloningen** staat nu het actuele puntensaldo van ieder gezinslid.
