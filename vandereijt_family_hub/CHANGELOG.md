@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0 — beloningen aanvragen met oudergoedkeuring
+- Verdiende beloningen verschijnen nu automatisch op de **persoonlijke pagina** van het gezinslid zodra voldoende punten zijn behaald.
+- Met **Verzilveren** wordt de beloning niet meer direct afgeboekt. Family Hub maakt eerst een goedkeuringsaanvraag.
+- Geselecteerde ouderapparaten ontvangen via de Home Assistant Companion App een pushbericht met de acties **Akkoord** en **Afwijzen**.
+- Bij een doorlopende beloning worden punten pas na **Akkoord** afgetrokken. Bij dag-, week- en maandbeloningen wordt de beloning pas na goedkeuring als behaald gemarkeerd.
+- Tijdens een open aanvraag staat op de Hub **Aangevraagd · wacht op ouder**, zodat dezelfde beloning niet dubbel kan worden aangevraagd.
+- Onder **Instellingen → Meldingen** staat nu een lijst met beschikbare `notify.mobile_app_*`-apparaten. Meerdere oudertelefoons/tablets kunnen worden geselecteerd.
+- De nieuwe meldingenpagina bevat ook een **Test pushbericht**-knop en een schakelaar voor oudergoedkeuring van beloningen.
+- Family Hub luistert rechtstreeks naar het Home Assistant-event `mobile_app_notification_action` om de gekozen actie veilig en eenmalig te verwerken.
+
+
 ## 0.10.1 — stabiele snelle gezinskiezer
 - De snelle **Gezin**-kiezer wordt niet meer opnieuw opgebouwd bij iedere Home Assistant state-update. Daardoor stopt het knipperen/opnieuw verschijnen zolang de kiezer openstaat.
 - Ook de 30-seconden klok-refresh en de periodieke Family Hub-datarefresh laten de open gezinskiezer met rust. De actuele Home Assistant-data blijft op de achtergrond wel bijgewerkt.

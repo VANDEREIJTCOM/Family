@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 
 import websocket
 from collections import Counter, defaultdict
@@ -22,7 +23,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.10.1"
+APP_VERSION = "0.11.0"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -40,6 +41,7 @@ LEGACY_CARD_TARGET = HA_CONFIG / "www" / "family-hub-card.js"
 STATIC_DIR = BASE_DIR / "static"
 RUNTIME_FILE = DATA_DIR / "runtime.json"
 POINTS_LOG_FILE = DATA_DIR / "points-log.json"
+REWARD_REQUESTS_FILE = DATA_DIR / "reward-requests.json"
 HA_CONFIG_ENTRIES_FILE = HA_CONFIG / ".storage" / "core.config_entries"
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
@@ -96,6 +98,8 @@ DEFAULTS = {
     "departure_rules": [],
     "home_entities": [],
     "notification_entities": [],
+    "push_targets": [],
+    "push_reward_requests": True,
     "photos": [],
 }
 
@@ -292,6 +296,11 @@ def normalize_settings(data):
 
     out["home_entities"] = [str(x)[:160] for x in (src.get("home_entities") or []) if str(x).strip()][:40]
     out["notification_entities"] = [str(x)[:160] for x in (src.get("notification_entities") or []) if str(x).strip()][:40]
+    out["push_targets"] = [
+        str(x)[:160] for x in (src.get("push_targets") or [])
+        if re.fullmatch(r"mobile_app_[a-zA-Z0-9_]+", str(x or ""))
+    ][:20]
+    out["push_reward_requests"] = bool(src.get("push_reward_requests", True))
     out["photos"] = [str(x)[:300] for x in (src.get("photos") or []) if str(x).strip()][:50]
 
     out["title"] = str(src.get("title") or "Familie")[:80]
@@ -550,6 +559,7 @@ def sync_member_lists(delay=10):
 POINTS_LOG_LOCK = threading.Lock()
 POINTS_SUPPRESS_LOCK = threading.Lock()
 POINTS_SUPPRESS = {}
+REWARD_REQUEST_LOCK = threading.Lock()
 
 
 class HomeAssistantWebSocket:
@@ -613,6 +623,374 @@ def save_runtime(runtime):
     tmp = RUNTIME_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(RUNTIME_FILE)
+
+
+def available_push_targets():
+    """Return Home Assistant Companion app notification services."""
+    with HomeAssistantWebSocket() as ha:
+        services = ha.call({"type": "get_services"}) or {}
+    notify = services.get("notify") if isinstance(services, dict) else {}
+    notify = notify if isinstance(notify, dict) else {}
+    targets = []
+    for service, info in sorted(notify.items()):
+        if not str(service).startswith("mobile_app_"):
+            continue
+        info = info if isinstance(info, dict) else {}
+        label = str(info.get("name") or "").strip()
+        if not label:
+            label = str(service)[len("mobile_app_"):].replace("_", " ").strip().title()
+        targets.append({
+            "service": str(service),
+            "entity_id": f"notify.{service}",
+            "name": label or str(service),
+        })
+    return targets
+
+
+def send_push_notification(services, title, message, data=None):
+    sent, errors = [], []
+    available = {x["service"] for x in available_push_targets()}
+    for service in services or []:
+        service = str(service or "")
+        if service not in available:
+            errors.append(f"{service}: niet beschikbaar")
+            continue
+        try:
+            payload = {"title": str(title or "Family Hub"), "message": str(message or "")}
+            if data:
+                payload["data"] = data
+            ha_service("notify", service, payload)
+            sent.append(service)
+        except Exception as exc:
+            errors.append(f"{service}: {exc}")
+    return {"sent": sent, "errors": errors}
+
+
+def load_reward_requests():
+    try:
+        with REWARD_REQUEST_LOCK:
+            if not REWARD_REQUESTS_FILE.exists():
+                return {}
+            raw = json.loads(REWARD_REQUESTS_FILE.read_text(encoding="utf-8"))
+        return raw if isinstance(raw, dict) else {}
+    except Exception as exc:
+        print(f"[Family Hub] Reward request read warning: {exc}", flush=True)
+        return {}
+
+
+def save_reward_requests(requests):
+    with REWARD_REQUEST_LOCK:
+        tmp = REWARD_REQUESTS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(requests, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(REWARD_REQUESTS_FILE)
+
+
+def _reward_period_key(cycle, moment=None):
+    moment = moment or datetime.now().astimezone()
+    cycle = str(cycle or "balance")
+    if cycle == "daily":
+        return moment.strftime("%Y-%m-%d")
+    if cycle == "weekly":
+        monday = moment - timedelta(days=moment.weekday())
+        return monday.strftime("%Y-%m-%d")
+    if cycle == "monthly":
+        return moment.strftime("%Y-%m")
+    return "balance"
+
+
+def _reward_date_in_cycle(value, cycle):
+    text = str(value or "")[:10]
+    if not text:
+        return False
+    try:
+        moment = datetime.strptime(text, "%Y-%m-%d").astimezone()
+    except ValueError:
+        return False
+    return _reward_period_key(cycle, moment) == _reward_period_key(cycle)
+
+
+def _member_reward_score(member, cycle):
+    if cycle == "balance":
+        entity_id = str(member.get("points_entity") or "")
+        if not entity_id:
+            return 0
+        state = next((x for x in ha_states() if x.get("entity_id") == entity_id), None)
+        try:
+            return max(0, int(round(float((state or {}).get("state", 0)))))
+        except (TypeError, ValueError):
+            return 0
+
+    todo_entity = str(member.get("todo") or "")
+    if not todo_entity:
+        return 0
+    total = 0
+    for item in get_todo_items(todo_entity, ["completed"]):
+        meta = _fh_meta(item)
+        if not meta or meta.get("kind") == "reward_claim":
+            continue
+        try:
+            points = int(meta.get("points") or 0)
+        except (TypeError, ValueError):
+            points = 0
+        date_value = meta.get("date") or item.get("due") or item.get("due_date") or item.get("due_datetime")
+        if points and _reward_date_in_cycle(date_value, cycle):
+            total += points
+    return total
+
+
+def _reward_claim_already_completed(member, reward):
+    cycle = str(reward.get("cycle") or "balance")
+    if cycle == "balance" or not member.get("todo"):
+        return False
+    period_key = _reward_period_key(cycle)
+    for item in get_todo_items(member["todo"], ["completed"]):
+        meta = _fh_meta(item)
+        if (
+            meta.get("kind") == "reward_claim"
+            and str(meta.get("reward_id") or "") == str(reward.get("id") or "")
+            and str(meta.get("member_id") or "") == str(member.get("id") or "")
+            and str(meta.get("period_key") or "") == period_key
+        ):
+            return True
+    return False
+
+
+def _reward_request_records():
+    requests = load_reward_requests()
+    # Keep the file bounded while preserving recent audit information.
+    if len(requests) > 1000:
+        ordered = sorted(
+            requests.items(),
+            key=lambda item: str((item[1] or {}).get("created_at") or ""),
+        )
+        requests = dict(ordered[-800:])
+        save_reward_requests(requests)
+    return requests
+
+
+def scan_reward_requests():
+    settings = load_settings()
+    if not settings.get("push_reward_requests", True):
+        return
+    members = {str(m.get("id")): m for m in settings.get("members", [])}
+    rewards = {str(r.get("id")): r for r in settings.get("rewards", [])}
+    requests = _reward_request_records()
+    changed = False
+
+    for member in members.values():
+        todo_entity = str(member.get("todo") or "")
+        if not todo_entity:
+            continue
+        try:
+            items = get_todo_items(todo_entity, ["needs_action"])
+        except Exception:
+            continue
+        for item in items:
+            meta = _fh_meta(item)
+            if meta.get("kind") != "reward_claim" or not meta.get("request_id"):
+                continue
+            request_id = str(meta.get("request_id"))[:80]
+            reward = rewards.get(str(meta.get("reward_id") or ""))
+            if not reward:
+                continue
+            if reward.get("member_id") and str(reward.get("member_id")) != str(member.get("id")):
+                continue
+            cycle = str(reward.get("cycle") or "balance")
+            period_key = str(meta.get("period_key") or _reward_period_key(cycle))
+            if cycle != "balance" and period_key != _reward_period_key(cycle):
+                continue
+            score = _member_reward_score(member, cycle)
+            cost = int(reward.get("cost") or 0)
+            if score < cost or _reward_claim_already_completed(member, reward):
+                continue
+
+            record = requests.get(request_id)
+            if not isinstance(record, dict):
+                record = {
+                    "request_id": request_id,
+                    "status": "pending",
+                    "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "member_id": member.get("id"),
+                    "member_name": member.get("name"),
+                    "reward_id": reward.get("id"),
+                    "reward_title": reward.get("title"),
+                    "cycle": cycle,
+                    "period_key": period_key,
+                    "cost": cost,
+                    "todo_entity": todo_entity,
+                    "todo_item": item.get("uid") or item.get("summary"),
+                    "notified": False,
+                    "notify_attempts": 0,
+                }
+                requests[request_id] = record
+                changed = True
+
+            if record.get("status") != "pending" or record.get("notified"):
+                continue
+
+            targets = settings.get("push_targets") or []
+            if not targets:
+                continue
+            action_approve = f"FH_REWARD_APPROVE_{request_id}"
+            action_deny = f"FH_REWARD_DENY_{request_id}"
+            result = send_push_notification(
+                targets,
+                "Beloning aanvragen ⭐",
+                f"{member.get('name')} wil ‘{reward.get('title')}’ verzilveren ({cost} punten).",
+                {
+                    "tag": f"family_hub_reward_{request_id}",
+                    "actions": [
+                        {"action": action_approve, "title": "Akkoord"},
+                        {"action": action_deny, "title": "Afwijzen", "destructive": True},
+                    ],
+                },
+            )
+            record["notify_attempts"] = int(record.get("notify_attempts") or 0) + 1
+            record["last_notify_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+            record["notified"] = bool(result.get("sent"))
+            record["notify_errors"] = result.get("errors") or []
+            changed = True
+
+    if changed:
+        save_reward_requests(requests)
+
+
+def _resolve_reward_request(request_id, approved):
+    requests = _reward_request_records()
+    record = requests.get(str(request_id))
+    if not isinstance(record, dict) or record.get("status") != "pending":
+        return False
+
+    settings = load_settings()
+    member = next((m for m in settings.get("members", []) if str(m.get("id")) == str(record.get("member_id"))), None)
+    reward = next((r for r in settings.get("rewards", []) if str(r.get("id")) == str(record.get("reward_id"))), None)
+    if not member or not reward:
+        record["status"] = "invalid"
+        record["resolved_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        requests[str(request_id)] = record
+        save_reward_requests(requests)
+        return False
+
+    todo_entity = str(record.get("todo_entity") or member.get("todo") or "")
+    todo_item = record.get("todo_item")
+    if not todo_entity or not todo_item:
+        return False
+
+    if not approved:
+        try:
+            ha_service("todo", "remove_item", {"item": todo_item}, todo_entity)
+        except Exception:
+            pass
+        record["status"] = "denied"
+        record["resolved_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        requests[str(request_id)] = record
+        save_reward_requests(requests)
+        send_push_notification(
+            settings.get("push_targets") or [],
+            "Beloning afgewezen",
+            f"De aanvraag van {member.get('name')} voor ‘{reward.get('title')}’ is afgewezen.",
+            {"tag": f"family_hub_reward_{request_id}"},
+        )
+        return True
+
+    cycle = str(reward.get("cycle") or "balance")
+    cost = int(reward.get("cost") or 0)
+    score = _member_reward_score(member, cycle)
+    if score < cost or _reward_claim_already_completed(member, reward):
+        try:
+            ha_service("todo", "remove_item", {"item": todo_item}, todo_entity)
+        except Exception:
+            pass
+        record["status"] = "expired"
+        record["resolved_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        requests[str(request_id)] = record
+        save_reward_requests(requests)
+        send_push_notification(
+            settings.get("push_targets") or [],
+            "Beloning niet meer beschikbaar",
+            f"‘{reward.get('title')}’ kan niet meer worden goedgekeurd; het puntensaldo of de periode is gewijzigd.",
+            {"tag": f"family_hub_reward_{request_id}"},
+        )
+        return False
+
+    if cycle == "balance":
+        points_entity = str(member.get("points_entity") or "")
+        target = max(0, score - cost)
+        if points_entity:
+            with POINTS_SUPPRESS_LOCK:
+                POINTS_SUPPRESS[points_entity] = {"new_value": target, "until": time.time() + 10}
+            ha_service("input_number", "set_value", {"value": target}, points_entity)
+            append_points_log(
+                member,
+                score,
+                target,
+                f"Beloning verzilverd: {reward.get('title')}",
+                "Family Hub beloning",
+            )
+
+    ha_service("todo", "update_item", {"item": todo_item, "status": "completed"}, todo_entity)
+    record["status"] = "approved"
+    record["resolved_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+    requests[str(request_id)] = record
+    save_reward_requests(requests)
+    send_push_notification(
+        settings.get("push_targets") or [],
+        "Beloning goedgekeurd 🎉",
+        f"{member.get('name')} mag ‘{reward.get('title')}’ verzilveren.",
+        {"tag": f"family_hub_reward_{request_id}"},
+    )
+    return True
+
+
+def reward_request_scan_loop():
+    time.sleep(8)
+    while True:
+        try:
+            scan_reward_requests()
+        except Exception as exc:
+            print(f"[Family Hub] Reward request scan failed: {exc}", flush=True)
+        time.sleep(4)
+
+
+def reward_notification_action_loop():
+    """Handle Akkoord/Afwijzen actions from Home Assistant Companion notifications."""
+    while True:
+        ws = None
+        try:
+            if not SUPERVISOR_TOKEN:
+                time.sleep(10)
+                continue
+            ws = websocket.create_connection(HA_WS_URL, timeout=40)
+            hello = json.loads(ws.recv())
+            if hello.get("type") != "auth_required":
+                raise RuntimeError("Onverwachte WebSocket-handshake")
+            ws.send(json.dumps({"type": "auth", "access_token": SUPERVISOR_TOKEN}))
+            auth = json.loads(ws.recv())
+            if auth.get("type") != "auth_ok":
+                raise RuntimeError("WebSocket-authenticatie mislukt")
+            ws.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "mobile_app_notification_action"}))
+            while True:
+                raw = ws.recv()
+                if not raw:
+                    raise RuntimeError("WebSocket-verbinding verbroken")
+                msg = json.loads(raw)
+                if msg.get("type") != "event":
+                    continue
+                data = ((msg.get("event") or {}).get("data") or {})
+                action = str(data.get("action") or "")
+                if action.startswith("FH_REWARD_APPROVE_"):
+                    _resolve_reward_request(action[len("FH_REWARD_APPROVE_"):], True)
+                elif action.startswith("FH_REWARD_DENY_"):
+                    _resolve_reward_request(action[len("FH_REWARD_DENY_"):], False)
+        except Exception as exc:
+            print(f"[Family Hub] Reward notification listener reconnect: {exc}", flush=True)
+            time.sleep(5)
+        finally:
+            if ws is not None:
+                try:
+                    ws.close()
+                except Exception:
+                    pass
 
 
 def load_points_log(limit=500):
@@ -2320,6 +2698,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(HTTPStatus.OK, {"ok": True, **result})
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+        if path == "/api/push-targets":
+            try:
+                return self._json(HTTPStatus.OK, {"ok": True, "targets": available_push_targets()})
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
         if path == "/api/external-calendars":
             try:
                 return self._json(HTTPStatus.OK, {"ok": True, "calendars": external_calendars_overview()})
@@ -2533,6 +2916,26 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
+        if path == "/api/push-test":
+            try:
+                targets = [
+                    str(x) for x in (payload.get("targets") or [])
+                    if re.fullmatch(r"mobile_app_[a-zA-Z0-9_]+", str(x or ""))
+                ]
+                if not targets:
+                    raise ValueError("Selecteer eerst minimaal één apparaat")
+                result = send_push_notification(
+                    targets,
+                    "Family Hub testbericht",
+                    "Pushmeldingen vanaf Family Hub werken op dit apparaat.",
+                    {"tag": "family_hub_test"},
+                )
+                if not result.get("sent"):
+                    raise RuntimeError("; ".join(result.get("errors") or ["Testmelding kon niet worden verstuurd"]))
+                return self._json(HTTPStatus.OK, {"ok": True, "result": result})
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+
         if path == "/api/provision":
             try:
                 current = load_settings()
@@ -2619,6 +3022,8 @@ def main():
     threading.Thread(target=family_scheduler_loop, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()
     threading.Thread(target=points_state_watch_loop, daemon=True).start()
+    threading.Thread(target=reward_request_scan_loop, daemon=True).start()
+    threading.Thread(target=reward_notification_action_loop, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
 

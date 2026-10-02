@@ -7,13 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="static/family-hub-admin-0.10.1.css">
+  <link rel="stylesheet" href="static/family-hub-admin-0.11.0.css">
 </head>
 <body>
 <div class="shell">
   <aside>
     <div class="brand">
-      <img src="static/brand-icon.png?v=0.10.1" alt="VANDEREIJT.COM">
+      <img src="static/brand-icon.png?v=0.11.0" alt="VANDEREIJT.COM">
       <div><strong><span>VANDEREIJT.COM</span> Family Hub</strong><small>for Home Assistant</small></div>
     </div>
     <nav>
@@ -23,6 +23,7 @@
       <button class="nav" data-tab="routines">Routines & taken</button>
       <button class="nav" data-tab="lists">Lijsten & eten</button>
       <button class="nav" data-tab="rewards">Punten & beloningen</button>
+      <button class="nav" data-tab="push">Meldingen</button>
       <button class="nav" data-tab="home">Huis & vertrek</button>
       <button class="nav" data-tab="screens">Schermen & navigatie</button>
       <button class="nav" data-tab="appearance">Uiterlijk</button>
@@ -42,7 +43,7 @@
 
     <section id="tab-general" class="tab active">
       <div class="hero-card">
-        <div><span class="pill">Family Hub 0.10.1</span><h2>Het centrale scherm voor gezin én huis.</h2><p>Agenda, taken, routines, punten, lijstjes, maaltijden, vertrekhulp en Home Assistant-status in één interface.</p></div>
+        <div><span class="pill">Family Hub 0.11.0</span><h2>Het centrale scherm voor gezin én huis.</h2><p>Agenda, taken, routines, punten, lijstjes, maaltijden, vertrekhulp en Home Assistant-status in één interface.</p></div>
         <div class="hero-mark">FH</div>
       </div>
       <div class="section-head spaced"><div><h2>Aanbevelingen</h2><p>Family Hub kijkt naar terugkerende patronen en stelt handige automatiseringen voor. Jij beslist altijd zelf.</p></div></div>
@@ -127,6 +128,24 @@
       <div id="rewards" class="manage-grid"></div>
     </section>
 
+    <section id="tab-push" class="tab">
+      <div class="section-head"><div><h2>Pushberichten naar ouders</h2><p>Kies welke telefoons of tablets Family Hub mogen gebruiken voor oudermeldingen en goedkeuringen.</p></div><button id="reload-push-targets" class="secondary">Apparaten opnieuw zoeken</button></div>
+      <div class="grid two">
+        <article class="card">
+          <h2>Ontvangers</h2>
+          <p>Family Hub toont hier apparaten uit de Home Assistant Companion App met een <code>notify.mobile_app_*</code>-actie. Je kunt meerdere ouders selecteren.</p>
+          <div id="push-targets" class="push-targets"><div class="push-empty"><span>↻</span><div><strong>Apparaten laden…</strong></div></div></div>
+          <div class="button-row"><button id="test-push" class="secondary">Test pushbericht</button></div>
+        </article>
+        <article class="card">
+          <h2>Goedkeuringen</h2>
+          <label class="switch"><input id="push_reward_requests" type="checkbox"> Beloning verzilveren altijd door ouder laten goedkeuren</label>
+          <p>Als een gezinslid genoeg punten heeft, verschijnt de beloning op de persoonlijke pagina. Bij <strong>Verzilveren</strong> ontvangen de geselecteerde apparaten een pushbericht met <strong>Akkoord</strong> en <strong>Afwijzen</strong>.</p>
+          <div class="helper-box"><strong>Goed om te weten</strong><span>Bij een doorlopende beloning worden de punten pas na goedkeuring afgetrokken. Bij dag-, week- en maandbeloningen wordt de beloning pas na goedkeuring als behaald gemarkeerd.</span></div>
+        </article>
+      </div>
+    </section>
+
     <section id="tab-home" class="tab">
       <div class="grid two">
         <article class="card"><h2>Wat wil je van je huis zien?</h2><p>Kies bijvoorbeeld de temperatuur, achterdeur, auto, energie of wasmachine. Je ziet hier gewoon de namen uit Home Assistant.</p><label>Toon op Family Hub<select id="home_entities" multiple size="12"></select><small>Je kunt meerdere onderdelen selecteren.</small></label></article>
@@ -175,6 +194,6 @@
   </main>
 </div>
 <div id="toast" class="toast"></div>
-<script src="static/family-hub-admin-0.10.1.js" defer></script>
+<script src="static/family-hub-admin-0.11.0.js" defer></script>
 </body>
 </html>
