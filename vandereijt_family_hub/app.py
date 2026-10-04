@@ -23,7 +23,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PORT = 8099
-APP_VERSION = "0.11.0"
+APP_VERSION = "0.12.0"
 HA_WS_URL = "ws://supervisor/core/websocket"
 DASHBOARD_URL_PATH = "family-hub"
 DASHBOARD_VIEW_PATH = "family"
@@ -248,16 +248,38 @@ def normalize_settings(data):
         title = str(reward.get("title") or "").strip()
         if not title:
             continue
+        reward_type = str(reward.get("reward_type") or "fixed").lower()
+        if reward_type not in {"fixed", "wheel"}:
+            reward_type = "fixed"
         cycle = str(reward.get("cycle") or "balance").lower()
         if cycle not in {"balance", "daily", "weekly", "monthly"}:
             cycle = "balance"
+        # Radbeloningen werken als doorlopend puntensaldo: na oudergoedkeuring
+        # worden de benodigde punten afgetrokken en kan later opnieuw gespaard worden.
+        if reward_type == "wheel":
+            cycle = "balance"
+        wheel_options = []
+        for option_idx, option in enumerate(reward.get("wheel_options") or []):
+            if isinstance(option, str):
+                option = {"title": option}
+            if not isinstance(option, dict):
+                continue
+            option_title = str(option.get("title") or option.get("label") or "").strip()
+            if not option_title:
+                continue
+            wheel_options.append({
+                "id": _clean_id(option.get("id"), f"option_{option_idx+1}"),
+                "title": option_title[:100],
+            })
         rewards.append({
             "id": _clean_id(reward.get("id"), f"reward_{idx+1}"),
             "title": title[:100],
             "cost": max(1, min(100000, int(reward.get("cost") or 1))),
-            "icon": str(reward.get("icon") or "mdi:gift")[:80],
+            "icon": str(reward.get("icon") or ("mdi:ferris-wheel" if reward_type == "wheel" else "mdi:gift"))[:80],
             "member_id": str(reward.get("member_id") or "")[:80],
             "cycle": cycle,
+            "reward_type": reward_type,
+            "wheel_options": wheel_options[:24],
         })
     out["rewards"] = rewards[:100]
 
@@ -814,6 +836,8 @@ def scan_reward_requests():
                     "member_name": member.get("name"),
                     "reward_id": reward.get("id"),
                     "reward_title": reward.get("title"),
+                    "reward_type": reward.get("reward_type") or "fixed",
+                    "wheel_result": str(meta.get("wheel_result") or "")[:100],
                     "cycle": cycle,
                     "period_key": period_key,
                     "cost": cost,
@@ -833,10 +857,18 @@ def scan_reward_requests():
                 continue
             action_approve = f"FH_REWARD_APPROVE_{request_id}"
             action_deny = f"FH_REWARD_DENY_{request_id}"
+            wheel_result = str(meta.get("wheel_result") or "").strip()
+            if reward.get("reward_type") == "wheel" and wheel_result:
+                push_message = (
+                    f"{member.get('name')} draaide ‘{reward.get('title')}’ en won "
+                    f"‘{wheel_result}’. Goedkeuren voor {cost} punten?"
+                )
+            else:
+                push_message = f"{member.get('name')} wil ‘{reward.get('title')}’ verzilveren ({cost} punten)."
             result = send_push_notification(
                 targets,
                 "Beloning aanvragen ⭐",
-                f"{member.get('name')} wil ‘{reward.get('title')}’ verzilveren ({cost} punten).",
+                push_message,
                 {
                     "tag": f"family_hub_reward_{request_id}",
                     "actions": [
@@ -885,10 +917,12 @@ def _resolve_reward_request(request_id, approved):
         record["resolved_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         requests[str(request_id)] = record
         save_reward_requests(requests)
+        wheel_result = str(record.get("wheel_result") or "").strip()
+        denied_label = f"‘{wheel_result}’ uit ‘{reward.get('title')}’" if wheel_result else f"‘{reward.get('title')}’"
         send_push_notification(
             settings.get("push_targets") or [],
             "Beloning afgewezen",
-            f"De aanvraag van {member.get('name')} voor ‘{reward.get('title')}’ is afgewezen.",
+            f"De aanvraag van {member.get('name')} voor {denied_label} is afgewezen.",
             {"tag": f"family_hub_reward_{request_id}"},
         )
         return True
@@ -920,11 +954,13 @@ def _resolve_reward_request(request_id, approved):
             with POINTS_SUPPRESS_LOCK:
                 POINTS_SUPPRESS[points_entity] = {"new_value": target, "until": time.time() + 10}
             ha_service("input_number", "set_value", {"value": target}, points_entity)
+            wheel_result = str(record.get("wheel_result") or "").strip()
+            reward_log_title = f"{reward.get('title')} → {wheel_result}" if wheel_result else reward.get("title")
             append_points_log(
                 member,
                 score,
                 target,
-                f"Beloning verzilverd: {reward.get('title')}",
+                f"Beloning verzilverd: {reward_log_title}",
                 "Family Hub beloning",
             )
 
@@ -933,10 +969,12 @@ def _resolve_reward_request(request_id, approved):
     record["resolved_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     requests[str(request_id)] = record
     save_reward_requests(requests)
+    wheel_result = str(record.get("wheel_result") or "").strip()
+    approved_label = f"‘{wheel_result}’ (rad: ‘{reward.get('title')}’)" if wheel_result else f"‘{reward.get('title')}’"
     send_push_notification(
         settings.get("push_targets") or [],
         "Beloning goedgekeurd 🎉",
-        f"{member.get('name')} mag ‘{reward.get('title')}’ verzilveren.",
+        f"{member.get('name')} mag {approved_label} verzilveren.",
         {"tag": f"family_hub_reward_{request_id}"},
     )
     return True

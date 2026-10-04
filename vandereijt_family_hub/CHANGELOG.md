@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.12.0 — meerdere variabele beloningsradjes
+- Onder **Punten & beloningen** kun je naast vaste beloningen nu ook **beloningsradjes** maken.
+- Ieder rad krijgt een eigen puntenniveau, bijvoorbeeld **5, 10 of 20 punten**, zodat je meerdere radjes naast elkaar kunt gebruiken.
+- Per rad stel je zelf de vakken/prijzen samen. Ieder gevuld vak heeft dezelfde kans en er zijn minimaal twee vakken nodig.
+- Zodra een gezinslid genoeg doorlopende punten heeft, verschijnt het rad automatisch onder **Mijn beloningen** op diens persoonlijke kaart met de actie **Draai het rad**.
+- Het rad draait zichtbaar op het scherm en laat daarna de gekozen prijs zien.
+- De gekozen prijs wordt direct onderdeel van de bestaande oudergoedkeuring. De pushmelding toont dus zowel het rad als de gedraaide prijs en bevat **Akkoord** / **Afwijzen**.
+- Punten worden pas na oudergoedkeuring afgetrokken. Bij afwijzen blijft het puntensaldo ongewijzigd.
+- Tijdens een open aanvraag kan hetzelfde rad niet opnieuw worden gedraaid. Na goedkeuring en aftrek kan opnieuw worden gespaard voor hetzelfde rad.
+- In het puntenlogboek staat bij goedkeuring ook welke prijs uit het rad is gewonnen.
+- Bestaande vaste beloningen blijven ongewijzigd werken.
+
+
 ## 0.11.0 — beloningen aanvragen met oudergoedkeuring
 - Verdiende beloningen verschijnen nu automatisch op de **persoonlijke pagina** van het gezinslid zodra voldoende punten zijn behaald.
 - Met **Verzilveren** wordt de beloning niet meer direct afgeboekt. Family Hub maakt eerst een goedkeuringsaanvraag.
