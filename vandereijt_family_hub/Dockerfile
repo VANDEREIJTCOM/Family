@@ -13,17 +13,13 @@ RUN pip install --no-cache-dir websocket-client==1.8.0
 COPY app.py /app/app.py
 COPY static /app/static
 COPY family-hub-card.js /app/family-hub-card.js
+COPY runtime_patch_0_12_2.py /app/runtime_patch_0_12_2.py
 
-# Keep the runtime version equal to the Home Assistant build version and apply
-# the 0.12.1 mobile CSS hotfix. 0.12.0 accidentally contained `.modal{.modal{`,
-# which made modern WebViews nest all following interactive/responsive CSS
-# underneath the modal selector. That caused native grey button blocks and
-# prevented the one-column phone layout from becoming active.
-RUN sed -i -E "s/APP_VERSION = \"[^\"]+\"/APP_VERSION = \"${BUILD_VERSION}\"/" /app/app.py \
- && sed -i -E "s/const FH_VERSION=\"[^\"]+\";/const FH_VERSION=\"${BUILD_VERSION}\";/" /app/family-hub-card.js \
- && sed -i 's/\.modal{\.modal{width/.modal{width/' /app/family-hub-card.js \
- && sed -i 's/@media(max-width:800px){/@media(max-width:800px), (orientation:portrait) and (max-width:1200px){/' /app/family-hub-card.js \
- && sed -i 's/ha-card{height:/button{-webkit-appearance:none;appearance:none;font-family:inherit}ha-card{height:/' /app/family-hub-card.js
+# The repository keeps the last stable source assets. During the App build this
+# patch applies the 0.12.1 mobile fixes plus the 0.12.2 approval centre and
+# binds every runtime asset to the Home Assistant BUILD_VERSION.
+RUN BUILD_VERSION="${BUILD_VERSION}" python /app/runtime_patch_0_12_2.py \
+ && rm /app/runtime_patch_0_12_2.py
 
 EXPOSE 8099
 CMD ["python", "-u", "/app/app.py"]
