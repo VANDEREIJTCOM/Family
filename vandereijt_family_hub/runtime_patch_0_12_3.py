@@ -72,6 +72,41 @@ def patch_app():
     return fulfillment_title
 
 
+def _backfill_recent_approved_reward_tasks():
+    """Migrate recently approved rewards from older versions into visible tasks."""
+    requests = _reward_request_records()
+    settings = load_settings()
+    members = {str(m.get("id") or ""): m for m in settings.get("members", [])}
+    rewards = {str(r.get("id") or ""): r for r in settings.get("rewards", [])}
+    cutoff = datetime.now().astimezone() - timedelta(days=7)
+    changed = False
+
+    for request_id, record in requests.items():
+        if not isinstance(record, dict) or record.get("status") != "approved" or record.get("fulfillment_title"):
+            continue
+        try:
+            resolved = datetime.fromisoformat(str(record.get("resolved_at") or ""))
+            if resolved.tzinfo is None:
+                resolved = resolved.astimezone()
+            if resolved < cutoff:
+                continue
+        except Exception:
+            continue
+        member = members.get(str(record.get("member_id") or ""))
+        reward = rewards.get(str(record.get("reward_id") or ""))
+        if not member or not reward:
+            continue
+        try:
+            record["fulfillment_title"] = _ensure_reward_fulfillment_task(member, reward, record)
+            requests[str(request_id)] = record
+            changed = True
+        except Exception as exc:
+            print(f"[Family Hub] Reward fulfillment backfill warning: {exc}", flush=True)
+
+    if changed:
+        save_reward_requests(requests)
+
+
 '''
     s = replace_one(s, anchor, helper + anchor, 'app reward fulfillment helper')
 
@@ -99,6 +134,22 @@ def patch_app():
         {"tag": f"family_hub_reward_{request_id}"},
 ''',
         'app approved push fulfillment message',
+    )
+
+    s = replace_one(
+        s,
+        '''        try:
+            scan_reward_requests()
+        except Exception as exc:
+            print(f"[Family Hub] Reward request scan failed: {exc}", flush=True)
+''',
+        '''        try:
+            _backfill_recent_approved_reward_tasks()
+            scan_reward_requests()
+        except Exception as exc:
+            print(f"[Family Hub] Reward request scan failed: {exc}", flush=True)
+''',
+        'app reward fulfillment backfill loop',
     )
 
     path.write_text(s, encoding='utf-8')
