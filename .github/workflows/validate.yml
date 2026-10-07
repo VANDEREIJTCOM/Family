@@ -23,6 +23,7 @@ jobs:
           test -f vandereijt_family_hub/Dockerfile
           test -f vandereijt_family_hub/app.py
           test -f vandereijt_family_hub/family-hub-card.js
+          test -f vandereijt_family_hub/runtime_patch_0_12_4.py
           test -f vandereijt_family_hub/icon.png
           test -f vandereijt_family_hub/logo.png
           test -f vandereijt_family_hub/static/index.html
@@ -74,7 +75,7 @@ jobs:
           grep -q '^slug:' vandereijt_family_hub/config.yaml
 
       - name: Compile Python
-        run: python -m py_compile vandereijt_family_hub/app.py
+        run: python -m py_compile vandereijt_family_hub/app.py vandereijt_family_hub/runtime_patch_0_12_4.py
 
       - name: Check JavaScript syntax
         run: |
@@ -250,4 +251,4 @@ jobs:
           NODE
 
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.12.0 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        run: docker build --build-arg BUILD_VERSION=0.12.4 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
