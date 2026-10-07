@@ -15,11 +15,12 @@ COPY static /app/static
 COPY family-hub-card.js /app/family-hub-card.js
 COPY runtime_patch_0_12_2.py /app/runtime_patch_0_12_2.py
 COPY runtime_patch_0_12_3.py /app/runtime_patch_0_12_3.py
+COPY runtime_patch_0_12_4.py /app/runtime_patch_0_12_4.py
 
-# Apply the mobile fixes, approval centre and reward-fulfillment task flow,
+# Apply the previous runtime migrations plus shared Home Assistant calendars,
 # then bind every generated runtime asset to the Home Assistant BUILD_VERSION.
-RUN BUILD_VERSION="${BUILD_VERSION}" python /app/runtime_patch_0_12_3.py \
- && rm /app/runtime_patch_0_12_2.py /app/runtime_patch_0_12_3.py
+RUN BUILD_VERSION="${BUILD_VERSION}" python /app/runtime_patch_0_12_4.py \
+ && rm /app/runtime_patch_0_12_2.py /app/runtime_patch_0_12_3.py /app/runtime_patch_0_12_4.py
 
 EXPOSE 8099
 CMD ["python", "-u", "/app/app.py"]
