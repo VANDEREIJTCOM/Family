@@ -123,7 +123,6 @@ def patch_card():
         '''      for(const m of this._config.members||[]){\n        if(m.calendar)jobs.push(this._calendar(m.calendar,start,end).then(v=>this._events[m.id]=v).catch(()=>this._events[m.id]=[]));\n        if(m.todo){''',
         'card member load anchor check',
     )
-    # Insert extra calendar jobs directly after the member loop.
     s = replace_one(
         s,
         '''      }\n      for(const r of this._config.routines||[]){\n        if(r.todo_entity)jobs.push(this._todo(r.todo_entity,["needs_action","completed"]).then(v=>this._routineTodos[r.id]=v).catch(()=>this._routineTodos[r.id]=[]));\n      }''',
@@ -164,14 +163,6 @@ def patch_card():
         'footer=member?`<button id="fh-detail-profile" class="save">Naar ${this._esc(member.name)}</button>`:\'<button id="fh-close-detail" class="save">Sluiten</button>\';',
         'footer=member&&!member._sharedCalendar?`<button id="fh-detail-profile" class="save">Naar ${this._esc(member.name)}</button>`:\'<button id="fh-close-detail" class="save">Sluiten</button>\';',
         'card shared calendar detail footer',
-    )
-
-    # Make shared calendar chips visually distinct while keeping the assigned color.
-    s = replace_one(
-        s,
-        '.member-filter-chip i{width:8px;height:8px;border-radius:50%;background:var(--member);box-shadow:0 0 0 2px color-mix(in srgb,var(--member) 18%,transparent)}',
-        '.member-filter-chip i{width:8px;height:8px;border-radius:50%;background:var(--member);box-shadow:0 0 0 2px color-mix(in srgb,var(--member) 18%,transparent)}.member-filter-chip.calendar-chip i{border-radius:2px;transform:rotate(8deg)}',
-        'card shared calendar chip styling',
     )
 
     path.write_text(s, encoding='utf-8')
