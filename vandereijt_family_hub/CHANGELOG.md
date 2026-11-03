@@ -2,6 +2,7 @@
 
 ## 0.13.0 — één geheel met Home Assistant
 
+- Leesbare tekstmaten, ruimere bediening en een afzonderlijke opmaak voor grote portretschermen.
 - De dashboardkaart volgt de actieve Home Assistant-kleuren, kaarten en typografie; de oorspronkelijke stijl blijft optioneel beschikbaar.
 - Een optionele contextstrook op Vandaag toont relevante huiszaken en verwijst naar bestaande HA-pagina's: hulpvragen, was, afwijkende ochtend, avondcheck en actieve muziek.
 - Context gebruikt uitsluitend de bestaande HA-stateverbinding en verandert geen apparaten, taken, punten, agenda's of routines.

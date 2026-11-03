@@ -45,6 +45,9 @@ Family Hub gebruikt native Home Assistant-entiteiten waar dat logisch is en maak
 
 De dashboardkaart volgt standaard de actieve Home Assistant-kleuren, achtergrond,
 typografie en kaarten. Gezinskleuren en fout-/succeskleuren houden hun betekenis.
+De gedeelde opmaak gebruikt leesbare tekstmaten en grotere aanraakvlakken.
+Op grote schermen in portretstand sluiten tekst, navigatie en tussenruimte aan
+op een wanddashboard, in plaats van de oorspronkelijke compacte bureaubladopmaak.
 Met `follow_ha_theme: false` op de kaart blijft de oorspronkelijke Family Hub-stijl beschikbaar.
 
 Een optionele, alleen-lezen huiscontext toont op Vandaag relevante meldingen en
