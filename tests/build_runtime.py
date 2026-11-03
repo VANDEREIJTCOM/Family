@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory(prefix='family-ha-runtime-') as tmp:
  s=(root/'family-hub-card.js').read_text(encoding='utf-8')
  assert 'const FH_VERSION="0.13.0"' in s
  assert s.count('_haContextHtml(){')==1 and '_haHouseIntegration=true' in s
+ assert s.count('_profilesScreenCore(){')==1 and s.count('_modalHtmlCore(){')==1 and '_haViewLayout=true' in s
  assert 'shared_calendars' in s and '_modalHtml()' in s
  subprocess.run(['node','--check',str(root/'family-hub-card.js')],check=True)
  subprocess.run(['node','--check',str(root/'static/app.js')],check=True)

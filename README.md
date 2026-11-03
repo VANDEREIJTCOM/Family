@@ -39,8 +39,6 @@ Er zijn geen handmatige YAML- of Lovelace-resource-stappen nodig.
 
 Family Hub gebruikt native Home Assistant-entiteiten waar dat logisch is en maakt ontbrekende lokale agenda's, takenlijsten en puntenhelpers automatisch aan.
 
-## Updates
-
 ## Home Assistant-opmaak en huiscontext (0.13)
 
 De dashboardkaart volgt standaard de actieve Home Assistant-kleuren, achtergrond,
@@ -48,6 +46,10 @@ typografie en kaarten. Gezinskleuren en fout-/succeskleuren houden hun betekenis
 De gedeelde opmaak gebruikt leesbare tekstmaten en grotere aanraakvlakken.
 Op grote schermen in portretstand sluiten tekst, navigatie en tussenruimte aan
 op een wanddashboard, in plaats van de oorspronkelijke compacte bureaubladopmaak.
+De weekagenda gebruikt op portretschermen leesbare dagblokken. In landscape blijft
+de weekindeling naast elkaar beschikbaar. Met de optionele route `rooms` krijgt
+de Huis-tab directe koppelingen naar de bestaande HA-bediening als er nog geen
+losse huis-entiteiten zijn gekozen. Bestaande huis-entiteiten blijven zichtbaar.
 Met `follow_ha_theme: false` op de kaart blijft de oorspronkelijke Family Hub-stijl beschikbaar.
 
 Een optionele, alleen-lezen huiscontext toont op Vandaag relevante meldingen en
@@ -69,6 +71,7 @@ ha_context:
     - media_player.living_room
   routes:
     home: /home/today
+    rooms: /home/rooms
     attention: /home/attention
     checks: /home/checks
     morning: /home/morning
@@ -82,7 +85,8 @@ Gepauzeerde muziek blijft tien minuten zichtbaar. Alleen relatieve HA-paden
 zijn toegestaan. Niet-ingestelde bronnen veroorzaken geen foutmelding.
 
 Controleer de wijziging met `node tests/ha-context.cjs` en
-`python tests/build_runtime.py` (de laatste controle vereist ook Node).
+`node tests/ha-view-layout.cjs`, gevolgd door `python tests/build_runtime.py`
+(de laatste controle vereist ook Node).
 
 ## Updates
 

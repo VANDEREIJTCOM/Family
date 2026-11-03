@@ -3,6 +3,8 @@
 ## 0.13.0 — één geheel met Home Assistant
 
 - Leesbare tekstmaten, ruimere bediening en een afzonderlijke opmaak voor grote portretschermen.
+- Leesbare dagblokken in de portretagenda, een ruimer maaltijdplan en directe HA-koppelingen vanuit de Huis-tab.
+- Een optionele wandindeling houdt Family Hub-tabs apart van de gezamenlijke schermnavigatie; profielstatussen zijn begrijpelijk en vensters hebben herkenbare sluitbediening.
 - De dashboardkaart volgt de actieve Home Assistant-kleuren, kaarten en typografie; de oorspronkelijke stijl blijft optioneel beschikbaar.
 - Een optionele contextstrook op Vandaag toont relevante huiszaken en verwijst naar bestaande HA-pagina's: hulpvragen, was, afwijkende ochtend, avondcheck en actieve muziek.
 - Context gebruikt uitsluitend de bestaande HA-stateverbinding en verandert geen apparaten, taken, punten, agenda's of routines.
