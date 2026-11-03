@@ -21,3 +21,10 @@ ha-card,.hub{background:var(--primary-background-color,#f4f5f0);color:var(--prim
 .ha-context a{display:flex;flex:1 1 220px;align-items:center;gap:12px;text-decoration:none;padding:16px 18px;border-radius:22px;background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#dce3d5);color:var(--primary-text-color,#25342b);min-height:68px}
 .ha-context a:focus-visible{outline:3px solid var(--primary-color,#485c3e);outline-offset:3px}
 .ha-context strong{display:block;font-size:15px;font-weight:500}.ha-context small{display:block;font-size:12px;color:var(--secondary-text-color,#64715f);margin-top:3px}.ha-context ha-icon{color:var(--primary-color,#485c3e)}
+/* Detail screens use the same surfaces, including calendar cells and controls. */
+.day-col,.meal-card,.profile-card,.house-big,.points-strip button,.reward-card.wheel-card,.profile-reward.wheel-reward,.wheel-option-list span{background:var(--card-background-color,#fff);color:var(--primary-text-color,#25342b);border-color:var(--divider-color,#dce3d5)}
+.event,.routine-task-group,.screen-title button,.member-column-head button,.list-head button,.meal-card>button,.reward-card button:not(.ready):not(.pending):not(.claimed),.wheel-option-list span i,.check-row.completed{background:var(--secondary-background-color,#e6ebdf);color:var(--primary-text-color,#25342b)}
+.check-row,.list-row,.week-head button,.day-empty{color:var(--primary-text-color,#25342b)}
+.week-head .today,.primary-btn{background:var(--primary-color,#485c3e);color:var(--text-primary-color,#fff)}
+.week-head .today span{color:inherit}.day-col.today{border-color:var(--primary-color,#485c3e)}
+.family-quick-picker button>span:last-child{text-shadow:none}
