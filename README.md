@@ -41,6 +41,48 @@ Family Hub gebruikt native Home Assistant-entiteiten waar dat logisch is en maak
 
 ## Updates
 
+## Home Assistant-opmaak en huiscontext (0.13)
+
+De dashboardkaart volgt standaard de actieve Home Assistant-kleuren, achtergrond,
+typografie en kaarten. Gezinskleuren en fout-/succeskleuren houden hun betekenis.
+Met `follow_ha_theme: false` op de kaart blijft de oorspronkelijke Family Hub-stijl beschikbaar.
+
+Een optionele, alleen-lezen huiscontext toont op Vandaag relevante meldingen en
+verwijst naar bestaande HA-bediening. Er worden geen apparaten gestart en geen
+extra meldingen verstuurd. De kaart gebruikt de bestaande HA-stateverbinding.
+
+```yaml
+type: custom:family-hub-card
+config_url: /local/family-hub/settings.json
+follow_ha_theme: true
+ha_context:
+  enabled: true
+  sources:
+    attention: input_text.house_attention
+    washer: input_text.washer_notice
+    morningTime: input_datetime.wake_up
+    morningOverride: input_boolean.alternative_wake_up
+  players:
+    - media_player.living_room
+  routes:
+    home: /home/today
+    attention: /home/attention
+    checks: /home/checks
+    morning: /home/morning
+    music: /home/music
+```
+
+De optionele bron `attention` heeft de vorm `{"v":2,"o":["open_item"]}`;
+afgehandelde items staan niet in `o`. De wasbron gebruikt `{"s":"open"}` of
+`{"s":"wachten"}`. De avondcheck verschijnt alleen in de avond/nacht.
+Gepauzeerde muziek blijft tien minuten zichtbaar. Alleen relatieve HA-paden
+zijn toegestaan. Niet-ingestelde bronnen veroorzaken geen foutmelding.
+
+Controleer de wijziging met `node tests/ha-context.cjs` en
+`python tests/build_runtime.py` (de laatste controle vereist ook Node).
+
+## Updates
+
 Home Assistant leest de versie uit `vandereijt_family_hub/config.yaml`. Zodra een nieuwe versie in deze repository staat, kan Home Assistant deze als App-update aanbieden. Een door Family Hub beheerd dashboard en kaart-resource worden bij het starten van de nieuwe versie automatisch gesynchroniseerd.
 
 ## Ontwikkeling

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.0 — één geheel met Home Assistant
+
+- De dashboardkaart volgt de actieve Home Assistant-kleuren, kaarten en typografie; de oorspronkelijke stijl blijft optioneel beschikbaar.
+- Een optionele contextstrook op Vandaag toont relevante huiszaken en verwijst naar bestaande HA-pagina's: hulpvragen, was, afwijkende ochtend, avondcheck en actieve muziek.
+- Context gebruikt uitsluitend de bestaande HA-stateverbinding en verandert geen apparaten, taken, punten, agenda's of routines.
+- Gezin- en statuskleuren blijven herkenbaar. Bronnen en relatieve navigatiepaden zijn per kaart configureerbaar.
+- Automatische controles dekken contextkeuze, veilige navigatie, gegroepeerde muziek en de volledige runtime-build met alle eerdere migraties.
+
 ## 0.12.0 — meerdere variabele beloningsradjes
 - Onder **Punten & beloningen** kun je naast vaste beloningen nu ook **beloningsradjes** maken.
 - Ieder rad krijgt een eigen puntenniveau, bijvoorbeeld **5, 10 of 20 punten**, zodat je meerdere radjes naast elkaar kunt gebruiken.

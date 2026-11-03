@@ -1,0 +1,23 @@
+/* Inherit the active Home Assistant palette; member and status colors keep meaning. */
+:host{font-family:var(--primary-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);--dark:var(--primary-text-color,#25342b);--blue:var(--primary-color,#485c3e);--blue2:var(--primary-color,#485c3e);--yellow:var(--accent-color,#485c3e);--soft:var(--secondary-background-color,#e6ebdf);--line:var(--divider-color,#dce3d5);--muted:var(--secondary-text-color,#64715f)}
+ha-card,.hub{background:var(--primary-background-color,#f4f5f0);color:var(--primary-text-color,#25342b)}
+.hub{--blue:var(--primary-color,#485c3e)!important;--overlay:1!important}
+.wall{display:none}
+.hub-header{background:var(--card-background-color,#fff);color:var(--primary-text-color,#25342b);border-bottom:1px solid var(--divider-color,#dce3d5)}
+.brand strong,.clock,.clock b,.brand small{color:var(--secondary-text-color,#64715f)}
+.brand span{font-weight:500}
+.content{background:var(--primary-background-color,#f4f5f0)}
+.member-filter,.bottom-nav{background:var(--card-background-color,#fff);border-color:var(--divider-color,#dce3d5)}
+.member-filter button,.panel-block,.screen-card,.member-column,.list-card,.routine-card,.shopping-preview,.empty.big,.modal,.detail-card,.reward-card,.reward-panel,.house-tile,.stat-card,.calendar-day,.day-column{background:var(--card-background-color,#fff);color:var(--primary-text-color,#25342b);border-color:var(--divider-color,#dce3d5);box-shadow:none;border-radius:22px}
+.agenda-row,.empty-action,.reward-period,.routine-hint,.detail-secondary,.secondary-action,.detail-icon,.wheel-explain,.update-screen,.reward-people button,.event.family-generated{background:var(--secondary-background-color,#e6ebdf);color:var(--primary-text-color,#25342b);border-color:var(--divider-color,#dce3d5)}
+.agenda-click:hover,.check-row:hover,.house-tile:hover,.event-click:hover{background:var(--secondary-background-color,#e6ebdf)}
+.bottom-nav button,.check-row .task-open,.section-link,.routine-link,.person-link,.modal input,.modal textarea,.modal select{color:var(--primary-text-color,#25342b)}
+.bottom-nav button.active,.member-filter-all.active,.save{background:var(--primary-color,#485c3e);color:var(--text-primary-color,#fff)}
+.bottom-nav button.active span,.bottom-nav button.active ha-icon{color:inherit}
+.modal input,.modal textarea,.modal select{background:var(--input-fill-color,var(--secondary-background-color,#e6ebdf));border-color:var(--divider-color,#dce3d5)}
+.person-mini,.check-row,.list-item,.routine-task-head{border-color:var(--divider-color,#dce3d5)}
+.mini,.event em{background:var(--secondary-background-color,#e6ebdf);color:var(--primary-color,#485c3e)}
+.ha-context{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 18px}
+.ha-context a{display:flex;flex:1 1 220px;align-items:center;gap:12px;text-decoration:none;padding:16px 18px;border-radius:22px;background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#dce3d5);color:var(--primary-text-color,#25342b);min-height:68px}
+.ha-context a:focus-visible{outline:3px solid var(--primary-color,#485c3e);outline-offset:3px}
+.ha-context strong{display:block;font-size:15px;font-weight:500}.ha-context small{display:block;font-size:12px;color:var(--secondary-text-color,#64715f);margin-top:3px}.ha-context ha-icon{color:var(--primary-color,#485c3e)}
