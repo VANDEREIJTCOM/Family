@@ -17,7 +17,7 @@ COPY runtime_patch_0_12_2.py /app/runtime_patch_0_12_2.py
 COPY runtime_patch_0_12_3.py /app/runtime_patch_0_12_3.py
 COPY runtime_patch_0_12_4.py /app/runtime_patch_0_12_4.py
 COPY runtime_patch_0_13_0.py /app/runtime_patch_0_13_0.py
-COPY progress-card.js ha-context.js ha-theme.css ha-view-layout.js ha-task-actions.js ha-scroll-state.js /app/
+COPY hub-navigation.js progress-card.js ha-context.js ha-theme.css ha-view-layout.js ha-task-actions.js ha-scroll-state.js /app/
 
 # Apply the previous runtime migrations plus shared Home Assistant calendars,
 # then bind every generated runtime asset to the Home Assistant BUILD_VERSION.

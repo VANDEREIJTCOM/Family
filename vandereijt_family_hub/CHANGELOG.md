@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.2 — één navigatiebalk
+
+- Eén onderste Hub-navigatiebalk met Home Assistant Thuis in het midden. De wandpagina kan haar eigen thuisroute meegeven.
+- Personen en agenda’s filteren via de Filter-knop; selectie blijft zichtbaar in het uitklapmenu en de knoppen nemen geen vaste extra rij meer in.
+- Gezin en Filter sluiten elkaar; het filter sluit met de sluitknop, Escape of een tik buiten het menu.
+
 ## 0.14.1 — duidelijke keuzeklusjes
 
 - Kluskaartjes tonen de ingestelde puntenwaarde en dat punten na ouderakkoord volgen. Keuzeklusjes zijn herkenbaar als vrijwillig.

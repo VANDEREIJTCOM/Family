@@ -42,5 +42,6 @@ s=s.replace(marker,'FamilyHubCard.prototype._haHouseIntegration=true;\nFamilyHub
 s=s.replace(marker,(ROOT/'ha-task-actions.js').read_text(encoding='utf-8')+'\nFamilyHubTaskActions.install(FamilyHubCard.prototype);\n'+marker,1)
 s=s.replace(marker,(ROOT/'ha-scroll-state.js').read_text(encoding='utf-8')+'\nFamilyHubScrollState.install(FamilyHubCard.prototype);\n'+marker,1)
 s=s.replace(marker,(ROOT/'progress-card.js').read_text(encoding='utf-8')+'\nFamilyHubProgress.install(FamilyHubCard.prototype);\n'+marker,1)
+s=s.replace(marker,(ROOT/'hub-navigation.js').read_text(encoding='utf-8')+'\nFamilyHubNavigation.install(FamilyHubCard.prototype);\n'+marker,1)
 path.write_text(s,encoding='utf-8')
 print('HA_THEME_AND_CONTEXT_PATCHED')
