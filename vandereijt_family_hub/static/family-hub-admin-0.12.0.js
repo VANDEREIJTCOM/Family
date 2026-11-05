@@ -73,7 +73,7 @@ function stepEditorHtml(step={},index=0){
     <div class="step-main">
       <label>Wat moet er gebeuren?<input data-step-key="title" value="${esc(step.title||"")}" placeholder="Bijv. tandenpoetsen"></label>
       <div class="step-meta">
-        <label>Punten <input data-step-key="points" type="number" min="0" max="100" value="${Number(step.points||0)}"></label>
+        <input data-step-key="points" type="hidden" value="${Number(step.points||0)}">
         <span class="help-inline">⭐ Optioneel: deze punten worden verdiend als de stap klaar is.</span>
       </div>
       <label>Icoon</label>
@@ -273,7 +273,7 @@ const ROUTINE_TEMPLATES=[
 let suggestions=[];
 
 function deepClone(v){return JSON.parse(JSON.stringify(v))}
-function memberName(id){return (settings.members||[]).find(m=>m.id===id)?.name||"Onbekend"}
+function memberName(id){if(id==="__family__")return "Gezin";return (settings.members||[]).find(m=>m.id===id)?.name||"Onbekend"}
 function routineMemberIds(r){const a=Array.isArray(r.member_ids)&&r.member_ids.length?r.member_ids:(r.member_id?[r.member_id]:[]);return [...new Set(a.filter(Boolean))]}
 function daySummary(days){
  const a=[...(days||[])].map(Number).sort();
@@ -324,7 +324,7 @@ function openRoutineEditor(index=null,seed=null){
    <label>Dagen</label>${editorDays(r.days||[0,1,2,3,4])}
   </section>
   <section class="editor-section span2"><div class="builder-head"><div><h3>2. Wat moet er gebeuren?</h3><p>Maak alleen de stappen die echt helpen. Kort is meestal beter.</p></div><button type="button" class="secondary small-btn" data-add-step>+ Stap</button></div><div class="steps-editor">${(r.steps||[]).map((x,i)=>stepEditorHtml(x,i)).join("")||'<div class="builder-empty">Nog geen stappen.</div>'}</div></section>
-  <section class="editor-section"><h3>3. Waar moet hij verschijnen?</h3><label class="switch"><input id="ed-routine-calendar" type="checkbox" ${r.show_in_calendar!==false?"checked":""}> In de agenda van iedere gekozen persoon</label><label class="switch"><input id="ed-routine-tasks" type="checkbox" ${r.show_in_tasks!==false?"checked":""}> Stappen in de takenlijst</label><label class="switch"><input id="ed-routine-enabled" type="checkbox" ${r.enabled!==false?"checked":""}> Routine actief</label></section>
+  <section class="editor-section"><h3>3. Punten en zichtbaarheid</h3><label>Punten voor de hele routine<input id="ed-routine-points" type="number" min="0" max="500" value="${Number(r.completion_points??(r.steps||[]).reduce((n,s)=>n+Number(s.points||0),0))}"></label><p>Deze punten volgen één keer als alle stappen van die dag klaar zijn.</p><label class="switch"><input id="ed-routine-calendar" type="checkbox" ${r.show_in_calendar!==false?"checked":""}> In de agenda van iedere gekozen persoon</label><label class="switch"><input id="ed-routine-tasks" type="checkbox" ${r.show_in_tasks!==false?"checked":""}> Stappen in de takenlijst</label><label class="switch"><input id="ed-routine-enabled" type="checkbox" ${r.enabled!==false?"checked":""}> Routine actief</label></section>
   <section class="editor-section"><h3>4. Icoon</h3>${iconPicker(r.icon||"mdi:progress-check",'id="ed-routine-icon"',true)}</section>
  </div>`;
  const el=editorShell(index==null?"Routine maken":"Routine bewerken","Na Opslaan is deze routine direct actief.",body,"Opslaan");
@@ -335,7 +335,7 @@ function openRoutineEditor(index=null,seed=null){
   if(!member_ids.length)return toast("Kies minimaal één gezinslid.");
   if(!days.length)return toast("Kies minimaal één dag.");
   if(!steps.length)return toast("Voeg minimaal één stap toe.");
-  const next={...r,id:r.id||uid("routine"),title,member_ids,member_id:member_ids[0],time:el.querySelector("#ed-routine-time").value||"07:00",duration_minutes:Number(el.querySelector("#ed-routine-duration").value||30),days,steps,icon:el.querySelector("#ed-routine-icon").value||"mdi:progress-check",show_in_calendar:el.querySelector("#ed-routine-calendar").checked,show_in_tasks:el.querySelector("#ed-routine-tasks").checked,enabled:el.querySelector("#ed-routine-enabled").checked};
+  const next={...r,id:r.id||uid("routine"),title,member_ids,member_id:member_ids[0],time:el.querySelector("#ed-routine-time").value||"07:00",duration_minutes:Number(el.querySelector("#ed-routine-duration").value||30),days,steps,completion_points:Number(el.querySelector("#ed-routine-points").value||0),icon:el.querySelector("#ed-routine-icon").value||"mdi:progress-check",show_in_calendar:el.querySelector("#ed-routine-calendar").checked,show_in_tasks:el.querySelector("#ed-routine-tasks").checked,enabled:el.querySelector("#ed-routine-enabled").checked};
   const inserted=index==null;if(inserted)settings.routines.push(next);else settings.routines[index]=next;
   const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
   const ok=await saveSection("routines",inserted?"Routine opgeslagen":"Routine bijgewerkt");
@@ -351,7 +351,7 @@ function bindRoutineActions(root){
 function bindSmartTaskActions(root){
  root.querySelectorAll("[data-edit-smart-task]").forEach(b=>b.onclick=e=>{e.stopPropagation();openTaskEditor(Number(b.getAttribute("data-edit-smart-task")))});
  root.querySelectorAll("[data-copy-smart-task]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=Number(b.getAttribute("data-copy-smart-task")),x=deepClone(settings.smart_tasks[i]);x.id=uid("task");x.title="Kopie van "+x.title;openTaskEditor(null,x)});
- root.querySelectorAll("[data-remove-smart-task]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=Number(b.getAttribute("data-remove-smart-task"));if(confirm("Terugkerende taak verwijderen?")){settings.smart_tasks.splice(i,1);renderSmartTasks();saveSection("smart_tasks","Taak verwijderd")}});
+ root.querySelectorAll("[data-remove-smart-task]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=Number(b.getAttribute("data-remove-smart-task"));if(confirm("Klusje op naam verwijderen?")){settings.smart_tasks.splice(i,1);renderSmartTasks();saveSection("smart_tasks","Taak verwijderd")}});
 }
 function bindListActions(root){
  root.querySelectorAll("[data-edit-list]").forEach(b=>b.onclick=e=>{e.stopPropagation();openListEditor(Number(b.getAttribute("data-edit-list")))});
@@ -371,17 +371,17 @@ function bindDepartureActions(root){
 function renderRoutines(){
  const root=$("routines"),items=settings.routines||[];
  root.className="manage-grid";
- root.innerHTML=items.length?items.map((r,i)=>{const ids=routineMemberIds(r),icon=iconInfo(r.icon),points=(r.steps||[]).reduce((n,x)=>n+Number(x.points||0),0);return `<article class="manage-card routine-manage-card ${r.enabled===false?"disabled-card":""}"><div class="manage-icon">${icon[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(r.title)}</strong>${r.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills(ids)}<div class="manage-meta"><span>🕒 ${esc(r.time||"")} · ${Number(r.duration_minutes||30)} min</span><span>📅 ${esc(daySummary(r.days))}</span><span>☑ ${(r.steps||[]).length} stappen</span>${points?`<span>⭐ ${points} p/dag</span>`:""}</div><div class="manage-flags">${r.show_in_calendar!==false?"<span>Agenda</span>":""}${r.show_in_tasks!==false?"<span>Taken</span>":""}</div></div>${actionButtons("routine",i)}</article>`}).join(""):managementEmpty("Nog geen routines");
+ root.innerHTML=items.length?items.map((r,i)=>{const ids=routineMemberIds(r),icon=iconInfo(r.icon),points=Number(r.completion_points??(r.steps||[]).reduce((n,x)=>n+Number(x.points||0),0));return `<article class="manage-card routine-manage-card ${r.enabled===false?"disabled-card":""}"><div class="manage-icon">${icon[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(r.title)}</strong>${r.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills(ids)}<div class="manage-meta"><span>🕒 ${esc(r.time||"")} · ${Number(r.duration_minutes||30)} min</span><span>📅 ${esc(daySummary(r.days))}</span><span>☑ ${(r.steps||[]).length} stappen</span>${points?`<span>⭐ ${points} p/dag</span>`:""}</div><div class="manage-flags">${r.show_in_calendar!==false?"<span>Agenda</span>":""}${r.show_in_tasks!==false?"<span>Taken</span>":""}</div></div>${actionButtons("routine",i)}</article>`}).join(""):managementEmpty("Nog geen routines");
  bindRoutineActions(root);
 }
 function openTaskEditor(index=null,seed=null){
  const t=deepClone(seed||(index==null?{title:"",member_id:"",icon:"mdi:checkbox-marked-circle-outline",points:0,days:[0,1,2,3,4],due_time:"",show_in_calendar:true,enabled:true}:settings.smart_tasks[index]));
  const body=`<div class="editor-grid">
   <section class="editor-section span2">
-   <h3>Terugkerende taak</h3>
+   <h3>Klusje op naam</h3>
    <label>Wat moet er gebeuren?<input id="ed-task-title" value="${esc(t.title||"")}" placeholder="Bijv. kamer opruimen"></label>
    <div class="editor-two">
-    <label>Voor wie?<select id="ed-task-member">${memberOptions(t.member_id)}</select></label>
+    <label>Voor wie?<select id="ed-task-member">${memberOptions(t.member_id)}<option value="__all__" ${t.assignment==="all"?"selected":""}>Voor allemaal · klusje op naam</option><option value="__choice__" ${t.assignment==="choice"?"selected":""}>Keuzeklus · iedereen mag meedoen</option></select></label>
     <label>Tijd<input id="ed-task-time" type="time" value="${esc(t.due_time||"")}"></label>
    </div>
    <label>Dagen</label>${editorDays(t.days||[0,1,2,3,4])}
@@ -398,19 +398,19 @@ function openTaskEditor(index=null,seed=null){
    <label>Icoon</label>${iconPicker(t.icon||"mdi:checkbox-marked-circle-outline",'id="ed-task-icon"',true)}
   </section>
  </div>`;
- const el=editorShell(index==null?"Terugkerende taak maken":"Taak bewerken","Na Opslaan staat de taak direct klaar voor Family Hub.",body,"Opslaan");
+ const el=editorShell(index==null?"Klusje op naam maken":"Taak bewerken","Na Opslaan staat de taak direct klaar voor Family Hub.",body,"Opslaan");
  el.querySelectorAll("[data-day-preset]").forEach(b=>b.onclick=()=>{const sets={week:[0,1,2,3,4],all:[0,1,2,3,4,5,6],weekend:[5,6]},set=new Set(sets[b.dataset.dayPreset]);el.querySelectorAll("[data-editor-day]").forEach(x=>x.checked=set.has(Number(x.value)))});
  el.querySelector("[data-editor-save]").onclick=async()=>{
   const title=el.querySelector("#ed-task-title").value.trim(),member_id=el.querySelector("#ed-task-member").value,days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value));
   if(!title||!member_id||!days.length)return toast("Vul naam, persoon en dagen in.");
-  const next={...t,id:t.id||uid("task"),title,member_id,days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),show_in_calendar:el.querySelector("#ed-task-calendar").checked,enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};
+  const next={...t,id:t.id||uid("task"),title,member_id:member_id.startsWith("__")?"":member_id,assignment:member_id==="__all__"?"all":member_id==="__choice__"?"choice":"named",days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),show_in_calendar:el.querySelector("#ed-task-calendar").checked,enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};
   const inserted=index==null;if(inserted)settings.smart_tasks.push(next);else settings.smart_tasks[index]=next;
   const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
   const ok=await saveSection("smart_tasks",inserted?"Taak opgeslagen":"Taak bijgewerkt");
   if(ok){closeEditor();renderSmartTasks()}else{if(inserted)settings.smart_tasks.pop();else settings.smart_tasks[index]=t;btn.disabled=false;btn.textContent="Opslaan"}
  };
 }
-function renderSmartTasks(){const root=$("smart-tasks"),items=settings.smart_tasks||[];root.className="manage-grid";root.innerHTML=items.length?items.map((t,i)=>`<article class="manage-card ${t.enabled===false?"disabled-card":""}"><div class="manage-icon">${iconInfo(t.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(t.title)}</strong>${t.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills([t.member_id])}<div class="manage-meta"><span>📅 ${esc(daySummary(t.days))}</span>${t.due_time?`<span>🕒 ${esc(t.due_time)}</span>`:""}${Number(t.points||0)?`<span>⭐ ${Number(t.points)} punten</span>`:""}${t.show_in_calendar!==false?'<span>🗓 Agenda</span>':""}</div></div>${actionButtons("smart-task",i)}</article>`).join(""):managementEmpty("Nog geen terugkerende taken");bindSmartTaskActions(root)}
+function renderSmartTasks(){const root=$("smart-tasks"),items=settings.smart_tasks||[];root.className="manage-grid";root.innerHTML=items.length?items.map((t,i)=>`<article class="manage-card ${t.enabled===false?"disabled-card":""}"><div class="manage-icon">${iconInfo(t.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(t.title)}</strong>${t.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${t.assignment==="all"?"<span>Voor allemaal</span>":t.assignment==="choice"?"<span>Keuzeklus voor iedereen</span>":memberPills([t.member_id])}<small>Punten na ouderakkoord</small><div class="manage-meta"><span>📅 ${esc(daySummary(t.days))}</span>${t.due_time?`<span>🕒 ${esc(t.due_time)}</span>`:""}${Number(t.points||0)?`<span>⭐ ${Number(t.points)} punten</span>`:""}${t.show_in_calendar!==false?'<span>🗓 Agenda</span>':""}</div></div>${actionButtons("smart-task",i)}</article>`).join(""):managementEmpty("Nog geen klusjes op naam");bindSmartTaskActions(root)}
 function openListEditor(index=null,seed=null){const l=deepClone(seed||(index==null?{title:"",icon:"mdi:format-list-checks",color:"#2E6CA5",todo_entity:""}:settings.lists[index]));const body=`<div class="editor-grid"><section class="editor-section span2"><label>Naam<input id="ed-list-title" value="${esc(l.title||"")}"></label><div class="editor-two"><label>Kleur<input id="ed-list-color" type="color" value="${esc(l.color||"#2E6CA5")}"></label><div><label>Icoon</label>${iconPicker(l.icon||"mdi:format-list-checks",'id="ed-list-icon"',true)}</div></div></section></div>`;const el=editorShell(index==null?"Lijst maken":"Lijst bewerken","Na Opslaan is de lijst direct beschikbaar.",body,"Opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-list-title").value.trim();if(!title)return toast("Geef de lijst een naam.");const next={...l,id:l.id||uid("list"),title,color:el.querySelector("#ed-list-color").value,icon:el.querySelector("#ed-list-icon").value};const inserted=index==null;if(inserted)settings.lists.push(next);else settings.lists[index]=next;const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";const ok=await saveSection("lists",inserted?"Lijst opgeslagen":"Lijst bijgewerkt");if(ok){closeEditor();renderLists()}else{if(inserted)settings.lists.pop();else settings.lists[index]=l;btn.disabled=false;btn.textContent="Opslaan"}}}
 function renderLists(){const root=$("lists"),items=settings.lists||[];root.className="manage-grid";root.innerHTML=items.length?items.map((l,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(l.icon)[1]}</div><div class="manage-main"><strong>${esc(l.title)}</strong><div class="manage-meta"><span><i class="color-dot" style="background:${esc(l.color||"#2E6CA5")}"></i> Gedeelde lijst</span></div></div>${actionButtons("list",i,l.id!=="shopping")}</article>`).join(""):managementEmpty("Nog geen extra lijstjes");bindListActions(root)}
 function rewardCycleLabel(cycle){return ({balance:"Doorlopend sparen",daily:"Iedere dag",weekly:"Iedere week",monthly:"Iedere maand"})[cycle]||"Doorlopend sparen"}
@@ -423,7 +423,7 @@ function openRewardEditor(index=null,seed=null){
    <label>Wat is de beloning?<input id="ed-reward-title" value="${esc(r.title||"")}" placeholder="Bijv. snoepje, film kiezen of uitje"></label>
    <div class="editor-two">
     <label>Punten nodig<input id="ed-reward-cost" type="number" min="1" value="${Number(r.cost||50)}"></label>
-    <label>Voor wie?<select id="ed-reward-member">${memberOptions(r.member_id,"Iedereen")}</select></label>
+    <label>Voor wie?<select id="ed-reward-member">${memberOptions(r.member_id,"Iedereen · persoonlijk")}<option value="__family__" ${r.member_id==="__family__"?"selected":""}>Gezin · samen sparen</option></select></label>
    </div>
   </section>
   <section class="editor-section">
@@ -438,7 +438,8 @@ function openRewardEditor(index=null,seed=null){
   </section>
   <section class="editor-section"><h3>Icoon</h3>${iconPicker(r.icon||"mdi:gift",'id="ed-reward-icon"',true)}</section>
  </div>`;
- const el=editorShell(index==null?"Beloning maken":"Beloning bewerken","Kies of er per dag, week, maand of doorlopend gespaard wordt.",body,"Opslaan");
+ const el=editorShell(index==null?"Beloning maken":"Beloning bewerken","Gezinsbeloning: samen sparen, ouders verzilveren na uitvoering. Persoonlijk inwisselen verlaagt de gezinspot niet.",body,"Opslaan");
+ el.querySelector("#ed-reward-member").onchange=e=>{if(e.target.value==="__family__"){el.querySelector("#ed-reward-cost").value=150;el.querySelector("#ed-reward-cycle").value="balance"}};
  el.querySelector("[data-editor-save]").onclick=async()=>{
   const title=el.querySelector("#ed-reward-title").value.trim();if(!title)return toast("Geef de beloning een naam.");
   const next={...r,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-reward-cost").value||1),member_id:el.querySelector("#ed-reward-member").value,cycle:el.querySelector("#ed-reward-cycle").value,icon:el.querySelector("#ed-reward-icon").value,reward_type:"fixed",wheel_options:[]};

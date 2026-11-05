@@ -15,6 +15,8 @@ import urllib.request
 import uuid
 
 import websocket
+from progress_bridge import ProgressBridge
+from family_progress import ProgressError, task_members
 from ha_access import FamilyHubAccess, AccessError
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
@@ -94,6 +96,7 @@ DEFAULTS = {
     "home_sections": DEFAULT_HOME_SECTIONS,
     "routines": [],
     "smart_tasks": [],
+    "family_todo": "",
     "rewards": [],
     "lists": [],
     "departure_rules": [],
@@ -218,6 +221,7 @@ def normalize_settings(data):
             "show_in_tasks": bool(routine.get("show_in_tasks", True)),
             "enabled": bool(routine.get("enabled", True)),
             "todo_entity": str(routine.get("todo_entity") or "")[:160],
+            "completion_points": max(0, min(500, int(routine.get("completion_points", sum(s["points"] for s in steps))))),
             "steps": steps[:20],
         })
     out["routines"] = routines[:40]
@@ -233,6 +237,7 @@ def normalize_settings(data):
             "id": _clean_id(task.get("id"), f"task_{idx+1}"),
             "title": title[:100],
             "member_id": str(task.get("member_id") or "")[:80],
+            "assignment": task.get("assignment") if task.get("assignment") in ("all", "choice") else "named",
             "icon": str(task.get("icon") or "mdi:checkbox-marked-circle-outline")[:80],
             "points": max(0, min(500, int(task.get("points") or 0))),
             "days": [int(x) for x in (task.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
@@ -275,10 +280,10 @@ def normalize_settings(data):
         rewards.append({
             "id": _clean_id(reward.get("id"), f"reward_{idx+1}"),
             "title": title[:100],
-            "cost": max(1, min(100000, int(reward.get("cost") or 1))),
+            "cost": max(1, min(100000, int(reward.get("cost") or (150 if reward.get("member_id")=="__family__" else 1)))),
             "icon": str(reward.get("icon") or ("mdi:ferris-wheel" if reward_type == "wheel" else "mdi:gift"))[:80],
             "member_id": str(reward.get("member_id") or "")[:80],
-            "cycle": cycle,
+            "cycle": "balance" if reward.get("member_id")=="__family__" else cycle,
             "reward_type": reward_type,
             "wheel_options": wheel_options[:24],
         })
@@ -1286,6 +1291,13 @@ def provision_family_features(settings):
             except Exception as exc:
                 warnings.append(f"Punten {member['name']}: {exc}")
 
+    if not settings.get("family_todo"):
+        try:
+            settings["family_todo"] = ensure_named_todo("Family Hub Gezinsbeloningen")
+            provisioned.append({"type": "family", "entity_id": settings["family_todo"]})
+        except Exception as exc:
+            warnings.append(f"Gezinsbeloningen: {exc}")
+
     if not settings.get("shopping_list"):
         try:
             settings["shopping_list"] = ensure_named_todo("Family Hub Boodschappen")
@@ -1682,7 +1694,8 @@ def sync_generated_content():
                             "routine_title": routine.get("title"),
                             "step_id": step.get("id"),
                             "member_id": member_id,
-                            "points": step.get("points", 0),
+                            "points": 0,
+                            "progress_version": 1,
                             "points_entity": member.get("points_entity") or "",
                             "date": today,
                         }
@@ -1721,32 +1734,36 @@ def sync_generated_content():
     for task in settings.get("smart_tasks", []):
         if not task.get("enabled", True) or weekday not in (task.get("days") or []):
             continue
-        member = members.get(task.get("member_id"))
-        if not member or not member.get("todo"):
-            continue
-        key = f"smarttask:{task.get('id')}:{today}"
-        if runtime.get(key):
-            continue
-        try:
-            meta = {
-                "kind": "smart_task",
-                "task_id": task.get("id"),
-                "member_id": task.get("member_id"),
-                "points": task.get("points", 0),
-                "points_entity": member.get("points_entity") or "",
-                "date": today,
-            }
-            add_todo_item(
-                member["todo"],
-                task.get("title") or "Taak",
-                "FH_META:" + json.dumps(meta, separators=(",", ":")),
-                today,
-                task.get("due_time") or None,
-            )
-            runtime[key] = int(time.time())
-            changed = True
-        except Exception as exc:
-            print(f"[Family Hub] Smart task sync failed for {task.get('title')}: {exc}", flush=True)
+        for assigned_id in task_members(task, members):
+            member = members.get(assigned_id)
+            if not member or not member.get("todo"):
+                continue
+            key = f"smarttask:{task.get('id')}:{assigned_id}:{today}"
+            if task.get("assignment", "named") == "named" and runtime.get(f"smarttask:{task.get('id')}:{today}"):
+                continue
+            if runtime.get(key):
+                continue
+            try:
+                meta = {
+                    "kind": "smart_task",
+                    "task_id": task.get("id"),
+                    "member_id": assigned_id,
+                    "points": 0,
+                    "progress_version": 1,
+                    "points_entity": member.get("points_entity") or "",
+                    "date": today,
+                }
+                add_todo_item(
+                    member["todo"],
+                    task.get("title") or "Taak",
+                    "FH_META:" + json.dumps(meta, separators=(",", ":")),
+                    today,
+                    task.get("due_time") or None,
+                )
+                runtime[key] = int(time.time())
+                changed = True
+            except Exception as exc:
+                print(f"[Family Hub] Smart task sync failed for {task.get('title')}: {exc}", flush=True)
 
     # Keep only about 45 days of generation markers.
     cutoff = time.time() - (45 * 86400)
@@ -2758,6 +2775,8 @@ class Handler(BaseHTTPRequestHandler):
         user = self._authorize()
         if user is None:
             return
+        if path == "/api/progress":
+            return self._json(HTTPStatus.OK, {"ok": True, **PROGRESS.store.snapshot()})
         if path == "/api/access":
             try:
                 return self._json(HTTPStatus.OK, FAMILY_ACCESS.overview(user))
@@ -2872,6 +2891,14 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             print(f"[Family Hub] JSON error: {exc}; bytes={len(raw_body)}", flush=True)
             return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Ongeldige JSON"})
+
+        if path == "/api/progress":
+            try:
+                return self._json(HTTPStatus.OK, PROGRESS.resolve(payload))
+            except ProgressError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            except Exception:
+                return self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Verwerking tijdelijk niet beschikbaar; controleer opnieuw"})
 
         if path == "/api/access":
             try:
@@ -3101,12 +3128,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(HTTPStatus.NOT_FOUND)
 
 
+PROGRESS = ProgressBridge(globals())
+
 def main():
     ensure_dirs()
     current = load_settings()
     save_settings(current)
     print(f"[Family Hub] v{APP_VERSION} listening on {PORT}", flush=True)
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
+    threading.Thread(target=PROGRESS.loop, daemon=True).start()
     threading.Thread(target=family_scheduler_loop, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()
     threading.Thread(target=points_state_watch_loop, daemon=True).start()
