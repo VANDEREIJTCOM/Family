@@ -313,7 +313,7 @@ class FamilyHubCard extends HTMLElement{
   _fontSizeVars(){
     const scale=Math.max(80,Math.min(140,Number(this._config?.font_scale||100)))/100;
     const sizes=[7,8,9,10,11,12,13,14,15,16,17,18,20,21,22,24,26,28,30,60,88];
-    return sizes.map(n=>`--fh-fs-${n}:${Math.max(1,Math.round(n*scale))}px`).join(";");
+    return `--fh-font-scale:${scale};`+sizes.map(n=>`--fh-fs-${n}:${Math.max(1,Math.round(n*scale))}px`).join(";");
   }
   _member(id){return (this._config.members||[]).find(m=>m.id===id);}
   _memberByName(name){return (this._config.members||[]).find(m=>m.name===name);}
@@ -558,15 +558,15 @@ class FamilyHubCard extends HTMLElement{
   async _complete(entity,item){
     if(!entity||!item)return;
     const meta=this._meta(item);
-    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:"completed",...(["routine_step","smart_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
-    if(!["routine_step","smart_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity)await this._award(meta.points_entity,meta.points);
+    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:"completed",...(["routine_step","smart_task","manual_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
+    if(!["routine_step","smart_task","manual_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity)await this._award(meta.points_entity,meta.points);
     await this._load();
   }
   async _toggleTodo(entity,item){
     if(!entity||!item)return;
     const meta=this._meta(item),completed=item.status==="completed",next=completed?"needs_action":"completed";
-    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next,...(["routine_step","smart_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
-    if(!["routine_step","smart_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity){
+    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next,...(["routine_step","smart_task","manual_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
+    if(!["routine_step","smart_task","manual_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity){
       const current=Math.max(0,Number(this._hass?.states?.[meta.points_entity]?.state||0)||0);
       await this._setPoints(meta.points_entity,completed?Math.max(0,current-Number(meta.points||0)):current+Number(meta.points||0));
     }
@@ -619,7 +619,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
   _modalHtml(){
     const m=this._modal;if(!m)return "";let body="",footer='<button id="fh-save" class="save">Opslaan</button>';
     if(m.kind==="event")body=`<label>Voor<select id="fh-who">${m.choices.map(x=>`<option value="${this._esc(x.calendar)}">${this._esc(x.name)}</option>`).join("")}</select></label><label>Afspraak<input id="fh-summary" type="text"></label><div class="modal-row"><label>Datum<input id="fh-date" type="date" value="${this._esc(m.date)}"></label><label>Tijd<input id="fh-time" type="time" value="18:00"></label></div><label class="check"><input id="fh-all" type="checkbox"> Hele dag</label>`;
-    else if(m.kind==="task")body=`<label>Voor<select id="fh-who">${m.choices.map(x=>`<option value="${this._esc(x.todo)}" ${x.id===m.memberId?"selected":""}>${this._esc(x.name)}</option>`).join("")}</select></label><label>Taak<input id="fh-summary" type="text"></label><div class="modal-row"><label>Datum<input id="fh-date" type="date" value="${this._dateISO(new Date())}"></label><label>Punten<input id="fh-points" type="number" min="0" value="0"></label></div>`;
+    else if(m.kind==="task")body=`<label>Voor<select id="fh-who">${m.choices.map(x=>`<option value="${this._esc(x.todo)}" ${x.id===m.memberId?"selected":""}>${this._esc(x.name)}</option>`).join("")}</select></label><label>Taak<input id="fh-summary" type="text"></label><div class="modal-row"><label>Datum<input id="fh-date" type="date" value="${this._dateISO(new Date())}"></label></div>`;
     else if(m.kind==="list")body=`<label>Item<input id="fh-summary" type="text"></label>`;
     else if(m.kind==="meal")body=`<label>Maaltijd<input id="fh-summary" type="text" placeholder="Bijv. pasta pesto"></label><label>Datum<input id="fh-date" type="date" value="${this._esc(m.date)}"></label><label>Ingrediënten<textarea id="fh-ingredients" rows="7" placeholder="Pasta\nPesto\nTomaat"></textarea></label>`;
     else if(m.kind==="wheel"){
@@ -665,7 +665,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
   _todayAgenda(){
     const ev=this._eventsForDay(new Date());
     const html=ev.length?ev.slice(0,8).map(x=>`<button class="agenda-row agenda-click" data-event-detail data-event-member="${this._esc(x.member.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${x.member.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary||"Afspraak")}</strong><span>${this._esc(x.member.name)}${x.event._fhSynthetic?" · Family Hub":""}</span></div><b>›</b></button>`).join(""):'<div class="empty">Geen afspraken vandaag.</div>';
-    return this._section("Vandaag",html,'<button class="mini" data-add-event>＋</button>',"calendar");
+    return this._section("Vandaag",html,"","calendar");
   }
   _taskSection(){
     let rows="";
@@ -922,7 +922,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
         const summary=(q("#fh-summary")?.value||"").trim();if(!summary)return;
         if(this._modal.kind==="event")await this._addEvent(q("#fh-who").value,summary,q("#fh-date").value,q("#fh-time").value,q("#fh-all").checked);
         else if(this._modal.kind==="task"){
-          const entity=q("#fh-who").value,member=(this._config.members||[]).find(m=>m.todo===entity),points=Number(q("#fh-points").value||0),meta={kind:"manual_task",member_id:member?.id||"",points,points_entity:member?.points_entity||"",date:q("#fh-date").value};
+          const entity=q("#fh-who").value,member=(this._config.members||[]).find(m=>m.todo===entity),points=0,meta={kind:"manual_task",source:"hub_self",progress_version:1,member_id:member?.id||"",points,points_entity:"",date:q("#fh-date").value};
           await this._addTodo(entity,summary,"FH_META:"+JSON.stringify(meta),q("#fh-date").value);
         }else if(this._modal.kind==="list"){
           const l=(this._config.lists||[]).find(x=>x.id===this._modal.listId),entity=l?.todo_entity||(this._modal.listId==="shopping"?this._config.shopping_list:"");await this._addTodo(entity,summary);

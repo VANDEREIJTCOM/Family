@@ -1,3 +1,10 @@
+## 0.14.4
+
+- Settings reach open Hub devices immediately through Home Assistant events.
+- Read-only day agenda with horizontal date selection and a conditional Today button.
+- Configurable task columns, collapsible completed routines, and parent-controlled bonuses for self-created tasks.
+- Preserve reading position, reachable wall controls, saved text size and background photo; enter on Today.
+
 # Changelog
 
 ## 0.14.3 — meer ruimte en bereikbare bediening

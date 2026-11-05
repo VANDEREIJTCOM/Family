@@ -162,6 +162,7 @@
         <article class="card"><h2>Onderste navigatiebalk</h2><p>Bepaal welke Family Hub-schermen zichtbaar zijn en in welke volgorde.</p><div id="navigation-editor" class="reorder-list"></div></article>
         <article class="card"><h2>Indeling Vandaag</h2><p>Bepaal welke blokken op het startscherm staan en in welke volgorde. Uitgeschakelde blokken verdwijnen volledig.</p><div id="home-sections-editor" class="reorder-list"></div></article>
       </div>
+      <article class="card spaced"><h2>Indeling taken</h2><label>Personen tonen<select id="tasks_layout"><option value="stacked">Onder elkaar</option><option value="columns">Twee kolommen</option><option value="two_plus_one">Twee naast elkaar, laatste over volle breedte</option></select></label><small>Op smalle telefoons staan de personen onder elkaar.</small></article>
       <article class="card spaced"><h2>Volledig scherm</h2><p>Gebruik Family Hub als echte wanddisplay-weergave zonder de Home Assistant-zijbalk en de bovenste dashboardbalk. Onderaan verschijnt automatisch een knop <strong>Home Assistant</strong> om terug te gaan naar het normale Overzicht.</p>
         <label class="switch"><input id="fullscreen_mode" type="checkbox"> Family Hub schermvullend weergeven</label>
       </article>
@@ -172,8 +173,9 @@
         <article class="card"><h2>Kleuren & leesbaarheid</h2>
           <label>Accentkleur<div class="color"><input id="accent_color" type="color"><input id="accent_color_text" type="text"></div></label>
           <label>Achtergronddekking <span id="overlay-label">82%</span><input id="background_overlay" type="range" min="0" max="100"></label>
+          <small>Lagere achtergronddekking laat meer van je foto zien.</small>
           <label>Lettergrootte <span id="font-scale-label">100%</span><input id="font_scale" type="range" min="80" max="140" step="5" value="100"></label>
-          <small>100% is de standaard. Family Hub vergroot de echte lettergroottes in hele pixels, dus niet via browserzoom. Dat houdt tekst scherper op wanddisplays.</small>
+          <small>100% is de standaard. Kies de gewenste grootte en klik bovenaan op Opslaan. Vernieuw de Hub om de opgeslagen grootte direct te zien.</small>
         </article>
         <article class="card"><h2>Achtergrondfoto</h2><p>JPG, PNG of WebP. De foto blijft lokaal in Home Assistant.</p>
           <div id="background-preview" class="preview"><span>Geen achtergrond gekozen</span></div>

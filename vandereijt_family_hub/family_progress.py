@@ -68,7 +68,7 @@ class FamilyProgress:
                 if key not in seen and job['state'] in ('open','pending','rejected'):
                     job['state']='cancelled'
             for item in work:
-                if item['kind'] not in ('routine','chore'):continue
+                if item['kind'] not in ('routine','chore','manual'):continue
                 key=item['key'];job=state['jobs'].get(key)
                 if job is None:
                     job={k:copy.deepcopy(v) for k,v in item.items() if k not in ('complete','legacy_credit')}
@@ -100,13 +100,31 @@ class FamilyProgress:
             state=self._read();job=state['jobs'].get(key)
             if not job:raise ProgressError('Klus niet gevonden')
             if job['state']=='awarded':return copy.deepcopy(job)
-            valid=next((w for w in current_work if w['key']==key and w['kind']=='chore' and w['complete']),None)
+            valid=next((w for w in current_work if w['key']==key and w['kind'] in ('chore','manual') and w['complete']),None)
             if not valid:raise ProgressError('Het klusje staat niet meer als gedaan gemeld')
             if job['state'] not in ('pending','crediting'):raise ProgressError('Deze aanvraag is niet meer open')
             if not approve:
                 if job['state']=='crediting':raise ProgressError('Punten worden al verwerkt')
                 job['state']='rejected';self._save(state)
             else:self._credit(state,job)
+            return copy.deepcopy(job)
+
+    def assign_manual_bonus(self,unit,points):
+        if type(points) is not int or not 1<=points<=500:
+            raise ProgressError('Kies 1 tot en met 500 punten')
+        with self.lock:
+            state=self._read();key=unit['key'];job=state['jobs'].get(key)
+            if job and job['kind']!='manual':raise ProgressError('Ongeldige taak')
+            if job and job['state']=='awarded':return copy.deepcopy(job)
+            if job and job['state']=='review':raise ProgressError('Dit saldo vraagt eerst controle')
+            if job and job['state']=='crediting':
+                self._credit(state,job);return copy.deepcopy(job)
+            if not job:
+                job={k:copy.deepcopy(v) for k,v in unit.items() if k!='complete'}
+                job.update(state='open',attempt=0);state['jobs'][key]=job
+            job.update(points=points,points_entity=unit['points_entity'],title=unit['title'])
+            self._save(state)
+            if unit['complete']:self._credit(state,job)
             return copy.deepcopy(job)
 
     def select_reward(self,key,reward):
@@ -200,3 +218,18 @@ def build_work(settings,todos,today):
                 complete=any(r.get('status')=='completed' and meta(r).get('date')==date for r in rows)
                 work.append({'key':f'chore:{task["id"]}:{mid}:{date}','kind':'chore','title':task['title'],'member_id':mid,'member_name':member.get('name',mid),'date':date,'points':max(0,min(500,int(task.get('points',0)))),'points_entity':member['points_entity'],'complete':complete,'legacy_complete':complete and not any(meta(r).get('progress_version') for r in rows if r.get('status')=='completed' and meta(r).get('date')==date),'optional':task.get('assignment')=='choice'})
     return work
+
+
+def manual_work(settings,todos):
+    out=[]
+    for member in settings.get('members',[]):
+        if not member.get('todo') or not member.get('points_entity'):continue
+        for item in todos.get(member['todo'],[]):
+            try:
+                text=item.get('description','');meta=json.loads(text[8:]) if isinstance(text,str) and text.startswith('FH_META:') else {}
+                if not isinstance(meta,dict) or meta.get('kind')!='manual_task' or meta.get('member_id')!=member['id']:continue
+                uid=str(item.get('uid') or '')
+                if not uid:continue
+                out.append({'key':'manual:'+member['id']+':'+uid,'kind':'manual','member_id':member['id'],'member_name':member.get('name',member['id']),'uid':uid,'title':str(item.get('summary') or 'Taak'),'date':str(meta.get('date') or item.get('due') or '')[:10],'points_entity':member['points_entity'],'points':0,'complete':item.get('status')=='completed'})
+            except (TypeError,ValueError):continue
+    return out

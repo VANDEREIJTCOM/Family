@@ -16,7 +16,7 @@ const FamilyHubProgress=(()=>{
   };
   p._routineCard=function(r,compact,m){
    const html=routine.call(this,r,compact,m);if(compact)return html;
-   const key=r.id+':'+(m?.id||'all'),closed=this._closedRoutines?.has(key),points=Number(r.completion_points??(r.steps||[]).reduce((n,s)=>n+Number(s.points||0),0));
+   const key=r.id+':'+(m?.id||'all'),items=this._routineItems?.(r,m)||[],complete=!!r.steps?.length&&r.steps.every(step=>items.some(it=>this._meta(it)?.step_id===step.id&&it.status==='completed')),state=this._routineOpenState?.(key,complete),closed=state?!state.open:this._closedRoutines?.has(key),points=Number(r.completion_points??(r.steps||[]).reduce((n,s)=>n+Number(s.points||0),0));
    return '<details class="routine-collapse" data-routine-collapse="'+this._esc(key)+'" '+(closed?'':'open')+'><summary>'+this._esc(r.title)+' · '+this._esc(m?.name||'Gezin')+' · '+points+' ★ bij afronden</summary>'+html+'</details>';
   };
   p._taskRow=function(entity,item,mid){
@@ -48,7 +48,7 @@ const FamilyHubProgress=(()=>{
    .navigation-wrap,:host([wall-shell]) .navigation-wrap{order:10!important;height:auto!important;flex:0 0 auto!important;display:flex;flex-direction:column;background:var(--card-background-color,#fff)}
    .navigation-wrap .member-legend{margin:0;padding:8px 14px;overflow-x:auto;flex-wrap:nowrap}.navigation-wrap .bottom-nav{border-top:1px solid var(--divider-color,#ddd)!important;position:static!important}.content{order:0!important;min-height:0}
    .routine-collapse{border:1px solid var(--divider-color,#ddd);border-radius:16px;overflow:hidden}.routine-collapse summary{padding:18px;cursor:pointer;min-height:48px;box-sizing:border-box;font-weight:600}.routine-collapse .routine-card{margin:0}.approval-note{display:block;padding:4px 12px 12px;color:var(--secondary-text-color,#555)}
-   .family-pot{margin-bottom:20px}.family-pot>strong{font-size:32px}.family-pot button{min-height:48px;padding:10px 16px;border-radius:12px;border:1px solid var(--divider-color,#ddd);background:var(--card-background-color,#fff);color:inherit}
+   .family-pot{margin-bottom:20px}.family-pot>strong{font-size:calc(32px * var(--fh-font-scale,1))}.family-pot button{min-height:48px;padding:10px 16px;border-radius:12px;border:1px solid var(--divider-color,#ddd);background:var(--card-background-color,#fff);color:inherit}
   `};
  }
  return {install,weekOffset};

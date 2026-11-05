@@ -1,9 +1,10 @@
 """Home Assistant adapter for the tested progress ledger. No credentials published."""
 import json
+import hashlib
 from pathlib import Path
 import threading
 import time
-from family_progress import FamilyProgress,ProgressError,build_work
+from family_progress import FamilyProgress,ProgressError,build_work,manual_work
 
 class ProgressBridge:
     def __init__(self,app):
@@ -33,10 +34,21 @@ class ProgressBridge:
             if not isinstance(payload,dict) or not isinstance(payload.get('items'),list):
                 raise ProgressError('Takenlijst tijdelijk niet beschikbaar; puntenregistratie uitgesteld')
             todos[entity]=payload['items']
-        return settings,todos,build_work(settings,todos,time.strftime('%Y-%m-%d'))
+        work=build_work(settings,todos,time.strftime('%Y-%m-%d'))
+        jobs=self.store.snapshot()['jobs']
+        for unit in manual_work(settings,todos):
+            job=jobs.get(unit['key'])
+            if job and job['kind']=='manual':
+                unit['points']=job['points'];work.append(unit)
+        return settings,todos,work
     def publish(self):
         value=self.store.snapshot();target=self.app['WWW_DIR']/'progress.json';temp=target.with_suffix('.tmp')
-        temp.write_text(json.dumps(value,ensure_ascii=False));temp.replace(target)
+        revision=hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+        value['_revision']=revision;text=json.dumps(value,ensure_ascii=False)
+        old=target.read_text(encoding='utf-8') if target.exists() else ''
+        if text!=old:
+            temp.write_text(text,encoding='utf-8');temp.replace(target)
+            if self.app.get('notify_frontends'):self.app['notify_frontends']('progress',revision)
         return value
     def sync(self):
         with self.sync_lock:
@@ -59,10 +71,23 @@ class ProgressBridge:
                     result=self.app['send_push_notification'](targets,'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. Open Family Hub → Goedkeuren. Punten volgen pas na akkoord.',{'tag':'fh-chore-'+notice['key']})
                     if result.get('sent'):self.store.notified(notice['key'],notice['attempt'])
             return self.store.snapshot()
+    def manual_overview(self):
+        with self.sync_lock:
+            settings,todos,_=self.collect();jobs=self.store.snapshot()['jobs'];result=[]
+            for unit in manual_work(settings,todos):
+                job=jobs.get(unit['key'],{})
+                result.append({k:unit[k] for k in ('key','member_id','member_name','title','date','complete')})
+                result[-1].update(points=job.get('points',0),state=job.get('state','unassigned'))
+            return result
     def resolve(self,payload):
         with self.sync_lock:
             action=payload.get('action');key=str(payload.get('key',''))
-            if action in ('approve','reject'):
+            if action=='manual_bonus':
+                settings,todos,_=self.collect()
+                unit=next((w for w in manual_work(settings,todos) if w['key']==key),None)
+                if not unit:raise ProgressError('Deze zelfbedachte taak bestaat niet meer')
+                self.store.assign_manual_bonus(unit,payload.get('points'))
+            elif action in ('approve','reject'):
                 _,_,work=self.collect();self.store.resolve(key,action=='approve',work)
             elif action in ('family_fulfil','family_cancel'):
                 self.store.finish_reward(key,action=='family_fulfil')

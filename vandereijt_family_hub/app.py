@@ -84,6 +84,7 @@ DEFAULTS = {
     "background_url": "",
     "background_overlay": 82,
     "font_scale": 100,
+    "tasks_layout": "two_plus_one",
     "accent_color": "#2E6CA5",
     "dashboard_managed": False,
     "dashboard_show_sidebar": True,
@@ -354,6 +355,7 @@ def normalize_settings(data):
 
     out["show_household_status"] = bool(src.get("show_household_status", True))
     out["idle_show_clock"] = bool(src.get("idle_show_clock", True))
+    out["tasks_layout"] = src.get("tasks_layout") if src.get("tasks_layout") in ("stacked", "columns", "two_plus_one") else "two_plus_one"
     out["fullscreen_mode"] = bool(src.get("fullscreen_mode", False))
     out["dashboard_managed"] = bool(src.get("dashboard_managed", False))
     out["dashboard_show_sidebar"] = bool(src.get("dashboard_show_sidebar", True))
@@ -371,12 +373,29 @@ def load_settings():
     return dict(DEFAULTS)
 
 
+def notify_frontends(scope, revision):
+    if not SUPERVISOR_TOKEN:
+        return
+    try:
+        ha_api("POST", "events/family_hub_updated", {"scope": scope, "revision": revision}, timeout=5)
+    except Exception as exc:
+        print(f"[Family Hub] Frontend update deferred: {exc}", flush=True)
+
+
 def publish_settings(settings):
     payload = dict(settings)
     payload["_app_version"] = APP_VERSION
+    revision = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    previous = {}
+    if PUBLIC_SETTINGS.exists():
+        try: previous = json.loads(PUBLIC_SETTINGS.read_text(encoding="utf-8"))
+        except (ValueError, OSError): pass
+    payload["_settings_revision"] = revision
     tmp = PUBLIC_SETTINGS.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(PUBLIC_SETTINGS)
+    if previous.get("_settings_revision") != revision:
+        notify_frontends("settings", revision)
 
 
 def save_settings(settings):
@@ -2775,6 +2794,11 @@ class Handler(BaseHTTPRequestHandler):
         user = self._authorize()
         if user is None:
             return
+        if path == "/api/manual-tasks":
+            try:
+                return self._json(HTTPStatus.OK, {"ok": True, "tasks": PROGRESS.manual_overview()})
+            except Exception:
+                return self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Taken tijdelijk niet beschikbaar"})
         if path == "/api/progress":
             return self._json(HTTPStatus.OK, {"ok": True, **PROGRESS.store.snapshot()})
         if path == "/api/access":
