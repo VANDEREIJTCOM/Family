@@ -422,7 +422,8 @@ class FamilyHubCard extends HTMLElement{
     }
     for(const t of (this._config.smart_tasks||[])){
       if(t.enabled===false||t.show_in_calendar===false||!(t.days||[]).map(Number).includes(weekday))continue;
-      const m=this._member(t.member_id);if(!m||memberId&&m.id!==memberId)continue;
+      for(const mid of (["all","choice"].includes(t.assignment)?(this._config.members||[]).map(m=>m.id):[t.member_id])){
+      const m=this._member(mid);if(!m||memberId&&m.id!==memberId)continue;
       if(!memberId&&!this._memberVisible(m))continue;
       if(t.due_time){
         const when=makeTimed(t.due_time,30);
@@ -430,6 +431,7 @@ class FamilyHubCard extends HTMLElement{
       }else{
         const end=new Date(day);end.setDate(end.getDate()+1);
         out.push({member:m,event:{summary:t.title||"Taak",start:date,end:this._dateISO(end),_fhSynthetic:true,_fhKind:"task",_fhId:t.id}});
+      }
       }
     }
     return out;
@@ -556,15 +558,15 @@ class FamilyHubCard extends HTMLElement{
   async _complete(entity,item){
     if(!entity||!item)return;
     const meta=this._meta(item);
-    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:"completed"},{entity_id:entity});
-    if(meta?.points&&meta?.points_entity)await this._award(meta.points_entity,meta.points);
+    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:"completed",...(["routine_step","smart_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
+    if(!["routine_step","smart_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity)await this._award(meta.points_entity,meta.points);
     await this._load();
   }
   async _toggleTodo(entity,item){
     if(!entity||!item)return;
     const meta=this._meta(item),completed=item.status==="completed",next=completed?"needs_action":"completed";
-    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next},{entity_id:entity});
-    if(meta?.points&&meta?.points_entity){
+    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next,...(["routine_step","smart_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
+    if(!["routine_step","smart_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity){
       const current=Math.max(0,Number(this._hass?.states?.[meta.points_entity]?.state||0)||0);
       await this._setPoints(meta.points_entity,completed?Math.max(0,current-Number(meta.points||0)):current+Number(meta.points||0));
     }
@@ -649,7 +651,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
       ${members.map((m,i)=>`<button type="button" data-family-member="${this._esc(m.id)}" style="--member:${this._esc(m.color||"#607d8b")};--delay:${i*35}ms">${this._avatar(m,"small")}<span>${this._esc(m.name)}</span></button>`).join("")}
       <button type="button" class="family-overview" data-family-overview style="--delay:${members.length*35}ms"><span class="family-overview-icon"><ha-icon icon="mdi:account-group"></ha-icon></span><span>Overzicht</span></button>
     </div>`:"";
-    return `<div class="navigation-wrap">${familyPicker}<nav class="bottom-nav">${items.map(n=>n.id==="profiles"
+    return `<div class="navigation-wrap">${this._legendForScreen()?this._memberLegend():""}${familyPicker}<nav class="bottom-nav">${items.map(n=>n.id==="profiles"
       ?`<button class="${this._screen==="profiles"||this._screen==="profile"?"active":""}" data-family-picker aria-expanded="${this._familyPicker?"true":"false"}"><ha-icon icon="${this._esc(n.icon||"mdi:account-group")}"></ha-icon><span>${this._esc(n.label||"Gezin")}</span></button>`
       :`<button class="${this._screen===n.id?"active":""}" data-screen="${this._esc(n.id)}"><ha-icon icon="${this._esc(n.icon||"mdi:circle")}"></ha-icon><span>${this._esc(n.label||n.id)}</span></button>`).join("")}${homeAssistant}</nav></div>`;
   }
@@ -762,7 +764,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
 
   _routinesScreen(){
     const cards=[];
-    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false)){
+    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[0,1,2,3,4,5,6]).includes((new Date().getDay()+6)%7))){
       for(const m of this._routineMembers(r).filter(m=>this._memberVisible(m)))cards.push(this._routineCard(r,false,m));
     }
     return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${cards.length?cards.join(""):'<div class="empty big">Maak routines aan in de Family Hub App.</div>'}</div>`;
@@ -786,7 +788,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
 
   _profileScreen(){
     const m=this._member(this._profileId);if(!m){this._screen="profiles";return this._profilesScreen();}
-    const ev=this._eventsForDay(new Date(),m.id),normal=this._regularTodos(m),groups=this._routineTodoGroups(m),routines=(this._config.routines||[]).filter(r=>this._routineMemberIds(r).includes(m.id)),memberRewards=this._memberRewards(m);
+    const ev=this._eventsForDay(new Date(),m.id),normal=this._regularTodos(m),groups=this._routineTodoGroups(m),routines=(this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[]).includes((new Date().getDay()+6)%7)&&this._routineMemberIds(r).includes(m.id)),memberRewards=this._memberRewards(m);
     const rewardPanel=memberRewards.length?`<section class="panel-block profile-rewards"><div class="block-head"><button class="section-link" data-screen="rewards"><h2>Mijn beloningen</h2><span>›</span></button></div><div class="profile-reward-list">${memberRewards.map(x=>{const isWheel=x.reward.reward_type==="wheel",won=x.claim?.wheel_result;return `<button class="profile-reward ${isWheel?"wheel-reward":""} ${x.state==="pending"?"pending":"ready"}" data-redeem="${this._esc(x.reward.id)}" data-redeem-member="${this._esc(m.id)}" ${x.state==="pending"?"disabled":""}><ha-icon icon="${this._esc(x.reward.icon||(isWheel?"mdi:ferris-wheel":"mdi:gift"))}"></ha-icon><div><strong>${this._esc(x.reward.title)}</strong><span>${x.state==="pending"?(won?"Gewonnen: "+this._esc(won)+" · wacht op ouder":"Aangevraagd · wacht op ouder"):(x.cost+" ★ · "+(isWheel?"rad klaar om te draaien":"klaar om te verzilveren"))}</span></div><b>${x.state==="pending"?"…":isWheel?"Draaien 🎡":"Verzilveren"}</b></button>`}).join("")}</div></section>`:"";
     return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="calendar"><h2>Vandaag</h2><span>›</span></button></div>${ev.length?ev.map(x=>`<button class="agenda-row agenda-click" data-event-detail data-event-member="${this._esc(m.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div><b>›</b></button>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="tasks"><h2>Taken</h2><span>›</span></button><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it,m.id)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan.</div>':""}</section><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="routines"><h2>Routines</h2><span>›</span></button></div>${routines.length?routines.map(r=>this._routineCard(r,true,m)).join(""):'<div class="empty">Geen routines.</div>'}</section>${rewardPanel}</div></div>`;
   }
@@ -808,7 +810,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
     else if(this._screen==="profile")html=this._profileScreen();
     else if(this._screen==="house")html=this._houseScreen();
     else html=this._homeScreen();
-    return (this._legendForScreen()?this._memberLegend():"")+html;
+    return html;
   }
 
   _screensaverHtml(){

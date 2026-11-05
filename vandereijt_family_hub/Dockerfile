@@ -10,14 +10,14 @@ LABEL \
 
 WORKDIR /app
 RUN pip install --no-cache-dir websocket-client==1.8.0
-COPY app.py ha_access.py /app/
+COPY app.py ha_access.py family_progress.py progress_bridge.py /app/
 COPY static /app/static
 COPY family-hub-card.js /app/family-hub-card.js
 COPY runtime_patch_0_12_2.py /app/runtime_patch_0_12_2.py
 COPY runtime_patch_0_12_3.py /app/runtime_patch_0_12_3.py
 COPY runtime_patch_0_12_4.py /app/runtime_patch_0_12_4.py
 COPY runtime_patch_0_13_0.py /app/runtime_patch_0_13_0.py
-COPY ha-context.js ha-theme.css ha-view-layout.js ha-task-actions.js ha-scroll-state.js /app/
+COPY progress-card.js ha-context.js ha-theme.css ha-view-layout.js ha-task-actions.js ha-scroll-state.js /app/
 
 # Apply the previous runtime migrations plus shared Home Assistant calendars,
 # then bind every generated runtime asset to the Home Assistant BUILD_VERSION.

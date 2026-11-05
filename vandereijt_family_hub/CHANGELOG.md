@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.0 — routines, klusjes en samen sparen
+
+- Scrollvlakken blijven bestaan tijdens achtergrondverversingen; positie en aanraken worden behouden.
+- Instelbare punten per volledig afgeronde routine, één keer per persoon en dag. Routines verschijnen alleen op geplande dagen en zijn inklapbaar.
+- Klusjes op naam, voor allemaal of als keuzeklus: punten pas na ouderakkoord in Goedkeuren. Afzonderlijke telefoonontvangers voor klusjesmeldingen via de App-configuratie.
+- Gezinsbeloningen hebben een eigen sterrenteller. Persoonlijk inwisselen verlaagt die niet; kiezen reserveert sterren en ouders boeken ze pas na uitvoering af. Standaardprijs: 150 sterren.
+- Namen en navigatie onderaan; agenda heeft vorige/volgende dag naast het weekoverzicht.
+- Bestaande saldi blijven intact. De nieuwe gezinspot start bij nul; historische punten worden niet gereconstrueerd. Reeds afgeronde onderdelen leveren niet opnieuw punten op.
+- Puntenregistratie overleeft een herstart en onderbreking tijdens toekenning. Bij een conflicterend saldo volgt controle in plaats van een tweede boeking.
+
 ## 0.13.0 — één geheel met Home Assistant
 
 - Instellingen bevat Beheerders: geef actieve HA-gebruikers apart Family Hub-beheerrechten. HA-rollen blijven behouden; HA-beheerders houden hersteltoegang. Beheer-API en UI controleren Ingress-identiteit en app-rechten aan de serverkant.

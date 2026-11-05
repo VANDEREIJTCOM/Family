@@ -62,3 +62,14 @@ Family Hub registreert de kaart-resource, maakt de full-screen Family Hub-tab in
 ## Opslag
 
 Family Hub bewaart zijn configuratie in de eigen App-data. De daadwerkelijke gezinsdata wordt waar mogelijk in native Home Assistant-entiteiten opgeslagen, waaronder `calendar.*`, `todo.*` en `input_number.*`.
+
+
+## Routines, klusjes en gezinspot (0.14)
+
+Stel per routine het totaal bij afronden in. De oude stapwaarden worden alleen voor de overgang bewaard; er volgen geen losse stapbeloningen meer. Vernieuw alle dashboards na de update. Bestaande puntensaldi blijven behouden, al afgeronde onderdelen worden niet opnieuw betaald.
+
+Klusjes kunnen op naam staan, voor iedereen gelden of als keuzeklus beschikbaar zijn. Elke deelnemer krijgt een eigen afvinkmogelijkheid; een ouder controleert deze onder Goedkeuren voordat persoonlijke punten en gezinssterren worden geboekt. Handmatig toegevoegde losse taken behouden hun bestaande gedrag.
+
+Maak bij beloningen de keuze **Gezin** om samen te sparen. De aparte gezinspot begint vanaf deze versie bij nul en bevat nieuw toegekende routine- en kluspunten. Persoonlijke bestedingen verlagen hem niet. Kiezen reserveert de prijs (standaard 150 sterren); alleen een Hub-beheerder kan na uitvoering verzilveren of annuleren. De privéregistratie staat in `/data/family-progress.json` en valt onder de App-back-up.
+
+Voor telefoonmeldingen bij klusjes stel je in de Home Assistant App-configuratie `chore_push_targets` in op de gewenste Companion `mobile_app_...`-servicenamen. Deze lijst staat los van algemene beloningsmeldingen. Zonder ontvangers blijft Goedkeuren beschikbaar. Er wordt geen testmelding verstuurd.
