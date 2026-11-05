@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="static/family-hub-admin-0.12.0.css">
+<style>.hub-access-user{display:flex;align-items:center;gap:14px;min-height:56px;margin:12px 0}.hub-access-user input{width:24px;height:24px;flex-shrink:0}.hub-access-user span{display:grid;gap:4px}.hub-access-user small{opacity:.75}</style>
 </head>
 <body>
 <div class="shell">
@@ -28,6 +29,7 @@
       <button class="nav" data-tab="screens">Schermen & navigatie</button>
       <button class="nav" data-tab="appearance">Uiterlijk</button>
       <button class="nav" data-tab="dashboard">Dashboard</button>
+      <button class="nav" data-tab="access">Beheerders</button>
     </nav>
     <div id="connection" class="connection">Verbinden met Home Assistant…</div>
   </aside>
@@ -191,9 +193,20 @@
       </div>
       <article class="card status spaced"><h2>Installatiestatus</h2><div id="install-status" class="status-grid"></div></article>
     </section>
+    <section id="tab-access" class="tab">
+      <article class="card">
+        <h2>Wie mag Family Hub beheren?</h2>
+        <p>Geef gebruikers toegang tot alle Family Hub-instellingen, zonder hun Home Assistant-rechten te veranderen. Iedere Family Hub-beheerder kan ook deze beheerrechten aanpassen.</p>
+        <p>HA-beheerders houden altijd toegang. Gewone gezinsleden en wanddisplays kunnen hun Thuis-dashboard blijven gebruiken zonder beheerrechten.</p>
+        <div id="hub-access-users" aria-label="Family Hub-beheerders"></div>
+        <p id="hub-access-status" role="status" aria-live="polite">Open dit onderdeel om de gebruikers te laden.</p>
+        <div class="button-row"><button id="hub-access-save" class="primary" disabled>Beheerrechten opslaan</button><button id="hub-access-reload" class="secondary">Opnieuw laden</button></div>
+      </article>
+    </section>
   </main>
 </div>
 <div id="toast" class="toast"></div>
 <script src="static/family-hub-admin-0.12.0.js" defer></script>
+<script src="static/ha-access.js" defer></script>
 </body>
 </html>

@@ -39,5 +39,7 @@ s=s[:start]+block+s[end:]
 marker='if(!customElements.get("family-hub-card")){'
 assert marker in s
 s=s.replace(marker,'FamilyHubCard.prototype._haHouseIntegration=true;\nFamilyHubCard.prototype._haViewLayout=true;\n\n'+marker,1)
+s=s.replace(marker,(ROOT/'ha-task-actions.js').read_text(encoding='utf-8')+'\nFamilyHubTaskActions.install(FamilyHubCard.prototype);\n'+marker,1)
+s=s.replace(marker,(ROOT/'ha-scroll-state.js').read_text(encoding='utf-8')+'\nFamilyHubScrollState.install(FamilyHubCard.prototype);\n'+marker,1)
 path.write_text(s,encoding='utf-8')
 print('HA_THEME_AND_CONTEXT_PATCHED')

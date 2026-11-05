@@ -15,6 +15,7 @@ import urllib.request
 import uuid
 
 import websocket
+from ha_access import FamilyHubAccess, AccessError
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -2693,6 +2694,14 @@ def save_background(data_url):
     return f"/local/family-hub/background.{ext}?v={int(time.time())}"
 
 
+def access_users():
+    with HomeAssistantWebSocket() as ws:
+        return ws.call({"type": "config/auth/list"})
+
+
+FAMILY_ACCESS = FamilyHubAccess(DATA_DIR / "access.json", access_users)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"VANDEREIJT.COM-Family-Hub/{APP_VERSION}"
 
@@ -2722,8 +2731,38 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _authorize(self):
+        try:
+            user = FAMILY_ACCESS.authenticate(self.client_address[0], self.headers)
+            FAMILY_ACCESS.require_admin(user)
+            return user
+        except AccessError as exc:
+            if urlparse(self.path).path.rstrip("/") == "":
+                body = ("<!doctype html><html lang='nl'><meta charset='utf-8'>"
+                        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                        "<title>Family Hub - beheerrechten</title><body style='font:18px system-ui;padding:2rem'>"
+                        "<h1>Family Hub-instellingen</h1><p>" + html.escape(str(exc)) +
+                        "</p><p>Je Thuis-dashboard blijft beschikbaar.</p></body></html>").encode("utf-8")
+                self.send_response(exc.status)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self._json(exc.status, {"ok": False, "error": str(exc)})
+            return None
+
     def do_GET(self):
         path = urlparse(self.path).path.rstrip("/") or "/"
+        user = self._authorize()
+        if user is None:
+            return
+        if path == "/api/access":
+            try:
+                return self._json(HTTPStatus.OK, FAMILY_ACCESS.overview(user))
+            except AccessError as exc:
+                return self._json(exc.status, {"ok": False, "error": str(exc)})
         if path == "/":
             return self._file(STATIC_DIR / "index.html", "text/html; charset=utf-8")
         if path == "/api/settings":
@@ -2813,12 +2852,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path.rstrip("/") or "/"
+        user = self._authorize()
+        if user is None:
+            return
+        if self.headers.get("X-Family-Hub-Request") != "1":
+            return self._json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "Ververs de Family Hub-instellingen en probeer opnieuw"})
         try:
             raw_body = self._read_request_body()
         except OverflowError:
             return self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"ok": False, "error": "Verzoek te groot"})
         except Exception as exc:
-            print(f"[Family Hub] POST body error: {exc}; headers={dict(self.headers)}", flush=True)
+            print(f"[Family Hub] POST body error: {exc}", flush=True)
             return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
         if not raw_body:
@@ -2828,6 +2872,12 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             print(f"[Family Hub] JSON error: {exc}; bytes={len(raw_body)}", flush=True)
             return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Ongeldige JSON"})
+
+        if path == "/api/access":
+            try:
+                return self._json(HTTPStatus.OK, FAMILY_ACCESS.update(user, payload))
+            except AccessError as exc:
+                return self._json(exc.status, {"ok": False, "error": str(exc)})
 
         if path == "/api/settings":
             try:

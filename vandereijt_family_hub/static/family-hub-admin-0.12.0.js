@@ -113,7 +113,7 @@ function api(path,opts={}){
     ...fetchOpts,
     cache:"no-store",
     signal:fetchOpts.signal||controller.signal,
-    headers:{"Content-Type":"application/json",...(fetchOpts.headers||{})}
+    headers:{"Content-Type":"application/json","X-Family-Hub-Request":"1",...(fetchOpts.headers||{})}
   }).then(async r=>{
     let d={};try{d=await r.json()}catch{}
     if(!r.ok||d.ok===false)throw new Error(d.error||("HTTP "+r.status));

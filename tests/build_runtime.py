@@ -16,7 +16,14 @@ with tempfile.TemporaryDirectory(prefix='family-ha-runtime-') as tmp:
  assert s.count('_haContextHtml(){')==1 and '_haHouseIntegration=true' in s
  assert s.count('_profilesScreenCore(){')==1 and s.count('_modalHtmlCore(){')==1 and '_haViewLayout=true' in s
  assert 'shared_calendars' in s and '_modalHtml()' in s
+ assert s.count('const FamilyHubTaskActions=')==1
+ assert s.count('FamilyHubTaskActions.install(FamilyHubCard.prototype);')==1
+ assert 'card._todoAll' in s and '_haTaskSaving' in s
+ assert s.count('const FamilyHubScrollState=')==1
+ assert s.count('FamilyHubScrollState.install(FamilyHubCard.prototype);')==1
  subprocess.run(['node','--check',str(root/'family-hub-card.js')],check=True)
  subprocess.run(['node','--check',str(root/'static/app.js')],check=True)
+ subprocess.run(['node','--check',str(root/'static/ha-access.js')],check=True)
+ subprocess.run([__import__('sys').executable,str(source.parent/'tests/ha_access.py')],check=True,env={**os.environ,'FAMILY_ACCESS_APP_ROOT':str(root)})
  compile((root/'app.py').read_text(encoding='utf-8'),str(root/'app.py'),'exec')
  print('FAMILY_RUNTIME_BUILD_PASSED')

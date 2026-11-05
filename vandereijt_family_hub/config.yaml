@@ -14,7 +14,7 @@ ingress_port: 8099
 ingress_stream: true
 panel_title: Family Hub
 panel_icon: mdi:calendar-account
-panel_admin: true
+panel_admin: false
 homeassistant_api: true
 map:
   - type: homeassistant_config

@@ -52,3 +52,21 @@ Onder **Schermen & navigatie** bepaalt de administrator:
 - Family Hub gebruikt de Home Assistant API en WebSocket API.
 - Family Hub overschrijft geen niet-Family-Hub dashboard/view met dezelfde naam.
 - Gezinsdata wordt niet naar een VANDEREIJT.COM cloudservice verstuurd.
+
+## Family Hub-beheerders
+
+Open in de app **Beheerders** om actieve Home Assistant-gebruikers toegang te
+geven tot de Family Hub-instellingen. Dit wijzigt hun HA-accountrechten niet.
+Iedere Family Hub-beheerder kan de app beheren en andere Hub-beheerders aanwijzen.
+HA-beheerders behouden altijd toegang als herstelmogelijkheid.
+
+De eerste keer kan een HA-beheerder de lijst instellen. Wanddisplays en gewone
+gezinsleden hebben deze beheerrechten niet nodig om hun bestaande dashboard te
+gebruiken. Rechten intrekken geldt voor het volgende beheerrequest; herstarten is
+niet nodig. De gebruikerslijst wordt niet in de openbare kaartinstellingen gezet.
+
+De app gebruikt de door Home Assistant Ingress aangeleverde gebruikersidentiteit.
+Een rechtstreekse verbinding, ontbrekende identiteit, inactief account of fout bij
+gebruikerscontrole geeft geen toegang. Een oude tab kan na een update vragen om
+te vernieuwen voordat opslaan weer werkt. Instellingen en beheerrechten worden
+apart bewaard; een gewone instellingenimport kan geen beheerrechten toevoegen.

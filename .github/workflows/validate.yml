@@ -250,5 +250,18 @@ jobs:
           vm.runInNewContext(prefix,{});
           NODE
 
+      - name: Test Home Assistant integration and runtime migrations
+        run: |
+          node tests/ha-context.cjs
+          node tests/ha-view-layout.cjs
+          node tests/ha-task-actions.cjs
+          node tests/ha-scroll-state.cjs
+          node tests/ha-access-ui.cjs
+          python tests/ha_access.py
+          python tests/build_runtime.py
+
       - name: Build App container
-        run: docker build --build-arg BUILD_VERSION=0.12.4 --build-arg BUILD_ARCH=amd64 vandereijt_family_hub
+        shell: bash
+        run: |
+          version=$(python -c 'import re; from pathlib import Path; print(re.search(r"^version: *\"?([^\"\s]+)", Path("vandereijt_family_hub/config.yaml").read_text(), re.M)[1])')
+          docker build --build-arg BUILD_VERSION="$version" --build-arg BUILD_ARCH=amd64 vandereijt_family_hub

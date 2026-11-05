@@ -85,8 +85,13 @@ Gepauzeerde muziek blijft tien minuten zichtbaar. Alleen relatieve HA-paden
 zijn toegestaan. Niet-ingestelde bronnen veroorzaken geen foutmelding.
 
 Controleer de wijziging met `node tests/ha-context.cjs` en
-`node tests/ha-view-layout.cjs`, gevolgd door `python tests/build_runtime.py`
+`node tests/ha-view-layout.cjs`, `node tests/ha-task-actions.cjs` en
+`node tests/ha-scroll-state.cjs`, gevolgd door `python tests/build_runtime.py`
 (de laatste controle vereist ook Node).
+
+Taaktekst en vinkje schakelen een taak direct om, ook als deze al is afgerond.
+Tijdens het opslaan worden dubbele tikken geblokkeerd; bij een fout kan de
+gebruiker opnieuw proberen. De bestaande HA-taak- en puntenafhandeling blijft behouden.
 
 ## Updates
 
@@ -95,3 +100,17 @@ Home Assistant leest de versie uit `vandereijt_family_hub/config.yaml`. Zodra ee
 ## Ontwikkeling
 
 Zie `RELEASING.md` voor het releaseproces.
+
+### Family Hub administrators
+
+The app's **Beheerders** section grants active Home Assistant users access to
+Family Hub management without changing their HA roles. HA administrators keep
+fallback access; Hub administrators can grant and revoke app management access.
+Authorization is enforced on the server for every management endpoint, using the
+Supervisor's trusted Ingress identity. The private grants file is separate from
+public dashboard settings. Anonymous, disabled and system-generated accounts
+cannot manage the app. The app panel accepts regular HA users so explicitly
+authorized Hub administrators can open it; other users receive an access message.
+
+Validation includes `python tests/ha_access.py`, `node tests/ha-access-ui.cjs` and
+the full runtime migration checks alongside the existing task and scroll tests.

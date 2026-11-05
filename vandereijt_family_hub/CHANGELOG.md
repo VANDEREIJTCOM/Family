@@ -2,6 +2,12 @@
 
 ## 0.13.0 — één geheel met Home Assistant
 
+- Instellingen bevat Beheerders: geef actieve HA-gebruikers apart Family Hub-beheerrechten. HA-rollen blijven behouden; HA-beheerders houden hersteltoegang. Beheer-API en UI controleren Ingress-identiteit en app-rechten aan de serverkant.
+
+- Scrollpositie blijft behouden bij achtergrondverversingen; verversen wacht tot een veegbeweging klaar is. Bewust wisselen van pagina blijft direct werken.
+
+- Taaktekst en vinkje werken direct voor open en afgeronde taken, zonder detailvenster; dubbele tikken tijdens opslaan worden tegengehouden en mislukte acties kunnen opnieuw worden geprobeerd.
+
 - Leesbare tekstmaten, ruimere bediening en een afzonderlijke opmaak voor grote portretschermen.
 - Leesbare dagblokken in de portretagenda, een ruimer maaltijdplan en directe HA-koppelingen vanuit de Huis-tab.
 - Een optionele wandindeling houdt Family Hub-tabs apart van de gezamenlijke schermnavigatie; profielstatussen zijn begrijpelijk en vensters hebben herkenbare sluitbediening.
