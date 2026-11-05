@@ -39,6 +39,60 @@ Er zijn geen handmatige YAML- of Lovelace-resource-stappen nodig.
 
 Family Hub gebruikt native Home Assistant-entiteiten waar dat logisch is en maakt ontbrekende lokale agenda's, takenlijsten en puntenhelpers automatisch aan.
 
+## Home Assistant-opmaak en huiscontext (0.13)
+
+De dashboardkaart volgt standaard de actieve Home Assistant-kleuren, achtergrond,
+typografie en kaarten. Gezinskleuren en fout-/succeskleuren houden hun betekenis.
+De gedeelde opmaak gebruikt leesbare tekstmaten en grotere aanraakvlakken.
+Op grote schermen in portretstand sluiten tekst, navigatie en tussenruimte aan
+op een wanddashboard, in plaats van de oorspronkelijke compacte bureaubladopmaak.
+De weekagenda gebruikt op portretschermen leesbare dagblokken. In landscape blijft
+de weekindeling naast elkaar beschikbaar. Met de optionele route `rooms` krijgt
+de Huis-tab directe koppelingen naar de bestaande HA-bediening als er nog geen
+losse huis-entiteiten zijn gekozen. Bestaande huis-entiteiten blijven zichtbaar.
+Met `follow_ha_theme: false` op de kaart blijft de oorspronkelijke Family Hub-stijl beschikbaar.
+
+Een optionele, alleen-lezen huiscontext toont op Vandaag relevante meldingen en
+verwijst naar bestaande HA-bediening. Er worden geen apparaten gestart en geen
+extra meldingen verstuurd. De kaart gebruikt de bestaande HA-stateverbinding.
+
+```yaml
+type: custom:family-hub-card
+config_url: /local/family-hub/settings.json
+follow_ha_theme: true
+ha_context:
+  enabled: true
+  sources:
+    attention: input_text.house_attention
+    washer: input_text.washer_notice
+    morningTime: input_datetime.wake_up
+    morningOverride: input_boolean.alternative_wake_up
+  players:
+    - media_player.living_room
+  routes:
+    home: /home/today
+    rooms: /home/rooms
+    attention: /home/attention
+    checks: /home/checks
+    morning: /home/morning
+    music: /home/music
+```
+
+De optionele bron `attention` heeft de vorm `{"v":2,"o":["open_item"]}`;
+afgehandelde items staan niet in `o`. De wasbron gebruikt `{"s":"open"}` of
+`{"s":"wachten"}`. De avondcheck verschijnt alleen in de avond/nacht.
+Gepauzeerde muziek blijft tien minuten zichtbaar. Alleen relatieve HA-paden
+zijn toegestaan. Niet-ingestelde bronnen veroorzaken geen foutmelding.
+
+Controleer de wijziging met `node tests/ha-context.cjs` en
+`node tests/ha-view-layout.cjs`, `node tests/ha-task-actions.cjs` en
+`node tests/ha-scroll-state.cjs`, gevolgd door `python tests/build_runtime.py`
+(de laatste controle vereist ook Node).
+
+Taaktekst en vinkje schakelen een taak direct om, ook als deze al is afgerond.
+Tijdens het opslaan worden dubbele tikken geblokkeerd; bij een fout kan de
+gebruiker opnieuw proberen. De bestaande HA-taak- en puntenafhandeling blijft behouden.
+
 ## Updates
 
 Home Assistant leest de versie uit `vandereijt_family_hub/config.yaml`. Zodra een nieuwe versie in deze repository staat, kan Home Assistant deze als App-update aanbieden. Een door Family Hub beheerd dashboard en kaart-resource worden bij het starten van de nieuwe versie automatisch gesynchroniseerd.
@@ -46,3 +100,17 @@ Home Assistant leest de versie uit `vandereijt_family_hub/config.yaml`. Zodra ee
 ## Ontwikkeling
 
 Zie `RELEASING.md` voor het releaseproces.
+
+### Family Hub administrators
+
+The app's **Beheerders** section grants active Home Assistant users access to
+Family Hub management without changing their HA roles. HA administrators keep
+fallback access; Hub administrators can grant and revoke app management access.
+Authorization is enforced on the server for every management endpoint, using the
+Supervisor's trusted Ingress identity. The private grants file is separate from
+public dashboard settings. Anonymous, disabled and system-generated accounts
+cannot manage the app. The app panel accepts regular HA users so explicitly
+authorized Hub administrators can open it; other users receive an access message.
+
+Validation includes `python tests/ha_access.py`, `node tests/ha-access-ui.cjs` and
+the full runtime migration checks alongside the existing task and scroll tests.
