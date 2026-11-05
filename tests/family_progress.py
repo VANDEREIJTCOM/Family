@@ -87,4 +87,35 @@ class BridgeTests(unittest.TestCase):
  def test_public_progress_does_not_publish_entities_or_admin_ids(self):
   self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();published=(self.root/'progress.json').read_text();self.assertNotIn('input_number',published);self.assertNotIn('admin_user_ids',published);self.assertIn('Alex',published)
 
+
+class ManualBonusTests(BridgeTests):
+ def manual(self,complete=False):
+  self.items=[{'uid':'real-uid','summary':'Zelf bedacht','status':'completed' if complete else 'needs_action','description':'FH_META:'+json.dumps(dict(kind='manual_task',member_id='a',date='2026-11-05',points=999,points_entity='input_number.forged'))}]
+ def test_completed_bonus_once_and_independent_family_credit(self):
+  self.manual(True);self.bridge.sync();self.assertEqual(self.bal,50)
+  for _ in range(2):self.bridge.resolve({'action':'manual_bonus','key':'manual:a:real-uid','points':3})
+  self.assertEqual(self.bal,53);self.assertEqual(self.bridge.store.snapshot()['family']['earned'],3)
+  self.bridge.sync();self.assertEqual(self.bal,53)
+ def test_open_bonus_needs_completion_then_parent_approval(self):
+  self.manual();self.bridge.sync();self.bridge.resolve({'action':'manual_bonus','key':'manual:a:real-uid','points':4});self.assertEqual(self.bal,50)
+  self.items[0]['status']='completed';self.bridge.sync();self.assertEqual(self.bal,50)
+  self.assertEqual(self.bridge.store.snapshot()['jobs']['manual:a:real-uid']['state'],'pending')
+  self.bridge.resolve({'action':'approve','key':'manual:a:real-uid'});self.assertEqual(self.bal,54)
+ def test_forged_missing_or_wrong_member_cannot_receive_bonus(self):
+  self.manual(True)
+  for key in ('manual:a:forged','manual:b:real-uid'):
+   with self.assertRaises(ProgressError):self.bridge.resolve({'action':'manual_bonus','key':key,'points':5})
+  self.assertEqual(self.bal,50)
+ def test_bonus_amount_requires_bounded_integer(self):
+  self.manual(True)
+  for points in (0,-1,501,True,1.5,'3',None):
+   with self.assertRaises(ProgressError):self.bridge.resolve({'action':'manual_bonus','key':'manual:a:real-uid','points':points})
+  self.assertEqual(self.bal,50)
+ def test_progress_event_only_on_revision_change(self):
+  events=[];self.app['notify_frontends']=lambda *x:events.append(x)
+  self.manual();self.bridge.sync();self.bridge.sync();self.assertEqual(len(events),1)
+  self.bridge.resolve({'action':'manual_bonus','key':'manual:a:real-uid','points':2});self.assertEqual(len(events),2)
+  self.assertTrue(all(scope=='progress' and len(revision)==64 for scope,revision in events))
+
 if __name__=='__main__':unittest.main()
+

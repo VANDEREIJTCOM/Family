@@ -1,6 +1,6 @@
 /* Keep reading position across background renders; let deliberate page changes start at the top. */
 const FamilyHubScrollState=(()=>{
- const selectors=['.content','.bottom-nav','.member-filter','.modal','.day-col','.points-strip','.wheel-option-list'];
+ const selectors=['.content','.bottom-nav','.member-filter','.modal','.day-col','.points-strip','.wheel-option-list','.hub-day-strip'];
  // Keep scrolling surfaces and custom elements alive across background refreshes.
  function morph(parent,desired){
   const identity=node=>node.nodeType===1?(node.id||node.getAttribute('data-scroll-key')||''):'';
@@ -38,7 +38,7 @@ const FamilyHubScrollState=(()=>{
   try{return render();}finally{if(own)Object.defineProperty(root,'innerHTML',own);else delete root.innerHTML;}
  }
 
- const key=card=>JSON.stringify([card._screen,card._profileId,card._weekOffset,card._dayOffset,card._memberFilter,!!card._familyPicker,!!card._screensaver,card._updatePending||'']);
+ const key=card=>JSON.stringify([card._screen,card._profileId,card._weekOffset,card._dayOffset,card._calendarDate,card._memberFilter,!!card._familyPicker,!!card._screensaver,card._updatePending||'']);
  function ancestors(card){
   const nodes=[],seen=new Set();let node=card;
   while(node&&!seen.has(node)){
@@ -99,6 +99,10 @@ const FamilyHubScrollState=(()=>{
    s.restoring=true;
    try{const result=retainNodes(this.shadowRoot,()=>render.apply(this,args));if(saved)restore(this.shadowRoot,saved);s.view=view;s.modal=modal;return result;}
    finally{s.restoring=false;}
+  };
+  proto._haResetScrollForEntry=function(){
+   const s=this._haScrollStateV2;if(!s)return;
+   if(s.timer!==null)cancel(s.timer);s.timer=null;s.pending=null;s.view=null;s.lastScroll=-Infinity;s.pointers.clear();
   };
   proto.disconnectedCallback=function(...args){
    const s=this._haScrollStateV2;
