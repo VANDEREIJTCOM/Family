@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.1 — duidelijke keuzeklusjes
+
+- Kluskaartjes tonen de ingestelde puntenwaarde en dat punten na ouderakkoord volgen. Keuzeklusjes zijn herkenbaar als vrijwillig.
+- Dagstappen gebruiken kalenderdatums, zodat de weekgrens ook bij zomer-/wintertijd klopt.
+
 ## 0.14.0 — routines, klusjes en samen sparen
 
 - Scrollvlakken blijven bestaan tijdens achtergrondverversingen; positie en aanraken worden behouden.

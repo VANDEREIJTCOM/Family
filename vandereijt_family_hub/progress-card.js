@@ -1,5 +1,9 @@
 /* Shared family progress; the server alone grants routine/chore points. */
 const FamilyHubProgress=(()=>{
+ function weekOffset(target,today=new Date()){
+  const day=d=>Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/86400000;
+  return Math.floor((day(target)-day(today)+(today.getDay()+6)%7)/7);
+ }
  function install(p){
   if(p._familyProgress)return;p._familyProgress=true;
   const load=p._load,bind=p._bind,css=p._css,routine=p._routineCard,rewards=p._rewardsScreen,calendar=p._calendarScreen,task=p._taskRow;
@@ -16,10 +20,12 @@ const FamilyHubProgress=(()=>{
    return '<details class="routine-collapse" data-routine-collapse="'+this._esc(key)+'" '+(closed?'':'open')+'><summary>'+this._esc(r.title)+' · '+this._esc(m?.name||'Gezin')+' · '+points+' ★ bij afronden</summary>'+html+'</details>';
   };
   p._taskRow=function(entity,item,mid){
-   const m=this._meta(item),display=m?.kind==='routine_step'?{...item,description:'FH_META:'+JSON.stringify({...m,points:0})}:item;const html=task.call(this,entity,display,mid);if(m?.kind!=='smart_task')return html;
+   const m=this._meta(item),configured=m?.kind==='smart_task'?(this._config.smart_tasks||[]).find(t=>t.id===m.task_id):null;
+   const display=['routine_step','smart_task'].includes(m?.kind)?{...item,description:'FH_META:'+JSON.stringify({...m,points:configured?Number(configured.points||0):0})}:item;
+   const html=task.call(this,entity,display,mid);if(m?.kind!=='smart_task')return html;
    const key='chore:'+m.task_id+':'+m.member_id+':'+m.date,state=this._progress?.jobs?.[key]?.state;
    const note={pending:'Wacht op ouderakkoord',awarded:'Goedgekeurd · punten ontvangen',rejected:'Nog niet goedgekeurd · overleg met je ouder',review:'Punten worden gecontroleerd'}[state];
-   return html+(note?'<small class="approval-note">'+note+'</small>':'');
+   return html+'<small class="approval-note">'+(configured?.assignment==='choice'?'Keuzeklus · vrijwillig · ':'')+(note||'Punten na ouderakkoord')+'</small>';
   };
   p._familyPanel=function(){
    const f=this._progress?.family,esc=x=>this._esc(String(x)),available=Number(f?.available||0);
@@ -38,7 +44,7 @@ const FamilyHubProgress=(()=>{
   p._bind=function(...args){
    bind.apply(this,args);
    this.shadowRoot.querySelectorAll('[data-routine-collapse]').forEach(el=>el.ontoggle=()=>{this._closedRoutines??=new Set();el.open?this._closedRoutines.delete(el.dataset.routineCollapse):this._closedRoutines.add(el.dataset.routineCollapse)});
-   for(const [name,change] of [['prev',-1],['next',1],['today',0],['week',null]]){const b=this.shadowRoot.querySelector('[data-day-'+name+']');if(b)b.onclick=()=>{this._dayOffset=change===null?null:change===0?0:(this._dayOffset||0)+change;const d=new Date();d.setDate(d.getDate()+(this._dayOffset||0));const monday=new Date();monday.setDate(monday.getDate()-((monday.getDay()+6)%7));monday.setHours(0,0,0,0);d.setHours(0,0,0,0);this._weekOffset=this._dayOffset==null?0:Math.floor((d-monday)/604800000);this._load()}}
+   for(const [name,change] of [['prev',-1],['next',1],['today',0],['week',null]]){const b=this.shadowRoot.querySelector('[data-day-'+name+']');if(b)b.onclick=()=>{this._dayOffset=change===null?null:change===0?0:(this._dayOffset||0)+change;const d=new Date();d.setDate(d.getDate()+(this._dayOffset||0));this._weekOffset=this._dayOffset==null?0:weekOffset(d);this._load()}}
    this.shadowRoot.querySelectorAll('[data-family-reward]').forEach(b=>b.onclick=async()=>{
     if(this._familyRewardBusy)return;const r=(this._config.rewards||[]).find(r=>r.id===b.dataset.familyReward&&r.member_id==='__family__');if(!r||!this._config.family_todo)return;
     this._familyRewardBusy=true;b.disabled=true;
@@ -52,6 +58,6 @@ const FamilyHubProgress=(()=>{
    .family-pot{margin-bottom:20px}.family-pot>strong{font-size:32px}.family-pot button,.day-controls button{min-height:48px;padding:10px 16px;border-radius:12px;border:1px solid var(--divider-color,#ddd);background:var(--card-background-color,#fff);color:inherit}.day-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
   `};
  }
- return {install};
+ return {install,weekOffset};
 })();
 if(typeof module!=='undefined'&&module.exports)module.exports=FamilyHubProgress;

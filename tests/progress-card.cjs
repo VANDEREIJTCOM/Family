@@ -8,3 +8,7 @@ card._closedRoutines=new Set(['r:a']);assert(!card._routineCard({id:'r',title:'M
 card._progress.jobs={'chore:c:a:2026-11-05':{state:'pending'}};assert(card._taskRow('',{meta:{kind:'smart_task',task_id:'c',member_id:'a',date:'2026-11-05'}}).includes('Wacht op ouderakkoord'));
 assert(card._calendarScreen().includes('Volgende dag'));assert(card._css().includes('order:10!important'));
 console.log('PROGRESS_CARD_PASSED: visible family choices, distinct personal rewards, insufficient/stale balance guard, collapse, routine points, approval status and day controls');
+
+assert.equal(api.weekOffset(new Date(2027,2,29),new Date(2027,2,22)),1);
+assert.equal(api.weekOffset(new Date(2027,9,25),new Date(2027,9,18)),1);
+assert.equal(api.weekOffset(new Date(2026,11,31),new Date(2027,0,4)),-1);
