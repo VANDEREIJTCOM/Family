@@ -6,7 +6,7 @@ const FamilyHubProgress=(()=>{
  }
  function install(p){
   if(p._familyProgress)return;p._familyProgress=true;
-  const load=p._load,bind=p._bind,css=p._css,routine=p._routineCard,rewards=p._rewardsScreen,calendar=p._calendarScreen,task=p._taskRow;
+  const load=p._load,bind=p._bind,css=p._css,routine=p._routineCard,rewards=p._rewardsScreen,task=p._taskRow;
   p._load=async function(...args){
    if(!this._progressLoading&&Date.now()-(this._progressAt||0)>10000){
     this._progressLoading=true;
@@ -35,16 +35,9 @@ const FamilyHubProgress=(()=>{
   p._rewardsScreen=function(){
    const family=this._familyPanel(),original=this._config.rewards;try{this._config.rewards=(original||[]).filter(r=>r.member_id!=='__family__');return family+rewards.call(this)}finally{this._config.rewards=original}
   };
-  p._calendarScreen=function(){
-   const toolbar='<div class="day-controls"><button data-day-prev aria-label="Vorige dag">‹ Vorige dag</button><button data-day-today>Vandaag</button><button data-day-next>Volgende dag ›</button><button data-day-week>Weekoverzicht</button></div>';
-   if(this._dayOffset==null)return toolbar+calendar.call(this);
-   const d=new Date();d.setDate(d.getDate()+this._dayOffset);const iso=this._dateISO(d),events=this._eventsForDay(d);
-   return toolbar+'<section class="screen-card"><h2>'+this._esc(d.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'}))+'</h2>'+events.map(x=>'<button class="agenda-row agenda-click" data-event-detail data-event-member="'+this._esc(x.member.id)+'" data-event-start="'+this._esc(x.event.start||'')+'" data-event-summary="'+this._esc(x.event.summary||'')+'"><time>'+this._esc(this._time(x.event))+'</time><strong>'+this._esc(x.event.summary||'Afspraak')+'</strong><span>'+this._esc(x.member.name)+'</span></button>').join('')+(!events.length?'<p>Geen afspraken.</p>':'')+'<button data-add-event-date="'+iso+'">＋ Afspraak toevoegen</button></section>';
-  };
   p._bind=function(...args){
    bind.apply(this,args);
    this.shadowRoot.querySelectorAll('[data-routine-collapse]').forEach(el=>el.ontoggle=()=>{this._closedRoutines??=new Set();el.open?this._closedRoutines.delete(el.dataset.routineCollapse):this._closedRoutines.add(el.dataset.routineCollapse)});
-   for(const [name,change] of [['prev',-1],['next',1],['today',0],['week',null]]){const b=this.shadowRoot.querySelector('[data-day-'+name+']');if(b)b.onclick=()=>{this._dayOffset=change===null?null:change===0?0:(this._dayOffset||0)+change;const d=new Date();d.setDate(d.getDate()+(this._dayOffset||0));this._weekOffset=this._dayOffset==null?0:weekOffset(d);this._load()}}
    this.shadowRoot.querySelectorAll('[data-family-reward]').forEach(b=>b.onclick=async()=>{
     if(this._familyRewardBusy)return;const r=(this._config.rewards||[]).find(r=>r.id===b.dataset.familyReward&&r.member_id==='__family__');if(!r||!this._config.family_todo)return;
     this._familyRewardBusy=true;b.disabled=true;
@@ -55,7 +48,7 @@ const FamilyHubProgress=(()=>{
    .navigation-wrap,:host([wall-shell]) .navigation-wrap{order:10!important;height:auto!important;flex:0 0 auto!important;display:flex;flex-direction:column;background:var(--card-background-color,#fff)}
    .navigation-wrap .member-legend{margin:0;padding:8px 14px;overflow-x:auto;flex-wrap:nowrap}.navigation-wrap .bottom-nav{border-top:1px solid var(--divider-color,#ddd)!important;position:static!important}.content{order:0!important;min-height:0}
    .routine-collapse{border:1px solid var(--divider-color,#ddd);border-radius:16px;overflow:hidden}.routine-collapse summary{padding:18px;cursor:pointer;min-height:48px;box-sizing:border-box;font-weight:600}.routine-collapse .routine-card{margin:0}.approval-note{display:block;padding:4px 12px 12px;color:var(--secondary-text-color,#555)}
-   .family-pot{margin-bottom:20px}.family-pot>strong{font-size:32px}.family-pot button,.day-controls button{min-height:48px;padding:10px 16px;border-radius:12px;border:1px solid var(--divider-color,#ddd);background:var(--card-background-color,#fff);color:inherit}.day-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+   .family-pot{margin-bottom:20px}.family-pot>strong{font-size:32px}.family-pot button{min-height:48px;padding:10px 16px;border-radius:12px;border:1px solid var(--divider-color,#ddd);background:var(--card-background-color,#fff);color:inherit}
   `};
  }
  return {install,weekOffset};

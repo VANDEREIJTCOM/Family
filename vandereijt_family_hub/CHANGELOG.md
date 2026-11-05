@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.3 — meer ruimte en bereikbare bediening
+
+- Op wanddisplays kan de bovenste inhoud met een gewone veeg omlaag binnen handbereik worden gehaald. De onderste navigatie blijft staan en achtergrondverversingen behouden de positie.
+- De extra losse knoppen boven de agenda zijn verwijderd; de bediening in het agendablok blijft beschikbaar.
+- In de bijbehorende wandpagina vervalt de volledige FamilyHub-titelbalk, zodat de inhoud bovenaan begint.
+
 ## 0.14.2 — één navigatiebalk
 
 - Eén onderste Hub-navigatiebalk met Home Assistant Thuis in het midden. De wandpagina kan haar eigen thuisroute meegeven.
