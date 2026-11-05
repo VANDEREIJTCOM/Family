@@ -252,6 +252,7 @@ jobs:
 
       - name: Test Home Assistant integration and runtime migrations
         run: |
+          node tests/hub-navigation.cjs
           node tests/progress-card.cjs
           node tests/ha-context.cjs
           node tests/ha-view-layout.cjs
