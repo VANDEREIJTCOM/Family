@@ -1,3 +1,7 @@
+## 0.16.1
+
+- Schoolicoon toont een herkenbaar schoolgebouw met dak, klok, ramen en deur, in beheer en dashboard. Bestaande selecties blijven behouden.
+
 ## 0.16.0
 
 - Weekendfilter met zaterdag/zondag naast de werkweek.
