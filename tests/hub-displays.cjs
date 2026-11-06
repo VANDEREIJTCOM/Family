@@ -7,6 +7,8 @@ assert.equal(resolve(base,'wall').font_scale,125);
 assert.equal(resolve(base,'missing').font_scale,130);
 assert.equal(resolve(base,'').font_scale,130);
 assert.equal(base.font_scale,130);
+base.display_devices[0].values.tasks_layout='three_columns';base.display_devices[0].values.routines_layout='three_columns';
+assert.equal(resolve(base,'tablet').tasks_layout,'three_columns');assert.equal(resolve(base,'tablet').routines_layout,'three_columns');assert.equal(resolve(base,'wall').routines_layout,undefined);
 base.display_profiles[0].values.font_scale=80;
 assert.equal(resolve(base,'tablet').font_scale,110);
 console.log('HUB_DISPLAYS_PASSED: independent browser choices, fallback, family data excluded, copied profile values');

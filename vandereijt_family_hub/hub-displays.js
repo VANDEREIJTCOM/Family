@@ -1,6 +1,6 @@
 /* Device binding is local to this browser; configuration remains shared in HA. */
 const FamilyHubDisplays=(()=>{
- const keys=['navigation','home_sections','tasks_layout','fullscreen_mode','font_scale','accent_color','background_url','background_overlay','idle_minutes','idle_show_clock','photos'];
+ const keys=['navigation','home_sections','tasks_layout','routines_layout','fullscreen_mode','font_scale','accent_color','background_url','background_overlay','idle_minutes','idle_show_clock','photos'];
  const storageKey='family_hub_display_device';
  function pick(values){return Object.fromEntries(keys.filter(k=>Object.hasOwn(values||{},k)).map(k=>[k,values[k]]))}
  function resolve(source,id){const device=(source.display_devices||[]).find(d=>d.id===id);return {...source,...pick(device?.values)}}

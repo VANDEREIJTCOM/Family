@@ -1,5 +1,6 @@
 ## 0.16.2
 
+- Taken en routines hebben elk een keuze voor één, twee of drie kolommen, ook per apparaat en schermprofiel. De startpagina gebruikt dezelfde indeling; smalle schermen blijven leesbaar onder elkaar.
 - Geplande klusjes tonen uitsluitend de huidige configuratie voor vandaag en de juiste persoon. Oude uitvoeringen van verwijderde klusjes en andere dagen verdwijnen uit het dashboard; dubbele dagrecords verschijnen één keer. Openstaande zelf toegevoegde taken blijven zichtbaar.
 - Klusjesmeldingen hebben Goedkeuren en Nog niet goed-knoppen. Een goedkeuring telt het ingestelde aantal sterren precies één keer bij het gezinslid én de gezinspot op. Eerdere tekstmeldingen worden bij de eerste synchronisatie vervangen.
 - Kleurrijke, gedeelde kinderillustraties met zachte kleurovergangen, schaduw en herkenbare details; bestaande icoonkeuzes blijven werken. Kam en kledingkast toegevoegd.
