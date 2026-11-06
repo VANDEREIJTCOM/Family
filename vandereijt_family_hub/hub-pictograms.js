@@ -10,9 +10,9 @@ const FamilyHubPictograms=(()=>{
  }
  function install(p){
   const items=p._routineItems,groups=p._routineTodoGroups;
-  const order=(card,r,rows)=>[...rows].sort((a,b)=>{const ids=(r?.steps||[]).map(s=>s.id),pos=x=>{const i=ids.indexOf(card._meta(x)?.step_id);return i<0?ids.length:i};return pos(a)-pos(b)});
+  const order=(card,r,rows)=>{const ids=(r?.steps||[]).map(s=>s.id),unique=new Map();for(const item of rows){const id=card._meta(item)?.step_id;if(!ids.includes(id))continue;const previous=unique.get(id);if(!previous||item.status==='completed')unique.set(id,item)}return [...unique.values()].sort((a,b)=>ids.indexOf(card._meta(a)?.step_id)-ids.indexOf(card._meta(b)?.step_id))};
   p._routineItems=function(r,m){return order(this,r,items.call(this,r,m))};
-  p._routineTodoGroups=function(m){return groups.call(this,m).map(g=>({...g,items:order(this,(this._config.routines||[]).find(r=>r.id===g.id),g.items)}))};
+  p._routineTodoGroups=function(m){return groups.call(this,m).map(g=>({...g,items:order(this,(this._config.routines||[]).find(r=>r.id===g.id),g.items)})).filter(g=>g.items.length)};
   const open=p._open,modal=p._modalHtml,bind=p._bind,add=p._addTodo;
   const choices=glyphs.items.map(x=>[x.id,x.label]);
   p._open=function(kind,...args){if(kind==='task')this._manualTaskIcon='mdi:check-circle-outline';return open.call(this,kind,...args)};

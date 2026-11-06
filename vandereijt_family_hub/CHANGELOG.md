@@ -1,3 +1,10 @@
+## 0.16.3
+
+- Nieuw puntenscherm met naamloze portretten en echte persoonlijke saldi, één gezinspot en een balk richting 150 sterren. Geen herhaalde personenlijst per beloning.
+- Beloningskaarten met eigen afbeeldingen: PNG, JPG en WebP uploaden bij de beloning in beheer; grote foto’s worden verkleind. Zonder foto blijft het gekozen icoon zichtbaar.
+- Bestaande vaste beloningen voor iedereen zijn ook samen te kiezen uit de gezinspot. Persoonsgebonden beloningen en het persoonlijke rad blijven bereikbaar via het portret; reserveren en verzilveren blijven via de bestaande sterrenregistratie lopen.
+- Routinestappen worden niet meer dubbel aangemaakt door gelijktijdige synchronisaties. Aanwezige stappen, vinkjes, UIDs en eerder toegekende sterren blijven behouden bij wijzigingen of herstart. Dashboard toont elke huidige stap-ID één keer, met behoud van een bestaand vinkje.
+
 ## 0.16.2
 
 - Taken en routines hebben elk een keuze voor één, twee of drie kolommen, ook per apparaat en schermprofiel. De startpagina gebruikt dezelfde indeling; smalle schermen blijven leesbaar onder elkaar.

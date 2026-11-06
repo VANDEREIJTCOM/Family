@@ -16,5 +16,10 @@ vm.runInNewContext(fs.readFileSync(process.argv[2],'utf8'),context);const proto=
  card._config.smart_tasks=[{id:'choice',assignment:'choice',days:[0,1,2,3,4,5,6]},{id:'hidden',assignment:'all',enabled:false},{id:'later',assignment:'all',schedule:'dates',dates:['2099-01-01']},{id:'wrong-person',member_id:'b',days:[0,1,2,3,4,5,6]},{id:'other-real-task',assignment:'all',days:[0,1,2,3,4,5,6]}];
  card._todoAll={a:[task('old-personal','deleted'),task('yesterday','choice',other),task('one','choice'),task('dupe-done','choice',today,'a','completed'),task('wrong','choice',today,'b'),task('hidden','hidden'),task('later','later'),task('wrong-assignee','wrong-person'),task('different-definition','other-real-task'),{uid:'manual-overdue',status:'needs_action',due:other},{uid:'manual-old-done',status:'completed',due:other}]};card._todos={};
  assert.deepEqual(Array.from(card._regularTodos({id:'a'}),x=>x.uid),['manual-overdue','different-definition','dupe-done']);
+ card._config.routines=[{id:'r',member_ids:['a'],steps:[{id:'s1'},{id:'s2'}]}];
+ const step=(uid,id,status='needs_action')=>({uid,status,description:'FH_META:'+JSON.stringify({kind:'routine_step',routine_id:'r',member_id:'a',date:today,step_id:id})});
+ card._todoAll.a=[step('one','s1'),step('duplicate-complete','s1','completed'),step('two','s2'),step('removed-step','obsolete')];
+ assert.deepEqual(Array.from(card._routineItems(card._config.routines[0],{id:'a'}),x=>x.uid),['duplicate-complete','two']);
+ const group=card._routineTodoGroups({id:'a'})[0];assert.equal(group.items.length,2);assert.equal(group.items[0].status,'completed');
  console.log('PROGRESS_RUNTIME_PASSED: managed task completion never changes balances in browser; server metadata marked; optional chore value visible');
 })().catch(e=>{console.error(e);process.exitCode=1});

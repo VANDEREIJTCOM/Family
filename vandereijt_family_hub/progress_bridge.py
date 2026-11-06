@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 import threading
 import time
-from family_progress import FamilyProgress,ProgressError,build_work,manual_work
+from family_progress import FamilyProgress,ProgressError,build_work,manual_work,shared_reward
 
 class ProgressBridge:
     def __init__(self,app):
@@ -54,7 +54,7 @@ class ProgressBridge:
         with self.sync_lock:
             settings,todos,work=self.collect()
             notices=self.store.observe(work)
-            rewards={r['id']:r for r in settings.get('rewards',[]) if r.get('member_id')=='__family__'}
+            rewards={r['id']:r for r in settings.get('rewards',[]) if shared_reward(r)}
             for item in todos.get(settings.get('family_todo'),[]):
                 try:
                     text=item.get('description','');meta=json.loads(text[8:]) if text.startswith('FH_META:') else {}

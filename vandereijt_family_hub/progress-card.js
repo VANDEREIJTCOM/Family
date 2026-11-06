@@ -6,6 +6,7 @@ const FamilyHubProgress=(()=>{
  }
  function install(p){
   if(p._familyProgress)return;p._familyProgress=true;
+  p._isSharedReward=function(r){return r.member_id==='__family__'||(!r.member_id&&r.reward_type!=='wheel')};
   const load=p._load,bind=p._bind,css=p._css,routine=p._routineCard,rewards=p._rewardsScreen,task=p._taskRow;
   p._load=async function(...args){
    if(!this._progressLoading&&Date.now()-(this._progressAt||0)>10000){
@@ -45,7 +46,7 @@ const FamilyHubProgress=(()=>{
    bind.apply(this,args);
    this.shadowRoot.querySelectorAll('[data-routine-collapse]').forEach(el=>el.ontoggle=()=>{this._closedRoutines??=new Set();el.open?this._closedRoutines.delete(el.dataset.routineCollapse):this._closedRoutines.add(el.dataset.routineCollapse)});
    this.shadowRoot.querySelectorAll('[data-family-reward]').forEach(b=>b.onclick=async()=>{
-    if(this._familyRewardBusy)return;const r=(this._config.rewards||[]).find(r=>r.id===b.dataset.familyReward&&r.member_id==='__family__');if(!r||!this._config.family_todo)return;
+    if(this._familyRewardBusy)return;const r=(this._config.rewards||[]).find(r=>r.id===b.dataset.familyReward&&this._isSharedReward(r));if(!r||!this._config.family_todo)return;
     this._familyRewardBusy=true;b.disabled=true;
     try{await this._hass.callService('todo','add_item',{item:'Gezinsbeloning: '+r.title,description:'FH_META:'+JSON.stringify({kind:'family_reward_request',reward_id:r.id})},{entity_id:this._config.family_todo});b.textContent='Gekozen · wordt verwerkt';this._progressAt=0}catch{b.textContent='Niet gelukt · probeer opnieuw';b.disabled=false}finally{this._familyRewardBusy=false}
    });

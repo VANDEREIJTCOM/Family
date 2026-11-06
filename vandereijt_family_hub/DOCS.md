@@ -70,3 +70,9 @@ Een rechtstreekse verbinding, ontbrekende identiteit, inactief account of fout b
 gebruikerscontrole geeft geen toegang. Een oude tab kan na een update vragen om
 te vernieuwen voordat opslaan weer werkt. Instellingen en beheerrechten worden
 apart bewaard; een gewone instellingenimport kan geen beheerrechten toevoegen.
+
+## Puntenscherm en beloningsafbeeldingen
+
+Het puntenscherm toont per portret het persoonlijke sterrensaldo en daarnaast de onafhankelijke gezinspot met een doel van 150 sterren. Tik op een portret voor de persoonlijke beloningen. Vaste beloningen voor Iedereen en beloningen voor Gezin kunnen samen worden gekozen; persoonsgebonden beloningen en persoonlijke radjes blijven op het profiel.
+
+Open **Punten & beloningen**, bewerk een beloning en kies bij **Afbeelding op het puntenscherm** een PNG-, JPG- of WebP-bestand. Foto’s tot 20 MB worden in de browser tot maximaal 1600 pixels verkleind. Sla daarna de beloning op. Annuleren laat de ingestelde afbeelding ongemoeid; weghalen schakelt terug naar het gekozen icoon. Afbeeldingen worden lokaal bewaard onder `/config/www/family-hub/reward-images/`.

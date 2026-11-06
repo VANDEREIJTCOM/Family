@@ -138,6 +138,11 @@ class BridgeTests(unittest.TestCase):
   self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();self.settings['smart_tasks']=[];self.bridge.sync();self.assertEqual(next(iter(self.bridge.store.snapshot()['jobs'].values()))['state'],'cancelled')
  def test_public_progress_does_not_publish_entities_or_admin_ids(self):
   self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();published=(self.root/'progress.json').read_text();self.assertNotIn('input_number',published);self.assertNotIn('admin_user_ids',published);self.assertIn('Alex',published)
+ def test_global_fixed_reward_can_be_selected_from_family_screen(self):
+  self.bridge.store.observe([]);self.bridge.store.observe([dict(key='earned',kind='routine',member_id='a',title='Klaar',date='2026-11-06',points=200,points_entity='input_number.a',complete=True)])
+  self.settings.update(family_todo='todo.family',rewards=[dict(id='outing',title='Uitje',cost=150),dict(id='private',title='Privé',member_id='a',cost=1)])
+  self.items=[{'uid':'request','description':'FH_META:'+json.dumps({'kind':'family_reward_request','reward_id':'outing'})},{'uid':'private-request','description':'FH_META:'+json.dumps({'kind':'family_reward_request','reward_id':'private'})}]
+  self.bridge.sync();snapshot=self.bridge.store.snapshot();self.assertEqual(snapshot['family']['reserved'],150);self.assertEqual(snapshot['family']['available'],50);self.assertEqual(len(snapshot['rewards']),1);self.assertEqual(self.bal,250)
 
 
 class ManualBonusTests(BridgeTests):
