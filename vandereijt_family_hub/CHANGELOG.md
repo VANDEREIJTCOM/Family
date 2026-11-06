@@ -1,3 +1,8 @@
+## 0.15.2
+
+- Verhelp stil afkappen na 40 routines: ruimte voor 500 routines, 1000 taken en 100 stappen per routine.
+- Overschrijden geeft een duidelijke fout zonder gedeeltelijk opslaan; de beheerpagina controleert dat alle ingediende items terugkomen.
+
 ## 0.15.1
 
 - Taaktekst verticaal gecentreerd naast het pictogram.

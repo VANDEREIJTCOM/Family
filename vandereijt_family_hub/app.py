@@ -124,8 +124,28 @@ def _clean_id(value, fallback):
     return (value or fallback)[:80]
 
 
+MAX_ROUTINES = 500
+MAX_SMART_TASKS = 1000
+MAX_ROUTINE_STEPS = 100
+
 def normalize_settings(data):
     src = data if isinstance(data, dict) else {}
+    # Reject oversized submissions before any provisioning or persistence.
+    # Never silently discard a newly created routine, task or step.
+    for key, limit, label in (("routines", MAX_ROUTINES, "routines"), ("smart_tasks", MAX_SMART_TASKS, "taken")):
+        rows = src.get(key) or []
+        if not isinstance(rows, list):
+            raise ValueError(f"Ongeldige lijst voor {label}")
+        if len(rows) > limit:
+            raise ValueError(f"Maximaal {limit} {label} toegestaan. Er is niets opgeslagen.")
+    for index, routine in enumerate(src.get("routines") or []):
+        if not isinstance(routine, dict):
+            continue
+        steps = routine.get("steps") or []
+        if not isinstance(steps, list):
+            raise ValueError(f"Ongeldige stappenlijst bij routine {index + 1}")
+        if len(steps) > MAX_ROUTINE_STEPS:
+            raise ValueError(f"Maximaal {MAX_ROUTINE_STEPS} stappen per routine toegestaan. Er is niets opgeslagen.")
     out = dict(DEFAULTS)
     for key in DEFAULTS:
         if key in src:
@@ -223,9 +243,9 @@ def normalize_settings(data):
             "enabled": bool(routine.get("enabled", True)),
             "todo_entity": str(routine.get("todo_entity") or "")[:160],
             "completion_points": max(0, min(500, int(routine.get("completion_points", sum(s["points"] for s in steps))))),
-            "steps": steps[:20],
+            "steps": steps,
         })
-    out["routines"] = routines[:40]
+    out["routines"] = routines
 
     smart_tasks = []
     for idx, task in enumerate(src.get("smart_tasks") or []):
@@ -246,7 +266,7 @@ def normalize_settings(data):
             "show_in_calendar": bool(task.get("show_in_calendar", True)),
             "enabled": bool(task.get("enabled", True)),
         })
-    out["smart_tasks"] = smart_tasks[:100]
+    out["smart_tasks"] = smart_tasks
 
     rewards = []
     for idx, reward in enumerate(src.get("rewards") or []):
