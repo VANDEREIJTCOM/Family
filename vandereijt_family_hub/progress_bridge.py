@@ -68,8 +68,12 @@ class ProgressBridge:
                 member=members.get(notice['member_id'],{})
                 targets=self.notification_targets()
                 if targets:
-                    result=self.app['send_push_notification'](targets,'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. Open Family Hub → Goedkeuren. Punten volgen pas na akkoord.',{'tag':'fh-chore-'+notice['key']})
-                    if result.get('sent'):self.store.notified(notice['key'],notice['attempt'])
+                    token=notice['notification_token']
+                    data={'tag':'fh-chore-'+notice['key'],'actions':[
+                        {'action':'FH_CHORE_APPROVE_'+token,'title':'Goedkeuren','authenticationRequired':True},
+                        {'action':'FH_CHORE_REJECT_'+token,'title':'Nog niet goed','authenticationRequired':True}]}
+                    result=self.app['send_push_notification'](targets,'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. Goedkeuren geeft '+str(notice['points'])+' sterren aan dit gezinslid én het gezin.',data)
+                    if set(targets).issubset(result.get('sent') or []):self.store.notified(notice['key'],notice['attempt'])
             return self.store.snapshot()
     def manual_overview(self):
         with self.sync_lock:
@@ -92,6 +96,11 @@ class ProgressBridge:
             elif action in ('family_fulfil','family_cancel'):
                 self.store.finish_reward(key,action=='family_fulfil')
             else:raise ProgressError('Onbekende goedkeuringsactie')
+            return {'ok':True,**self.publish()}
+    def resolve_notification(self,action):
+        with self.sync_lock:
+            _,_,work=self.collect()
+            self.store.resolve_notification(action,work)
             return {'ok':True,**self.publish()}
     def loop(self):
         time.sleep(3)

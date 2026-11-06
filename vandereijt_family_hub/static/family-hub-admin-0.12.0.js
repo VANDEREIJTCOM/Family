@@ -322,7 +322,8 @@ function scheduleSummary(item){return item.schedule==='dates'?(item.dates||[]).m
 function routineEndTime(r){if(r.end_time)return r.end_time;const [h,m]=(r.time||"07:00").split(':').map(Number),end=Math.min(1439,h*60+m+Number(r.duration_minutes||30));return String(Math.floor(end/60)).padStart(2,'0')+':'+String(end%60).padStart(2,'0')}
 function openRoutineEditor(index=null,seed=null){
  const old=index==null?null:settings.routines[index];
- const r=deepClone(seed||old||{title:"",member_ids:[],icon:"mdi:progress-check",days:[0,1,2,3,4],time:"07:00",duration_minutes:30,show_in_calendar:true,show_in_tasks:true,enabled:true,steps:[]});
+ const r=deepClone(seed||old||{title:"",member_ids:[],icon:"mdi:progress-check",completion_points:1,days:[0,1,2,3,4],time:"07:00",duration_minutes:30,show_in_calendar:true,show_in_tasks:true,enabled:true,steps:[]});
+ if(!old&&r.completion_points==null)r.completion_points=1;
  const ids=Array.isArray(r.member_ids)&&r.member_ids.length?r.member_ids:(r.member_id?[r.member_id]:[]);
  const body=`<div class="editor-grid" data-routine="editor">
   <section class="editor-section span2"><h3>1. Voor wie en wanneer?</h3><label>Naam<input id="ed-routine-title" value="${esc(r.title||"")}" placeholder="Bijv. Opstaan en naar school"></label><label>Voor wie?</label>${memberCheckboxes(ids)}

@@ -22,6 +22,38 @@ class ProgressTests(unittest.TestCase):
  def test_unchecked_chore_cannot_be_approved(self):
   self.store.observe([self.unit('chore')]);self.store.observe([self.unit('chore',True)])
   with self.assertRaises(ProgressError):self.store.resolve('r',True,[self.unit('chore')])
+ def pending_notification(self):
+  self.store.observe([self.unit('chore')]);work=[self.unit('chore',True)];self.store.observe(work)
+  return self.store.notification_jobs()[0],work
+ def test_notification_approval_survives_restart_and_credits_both_once(self):
+  notice,work=self.pending_notification();action='FH_CHORE_APPROVE_'+notice['notification_token']
+  self.store=FamilyProgress(self.path,lambda e:self.balance.get(e),self.set_value)
+  self.store.resolve_notification(action,work);self.store.resolve_notification(action,work)
+  self.assertEqual(self.calls,[55]);self.assertEqual(self.store.snapshot()['family']['earned'],5)
+  self.assertNotIn(notice['notification_token'],json.dumps(self.store.snapshot()))
+ def test_old_notification_cannot_approve_resubmitted_chore(self):
+  notice,work=self.pending_notification();token=notice['notification_token']
+  self.store.resolve_notification('FH_CHORE_REJECT_'+token,work)
+  self.assertEqual(self.calls,[])
+  self.store.observe([self.unit('chore')]);self.store.observe(work)
+  with self.assertRaises(ProgressError):self.store.resolve_notification('FH_CHORE_APPROVE_'+token,work)
+  fresh=self.store.notification_jobs()[0];self.assertNotEqual(fresh['notification_token'],token)
+  self.store.resolve_notification('FH_CHORE_APPROVE_'+fresh['notification_token'],work);self.assertEqual(self.calls,[55])
+ def test_invalid_or_deleted_notification_changes_no_stars(self):
+  notice,work=self.pending_notification()
+  for action in ('FH_CHORE_APPROVE_'+'0'*48,'FH_CHORE_APPROVE_r','FH_CHORE_OTHER_'+notice['notification_token']):
+   with self.assertRaises(ProgressError):self.store.resolve_notification(action,work)
+  for work in ([],[self.unit('chore')]):
+   with self.assertRaises(ProgressError):self.store.resolve_notification('FH_CHORE_APPROVE_'+notice['notification_token'],work)
+  self.assertEqual(self.calls,[]);self.assertEqual(self.store.snapshot()['family']['earned'],0)
+ def test_text_only_pending_notification_is_upgraded_once(self):
+  notice,work=self.pending_notification();state=self.store._read();state['jobs']['r']['notified_attempt']=1;self.store._save(state)
+  self.assertEqual(len(self.store.notification_jobs()),1)
+  self.store.notified('r',1);self.assertEqual(self.store.notification_jobs(),[])
+ def test_one_routine_star_goes_to_person_and_family_once(self):
+  self.store.observe([self.unit(points=1)]);self.store.observe([self.unit(complete=True,points=1)])
+  self.store.observe([self.unit(complete=True,points=1)])
+  self.assertEqual(self.calls,[51]);self.assertEqual(self.store.snapshot()['family']['balance'],1)
  def test_server_ignores_nonexistent_job(self):
   with self.assertRaises(ProgressError):self.store.resolve('forged:500',True,[])
  def test_crash_after_ha_write_recovers_without_double_credit(self):
@@ -78,6 +110,26 @@ class BridgeTests(unittest.TestCase):
   self.chore();(self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_parent_a','mobile_app_parent_b']}));self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();self.bridge.sync();self.assertEqual(self.bal,50);self.assertEqual(self.sent,[['mobile_app_parent_a','mobile_app_parent_b']]);key=next(iter(self.bridge.store.snapshot()['jobs']));self.bridge.resolve({'action':'approve','key':key,'points':999});self.assertEqual(self.bal,55);self.assertEqual(self.bridge.store.snapshot()['family']['earned'],5)
  def test_empty_chore_targets_do_not_reuse_general_targets(self):
   self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();self.assertEqual(self.sent,[])
+ def test_push_buttons_resolve_via_bridge_with_current_server_work(self):
+  messages=[]
+  def notify(targets,title,message,data):messages.append(data);return {'sent':targets}
+  self.app['send_push_notification']=notify
+  (self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_parent']}))
+  self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync()
+  actions=messages[0]['actions'];self.assertEqual([a['title'] for a in actions],['Goedkeuren','Nog niet goed'])
+  self.assertTrue(all(a['authenticationRequired'] for a in actions));self.assertEqual(self.bal,50)
+  action=actions[0]['action'];self.bridge=ProgressBridge(self.app)
+  self.bridge.resolve_notification(action);self.bridge.resolve_notification(action)
+  self.assertEqual(self.bal,55);self.assertEqual(self.bridge.store.snapshot()['family']['earned'],5)
+  self.assertNotIn(action.split('_')[-1],(self.root/'progress.json').read_text())
+ def test_partial_delivery_retries_with_same_tag_and_action(self):
+  messages=[];attempt=[0]
+  def notify(targets,title,message,data):
+   messages.append(data);attempt[0]+=1;return {'sent':targets[:1] if attempt[0]==1 else targets}
+  self.app['send_push_notification']=notify
+  (self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_a','mobile_app_b']}))
+  self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();self.bridge.sync();self.bridge.sync()
+  self.assertEqual(len(messages),2);self.assertEqual(messages[0],messages[1]);self.assertEqual(self.bal,50)
  def test_missing_response_does_not_initialize_or_award(self):
   self.app['ha_service']=lambda *a:None
   with self.assertRaises(ProgressError):self.bridge.sync()

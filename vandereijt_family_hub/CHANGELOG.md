@@ -1,3 +1,11 @@
+## 0.16.2
+
+- Geplande klusjes tonen uitsluitend de huidige configuratie voor vandaag en de juiste persoon. Oude uitvoeringen van verwijderde klusjes en andere dagen verdwijnen uit het dashboard; dubbele dagrecords verschijnen één keer. Openstaande zelf toegevoegde taken blijven zichtbaar.
+- Klusjesmeldingen hebben Goedkeuren en Nog niet goed-knoppen. Een goedkeuring telt het ingestelde aantal sterren precies één keer bij het gezinslid én de gezinspot op. Eerdere tekstmeldingen worden bij de eerste synchronisatie vervangen.
+- Kleurrijke, gedeelde kinderillustraties met zachte kleurovergangen, schaduw en herkenbare details; bestaande icoonkeuzes blijven werken. Kam en kledingkast toegevoegd.
+- Een afgeronde routine blijft herkenbaar met een speelse illustratie en wisselende aanmoediging. Na bevestigde registratie blijft de verdiende ster ook in de ingeklapte titelbalk zichtbaar; handmatig openklappen blijft mogelijk.
+- Nieuwe lege routines beginnen met één ster als afrondingsbeloning; bestaande ingestelde aantallen blijven behouden.
+
 ## 0.16.1
 
 - Schoolicoon toont een herkenbaar schoolgebouw met dak, klok, ramen en deur, in beheer en dashboard. Bestaande selecties blijven behouden.

@@ -1140,6 +1140,12 @@ def reward_notification_action_loop():
                     _resolve_reward_request(action[len("FH_REWARD_APPROVE_"):], True)
                 elif action.startswith("FH_REWARD_DENY_"):
                     _resolve_reward_request(action[len("FH_REWARD_DENY_"):], False)
+                elif action.startswith("FH_CHORE_"):
+                    try:
+                        PROGRESS.resolve_notification(action)
+                    except Exception as exc:
+                        # Invalid/stale actions must not interrupt other notifications.
+                        print(f"[Family Hub] Klusjesmelding niet verwerkt: {exc}", flush=True)
         except Exception as exc:
             print(f"[Family Hub] Reward notification listener reconnect: {exc}", flush=True)
             time.sleep(5)

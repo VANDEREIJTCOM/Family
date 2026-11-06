@@ -696,7 +696,21 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
   }
   _regularTodos(m){
     const today=this._dateISO(new Date()),all=this._todoAll[m.id]||this._todos[m.id]||[];
-    return all.filter(item=>{const meta=this._meta(item);if(meta?.kind==="routine_step"||meta?.kind==="reward_claim")return false;if(item.status!=="completed")return true;return this._itemDate(item)===today}).sort((a,b)=>(a.status==="completed")-(b.status==="completed"));
+    const visible=[],generated=new Map();
+    for(const item of all){
+      const meta=this._meta(item);
+      if(meta?.kind==="routine_step"||meta?.kind==="reward_claim")continue;
+      if(meta?.kind==="smart_task"){
+        const task=(this._config.smart_tasks||[]).find(t=>t.id===meta.task_id);
+        if(!task||task.enabled===false||meta.date!==today||meta.member_id!==m.id||!this._scheduledOn(task,today))continue;
+        const assigned=["all","choice"].includes(task.assignment)||(task.member_ids?.length?task.member_ids:[task.member_id]).includes(m.id);
+        if(!assigned)continue;
+        const key=meta.task_id+':'+m.id+':'+today,previous=generated.get(key);
+        // The server also treats a daily job as complete if any matching row is complete.
+        if(!previous||item.status==="completed")generated.set(key,item);
+      }else if(item.status!=="completed"||this._itemDate(item)===today)visible.push(item);
+    }
+    return [...visible,...generated.values()].sort((a,b)=>(a.status==="completed")-(b.status==="completed"));
   }
   _routineTodoGroups(m){
     const groups=new Map(),today=this._dateISO(new Date());
