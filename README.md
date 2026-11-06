@@ -114,3 +114,22 @@ authorized Hub administrators can open it; other users receive an access message
 
 Validation includes `python tests/ha_access.py`, `node tests/ha-access-ui.cjs` and
 the full runtime migration checks alongside the existing task and scroll tests.
+
+## Schermprofielen en beheerfilters (0.15)
+
+Routines & taken heeft een dagfilter, personenfilter en kolommen per werkdag of per
+persoon. Personen komen uit de ingestelde gezinsleden en worden alfabetisch gesorteerd.
+Weekenddagen zijn apart te kiezen. Bewerken, kopiëren en verwijderen werken vanuit iedere kolom.
+
+Schermen & uiterlijk verenigt navigatie, Vandaag, takenindeling, volledig scherm en
+uiterlijk. Bewaar de huidige opmaak als profiel, of begin met een basis voor 24 inch
+of 10,1 inch. Geef ieder apparaat een naam, schermmaat en stand. Een profiel laden
+kopieert de instellingen naar dat apparaat; profielen aanpassen verandert bestaande
+apparaatkopieën niet. Ook een bestaand apparaat kan als basis voor een nieuw profiel dienen.
+Kies op ieder display **Filter → Dit scherm**. De keuze wordt per browser bewaard;
+profielen en apparaatinstellingen staan in de gedeelde HA-instellingen. Zonder keuze
+blijven de bestaande standaardinstellingen gelden. Schermmaat en stand worden expliciet
+ingesteld, omdat een browser de fysieke inchmaat niet betrouwbaar kan bepalen.
+
+Controle: `python tests/display_settings.py`, `node tests/hub-displays.cjs` en
+`python tests/build_runtime.py`.

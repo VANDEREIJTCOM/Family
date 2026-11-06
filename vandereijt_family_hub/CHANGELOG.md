@@ -1,3 +1,12 @@
+## 0.15.0
+
+- Beheerfilters en kolommen per dag of persoon; schermen en uiterlijk samen met profielen per apparaat.
+- Agenda-dagenstrook vastpakken en slepen, zonder zichtbare scrollbar.
+- Identieke externe afspraken verschijnen samen met de betrokken personen; persoonlijke bronnen blijven behouden.
+- Grote instelbare pictogrammen voor routines, stappen, klusjes en zelf toegevoegde taken.
+- Korte gevarieerde feestjes bij bevestigde afronding en sterrenanimaties bij bevestigde punten; minder beweging wordt gerespecteerd.
+- Routinemaker ondersteunt stappen slepen met muis/touch en verplaatsen met het toetsenbord; stap-ID, icoon en punten blijven behouden.
+
 ## 0.14.4
 
 - Settings reach open Hub devices immediately through Home Assistant events.

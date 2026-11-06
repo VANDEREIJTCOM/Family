@@ -360,6 +360,45 @@ def normalize_settings(data):
     out["dashboard_managed"] = bool(src.get("dashboard_managed", False))
     out["dashboard_show_sidebar"] = bool(src.get("dashboard_show_sidebar", True))
     out["dashboard_title"] = str(src.get("dashboard_title") or "Family Hub")[:80]
+    # Profiles contain display options only; never family/person data.
+    display_keys = ("navigation", "home_sections", "tasks_layout", "fullscreen_mode", "font_scale", "accent_color", "background_url", "background_overlay", "idle_minutes", "idle_show_clock", "photos")
+    def display_values(value):
+        value = value if isinstance(value, dict) else {}
+        value = {k: v for k, v in value.items() if k in display_keys}
+        for key in ("navigation", "home_sections", "photos"):
+            if key in value and not isinstance(value[key], list):
+                value.pop(key)
+        if "navigation" in value:
+            value["navigation"] = [x for x in value["navigation"][:20] if isinstance(x, dict)]
+        for key in ("home_sections", "photos"):
+            if key in value:
+                value[key] = [x for x in value[key][:50] if isinstance(x, str)]
+        for key in ("background_url", "accent_color"):
+            if key in value:
+                value[key] = str(value[key] or "")[:300]
+        clean = normalize_settings({**out, **value, "display_profiles": [], "display_devices": []})
+        return {k: clean[k] for k in display_keys if k in value and k in clean}
+    def display_rows(key):
+        result, seen = [], set()
+        rows = src.get(key, [])
+        for row in (rows[:100] if isinstance(rows, list) else []):
+            if not isinstance(row, dict):
+                continue
+            ident = str(row.get("id", ""))[:80]
+            if not re.fullmatch(r"[a-zA-Z0-9_-]+", ident) or ident in seen:
+                continue
+            seen.add(ident)
+            try:
+                inches = max(1, min(120, float(row.get("inches", 24))))
+                if not __import__("math").isfinite(inches): inches = 24
+            except (TypeError, ValueError):
+                inches = 24
+            result.append({"id": ident, "name": str(row.get("name") or "Scherm")[:80], "inches": inches,
+                           "orientation": "portrait" if row.get("orientation") == "portrait" else "landscape",
+                           "profile_id": str(row.get("profile_id") or "")[:80], "values": display_values(row.get("values"))})
+        return result
+    out["display_profiles"] = display_rows("display_profiles")
+    out["display_devices"] = display_rows("display_devices")
     out["version"] = 2
     return out
 

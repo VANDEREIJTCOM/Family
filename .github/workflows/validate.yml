@@ -254,7 +254,13 @@ jobs:
         run: |
           node tests/hub-reachability-boundary.cjs
           node tests/hub-reachability.cjs
+          node tests/hub-displays.cjs
+          python tests/display_settings.py
+          node --check vandereijt_family_hub/static/display-admin.js
           node tests/hub-updates.cjs
+          node tests/hub-family-experience.cjs
+          node --check vandereijt_family_hub/static/routine-drag.js
+          node tests/hub-calendar-drag.cjs
           node tests/hub-calendar-tasks.cjs
           node tests/hub-entry.cjs
           node tests/hub-navigation.cjs
