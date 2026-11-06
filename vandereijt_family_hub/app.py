@@ -85,6 +85,7 @@ DEFAULTS = {
     "background_overlay": 82,
     "font_scale": 100,
     "tasks_layout": "two_plus_one",
+    "routines_layout": "columns",
     "accent_color": "#2E6CA5",
     "dashboard_managed": False,
     "dashboard_show_sidebar": True,
@@ -411,13 +412,14 @@ def normalize_settings(data):
 
     out["show_household_status"] = bool(src.get("show_household_status", True))
     out["idle_show_clock"] = bool(src.get("idle_show_clock", True))
-    out["tasks_layout"] = src.get("tasks_layout") if src.get("tasks_layout") in ("stacked", "columns", "two_plus_one") else "two_plus_one"
+    out["tasks_layout"] = src.get("tasks_layout") if src.get("tasks_layout") in ("stacked", "columns", "three_columns", "two_plus_one") else "two_plus_one"
+    out["routines_layout"] = src.get("routines_layout") if src.get("routines_layout") in ("stacked", "columns", "three_columns") else "columns"
     out["fullscreen_mode"] = bool(src.get("fullscreen_mode", False))
     out["dashboard_managed"] = bool(src.get("dashboard_managed", False))
     out["dashboard_show_sidebar"] = bool(src.get("dashboard_show_sidebar", True))
     out["dashboard_title"] = str(src.get("dashboard_title") or "Family Hub")[:80]
     # Profiles contain display options only; never family/person data.
-    display_keys = ("navigation", "home_sections", "tasks_layout", "fullscreen_mode", "font_scale", "accent_color", "background_url", "background_overlay", "idle_minutes", "idle_show_clock", "photos")
+    display_keys = ("navigation", "home_sections", "tasks_layout", "routines_layout", "fullscreen_mode", "font_scale", "accent_color", "background_url", "background_overlay", "idle_minutes", "idle_show_clock", "photos")
     def display_values(value):
         value = value if isinstance(value, dict) else {}
         value = {k: v for k, v in value.items() if k in display_keys}
@@ -1140,6 +1142,12 @@ def reward_notification_action_loop():
                     _resolve_reward_request(action[len("FH_REWARD_APPROVE_"):], True)
                 elif action.startswith("FH_REWARD_DENY_"):
                     _resolve_reward_request(action[len("FH_REWARD_DENY_"):], False)
+                elif action.startswith("FH_CHORE_"):
+                    try:
+                        PROGRESS.resolve_notification(action)
+                    except Exception as exc:
+                        # Invalid/stale actions must not interrupt other notifications.
+                        print(f"[Family Hub] Klusjesmelding niet verwerkt: {exc}", flush=True)
         except Exception as exc:
             print(f"[Family Hub] Reward notification listener reconnect: {exc}", flush=True)
             time.sleep(5)

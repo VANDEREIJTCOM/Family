@@ -3,6 +3,7 @@ import copy
 from datetime import datetime
 import json
 import os
+import secrets
 from pathlib import Path
 import tempfile
 import threading
@@ -159,13 +160,34 @@ class FamilyProgress:
 
     def notification_jobs(self):
         with self.lock:
-            return [copy.deepcopy(j) for j in self._read()['jobs'].values() if j['state']=='pending' and j.get('notified_attempt',0)<j['attempt']]
+            state=self._read();jobs=[];changed=False
+            for job in state['jobs'].values():
+                if job['state']!='pending':continue
+                if job.get('notification_attempt')!=job['attempt'] or not job.get('notification_token'):
+                    job.update(notification_attempt=job['attempt'],notification_token=secrets.token_hex(24));changed=True
+                # Upgrade existing text-only notifications once, using the same tag.
+                if job.get('action_notified_attempt',0)<job['attempt']:jobs.append(copy.deepcopy(job))
+            if changed:self._save(state)
+            return jobs
+
+    def resolve_notification(self,action,current_work):
+        with self.lock:
+            prefix='FH_CHORE_'
+            if not isinstance(action,str) or not action.startswith(prefix):raise ProgressError('Onbekende klusjesactie')
+            decision,separator,token=action[len(prefix):].partition('_')
+            if decision not in ('APPROVE','REJECT') or not separator or len(token)!=48:raise ProgressError('Ongeldige klusjesactie')
+            # A private, unguessable capability sent only to configured parent devices.
+            # Never accept a job key or an amount supplied by a notification event.
+            job=next((j for j in self._read()['jobs'].values() if secrets.compare_digest(j.get('notification_token',''),token)),None)
+            if not job or job.get('notification_attempt')!=job['attempt']:raise ProgressError('Deze melding is verlopen')
+            if decision=='REJECT' and job['state']=='rejected':return copy.deepcopy(job)
+            return self.resolve(job['key'],decision=='APPROVE',current_work)
 
     def notified(self,key,attempt):
         with self.lock:
             state=self._read();job=state['jobs'].get(key)
             if job and job['attempt']==attempt:
-                job['notified_attempt']=attempt;self._save(state)
+                job['notified_attempt']=attempt;job['action_notified_attempt']=attempt;self._save(state)
 
     def snapshot(self):
         with self.lock:

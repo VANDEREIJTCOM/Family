@@ -687,7 +687,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
       const routineHint=routineGroups.length?`<button class="routine-hint" data-screen="routines"><ha-icon icon="mdi:progress-check"></ha-icon><span>${routineGroups.length} routine${routineGroups.length===1?"":"s"} vandaag</span><b>›</b></button>`:"";
       rows+=`<div class="person-mini"><button class="person-title person-link" data-profile="${this._esc(m.id)}">${this._avatar(m,"tiny")}<strong>${this._esc(m.name)}</strong><span>${this._points(m)} ★</span><b>›</b></button>${items.length?items.map(it=>this._taskRow(m.todo,it,m.id)).join(""):""}${routineHint}${!items.length&&!routineGroups.length?'<div class="empty small">Geen taken vandaag</div>':""}</div>`;
     }
-    return this._section("Taken",rows,'<button class="mini" data-add-task>＋</button>',"tasks");
+    return this._section("Taken",'<div class="hub-task-columns" data-layout="'+this._taskGridLayout()+'">'+rows+'</div>','<button class="mini" data-add-task>＋</button>',"tasks");
   }
   _itemDate(item){const meta=this._meta(item);return String(meta?.date||item?.due||item?.due_date||item?.due_datetime||"").slice(0,10)}
   _taskRow(entity,item,memberId=""){
@@ -696,7 +696,21 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
   }
   _regularTodos(m){
     const today=this._dateISO(new Date()),all=this._todoAll[m.id]||this._todos[m.id]||[];
-    return all.filter(item=>{const meta=this._meta(item);if(meta?.kind==="routine_step"||meta?.kind==="reward_claim")return false;if(item.status!=="completed")return true;return this._itemDate(item)===today}).sort((a,b)=>(a.status==="completed")-(b.status==="completed"));
+    const visible=[],generated=new Map();
+    for(const item of all){
+      const meta=this._meta(item);
+      if(meta?.kind==="routine_step"||meta?.kind==="reward_claim")continue;
+      if(meta?.kind==="smart_task"){
+        const task=(this._config.smart_tasks||[]).find(t=>t.id===meta.task_id);
+        if(!task||task.enabled===false||meta.date!==today||meta.member_id!==m.id||!this._scheduledOn(task,today))continue;
+        const assigned=["all","choice"].includes(task.assignment)||(task.member_ids?.length?task.member_ids:[task.member_id]).includes(m.id);
+        if(!assigned)continue;
+        const key=meta.task_id+':'+m.id+':'+today,previous=generated.get(key);
+        // The server also treats a daily job as complete if any matching row is complete.
+        if(!previous||item.status==="completed")generated.set(key,item);
+      }else if(item.status!=="completed"||this._itemDate(item)===today)visible.push(item);
+    }
+    return [...visible,...generated.values()].sort((a,b)=>(a.status==="completed")-(b.status==="completed"));
   }
   _routineTodoGroups(m){
     const groups=new Map(),today=this._dateISO(new Date());
@@ -723,7 +737,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
       for(const m of this._routineMembers(r).filter(m=>this._memberVisible(m)))cards.push(this._routineCard(r,!r.end_time,m));
     }
     const html=cards.length?cards.join(""):'<div class="empty">Geen routines vandaag.</div>';
-    return this._section("Routines",html,"","routines").replace('class="panel-block"','class="panel-block routine-today-panel"');
+    return this._section("Routines",'<div class="hub-routine-columns" data-layout="'+this._routineGridLayout()+'">'+html+'</div>',"","routines").replace('class="panel-block"','class="panel-block routine-today-panel"');
   }
   _routineCard(r,compact=false,mOverride=null){
     const m=mOverride||this._routineMembers(r)[0]||null,items=this._routineItems(r,m);

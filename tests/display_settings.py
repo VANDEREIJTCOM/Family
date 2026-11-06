@@ -23,6 +23,16 @@ bad=app.normalize_settings({'display_profiles':[None,{'id':'bad id'},{'id':'vali
 assert len(bad['display_profiles'])==1 and bad['display_profiles'][0]['values']['font_scale']==140 and bad['display_devices']==[]
 print('DISPLAY_SETTINGS_PASSED: migration, roundtrip, privacy, device isolation, invalid payloads')
 
+for key in ('tasks_layout','routines_layout'):
+ for layout in ('stacked','columns','three_columns'):
+  value=app.normalize_settings({key:layout,'display_profiles':[{'id':'p','name':'Profiel','values':{key:layout}}],'display_devices':[{'id':'d','name':'Tablet','values':{key:layout}}]})
+  assert value[key]==layout and value['display_profiles'][0]['values'][key]==layout and value['display_devices'][0]['values'][key]==layout
+  assert value==app.normalize_settings(value)
+assert app.normalize_settings({})['routines_layout']=='columns'
+assert app.normalize_settings({'routines_layout':'invalid'})['routines_layout']=='columns'
+assert app.normalize_settings({'tasks_layout':'invalid'})['tasks_layout']=='two_plus_one'
+print('COLUMN_LAYOUTS_PASSED: tasks and routines persist 1/2/3 columns globally and per device/profile, with safe defaults')
+
 # Old silent limits must preserve every ID and every step beyond the old boundary.
 capacity={'routines':[{'id':f'r{i}','title':'Routine','steps':[{'id':f's{n}','title':'Stap'} for n in range(21)]} for i in range(41)],'smart_tasks':[{'id':f't{i}','title':'Taak'} for i in range(101)]}
 normalized=app.normalize_settings(capacity)

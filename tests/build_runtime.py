@@ -18,6 +18,7 @@ with tempfile.TemporaryDirectory(prefix='family-ha-runtime-') as tmp:
  assert s.count('_profilesScreenCore(){')==1 and s.count('_modalHtmlCore(){')==1 and '_haViewLayout=true' in s
  assert 'shared_calendars' in s and '_modalHtml()' in s
  assert s.count('const FamilyHubIcons=')==1
+ assert s.count('FamilyHubCompletion.install(FamilyHubCard.prototype);')==1
  assert 'static/family-icons.js' in (root/'static/index.html').read_text(encoding='utf-8')
  assert s.count('const FamilyHubTaskActions=')==1
  assert s.count('FamilyHubTaskActions.install(FamilyHubCard.prototype);')==1

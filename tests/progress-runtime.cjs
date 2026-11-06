@@ -9,5 +9,12 @@ vm.runInNewContext(fs.readFileSync(process.argv[2],'utf8'),context);const proto=
  }
  const card=Object.assign(Object.create(proto),{_config:{smart_tasks:[{id:'choice',points:7,assignment:'choice'}]},_progress:{jobs:{}}});
  const html=card._taskRow('todo.test',{uid:'two',summary:'Extra klus',description:'FH_META:'+JSON.stringify({kind:'smart_task',task_id:'choice',member_id:'a',date:'2026-11-05',points:0})});assert(html.includes('+7 ★'));assert(html.includes('Keuzeklus · vrijwillig'));assert(html.includes('Punten na ouderakkoord'));
+ // Old personal/deleted definitions and yesterday's generated work must not
+ // duplicate the current shared chore. Manual overdue work stays visible.
+ const today=card._dateISO(new Date()),other='2000-01-01';
+ const task=(uid,id,date=today,member='a',status='needs_action')=>({uid,summary:'Same title',status,description:'FH_META:'+JSON.stringify({kind:'smart_task',task_id:id,member_id:member,date})});
+ card._config.smart_tasks=[{id:'choice',assignment:'choice',days:[0,1,2,3,4,5,6]},{id:'hidden',assignment:'all',enabled:false},{id:'later',assignment:'all',schedule:'dates',dates:['2099-01-01']},{id:'wrong-person',member_id:'b',days:[0,1,2,3,4,5,6]},{id:'other-real-task',assignment:'all',days:[0,1,2,3,4,5,6]}];
+ card._todoAll={a:[task('old-personal','deleted'),task('yesterday','choice',other),task('one','choice'),task('dupe-done','choice',today,'a','completed'),task('wrong','choice',today,'b'),task('hidden','hidden'),task('later','later'),task('wrong-assignee','wrong-person'),task('different-definition','other-real-task'),{uid:'manual-overdue',status:'needs_action',due:other},{uid:'manual-old-done',status:'completed',due:other}]};card._todos={};
+ assert.deepEqual(Array.from(card._regularTodos({id:'a'}),x=>x.uid),['manual-overdue','different-definition','dupe-done']);
  console.log('PROGRESS_RUNTIME_PASSED: managed task completion never changes balances in browser; server metadata marked; optional chore value visible');
 })().catch(e=>{console.error(e);process.exitCode=1});
