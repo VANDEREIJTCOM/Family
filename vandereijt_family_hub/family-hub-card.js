@@ -239,6 +239,8 @@ class FamilyHubCard extends HTMLElement{
       if(this._maybeReloadForVersion(remote?._app_version))return;
       const overrides={...(this._base||{})};delete overrides.type;delete overrides.config_url;
       this._config={...this._defaults(),...overrides,...remote};
+      this._displaySource={...this._config};
+      this._applyDisplayDevice?.();
       this._configFetched=Date.now();
       this._restartTimers();
       requestAnimationFrame(()=>this._syncFullscreenChrome());

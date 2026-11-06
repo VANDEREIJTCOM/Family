@@ -1,0 +1,12 @@
+const assert=require('assert/strict'),{resolve}=require('../vandereijt_family_hub/hub-displays.js');
+const base={font_scale:130,members:[{id:'a',name:'Alex'}],display_profiles:[{id:'p',values:{font_scale:140}}],display_devices:[{id:'tablet',profile_id:'p',values:{font_scale:110,members:[],navigation:[{id:'tasks'}]}},{id:'wall',values:{font_scale:125}}]};
+assert.equal(resolve(base,'tablet').font_scale,110);
+assert.deepEqual(resolve(base,'tablet').members,base.members);
+assert.deepEqual(resolve(base,'tablet').navigation,[{id:'tasks'}]);
+assert.equal(resolve(base,'wall').font_scale,125);
+assert.equal(resolve(base,'missing').font_scale,130);
+assert.equal(resolve(base,'').font_scale,130);
+assert.equal(base.font_scale,130);
+base.display_profiles[0].values.font_scale=80;
+assert.equal(resolve(base,'tablet').font_scale,110);
+console.log('HUB_DISPLAYS_PASSED: independent browser choices, fallback, family data excluded, copied profile values');

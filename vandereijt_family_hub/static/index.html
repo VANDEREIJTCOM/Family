@@ -26,8 +26,7 @@
       <button class="nav" data-tab="rewards">Punten & beloningen</button>
       <button class="nav" data-tab="push">Meldingen</button>
       <button class="nav" data-tab="home">Huis & vertrek</button>
-      <button class="nav" data-tab="screens">Schermen & navigatie</button>
-      <button class="nav" data-tab="appearance">Uiterlijk</button>
+      <button class="nav" data-tab="screens">Schermen & uiterlijk</button>
       <button class="nav" data-tab="dashboard">Dashboard</button>
       <button class="nav" data-tab="access">Beheerders</button>
     </nav>
@@ -102,6 +101,7 @@
     </section>
 
     <section id="tab-routines" class="tab">
+      <div id="management-filters" class="card management-filters"><label>Dag<select data-management-filter="day"><option value="">Werkweek (ma–vr)</option><option value="0">Maandag</option><option value="1">Dinsdag</option><option value="2">Woensdag</option><option value="3">Donderdag</option><option value="4">Vrijdag</option><option value="5">Zaterdag</option><option value="6">Zondag</option></select></label><label>Persoon<select id="management-person" data-management-filter="person"><option value="">Iedereen</option></select></label><label>Kolommen<select data-management-filter="group"><option value="day">Per dag</option><option value="person">Per persoon (A–Z)</option></select></label></div>
       <div class="section-head"><div><h2>Routines</h2><p>Hier zie je alleen het overzicht. Bewerken gebeurt in een compact venster, zodat deze pagina rustig en overzichtelijk blijft.</p></div><button id="add-routine" class="secondary">+ Routine maken</button></div>
       <div id="routines" class="manage-grid"></div>
       <div class="section-head spaced"><div><h2>Klusjes op naam</h2><p>Taken die vanzelf op de juiste dagen klaarstaan, bijvoorbeeld kamer opruimen of papier buiten zetten.</p></div><button id="add-smart-task" class="secondary">+ Terugkerende taak</button></div>
@@ -158,6 +158,8 @@
     </section>
 
     <section id="tab-screens" class="tab">
+      <article class="card"><h2>Apparaten & schermprofielen</h2><p>Bewaar een basis voor een schermmaat en stand. Elk apparaat kan daarvan een eigen kopie laden en aanpassen. Kies het apparaat op de Hub via Filter → Dit scherm.</p><div id="display-settings"></div></article>
+      <h2 class="spaced">Standaard voor overige apparaten</h2><p>De onderstaande instellingen blijven de basis voor schermen zonder apparaatkeuze.</p>
       <div class="grid two">
         <article class="card"><h2>Onderste navigatiebalk</h2><p>Bepaal welke Family Hub-schermen zichtbaar zijn en in welke volgorde.</p><div id="navigation-editor" class="reorder-list"></div></article>
         <article class="card"><h2>Indeling Vandaag</h2><p>Bepaal welke blokken op het startscherm staan en in welke volgorde. Uitgeschakelde blokken verdwijnen volledig.</p><div id="home-sections-editor" class="reorder-list"></div></article>
@@ -166,9 +168,7 @@
       <article class="card spaced"><h2>Volledig scherm</h2><p>Gebruik Family Hub als echte wanddisplay-weergave zonder de Home Assistant-zijbalk en de bovenste dashboardbalk. Onderaan verschijnt automatisch een knop <strong>Home Assistant</strong> om terug te gaan naar het normale Overzicht.</p>
         <label class="switch"><input id="fullscreen_mode" type="checkbox"> Family Hub schermvullend weergeven</label>
       </article>
-    </section>
-
-    <section id="tab-appearance" class="tab">
+      <h2 class="spaced">Uiterlijk</h2>
       <div class="grid two">
         <article class="card"><h2>Kleuren & leesbaarheid</h2>
           <label>Accentkleur<div class="color"><input id="accent_color" type="color"><input id="accent_color_text" type="text"></div></label>
@@ -209,6 +209,8 @@
 </div>
 <div id="toast" class="toast"></div>
 <script src="static/family-hub-admin-0.12.0.js" defer></script>
+<script src="static/routine-drag.js" defer></script>
+<script src="static/display-admin.js" defer></script>
 <script src="static/ha-access.js" defer></script><script src="static/progress-admin.js" defer></script>
 </body>
 </html>
