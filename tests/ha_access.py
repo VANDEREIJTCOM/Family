@@ -141,6 +141,18 @@ class HttpTests(unittest.TestCase):
    with urllib.request.urlopen(req,timeout=4) as r:return r.status,r.read()
   except urllib.error.HTTPError as e:
    with e:return e.code,e.read()
+ def test_41st_routine_is_persisted_through_section_api(self):
+  routines=[{'id':f'r{i}','title':f'Routine {i}','steps':[{'id':'s','title':'Stap'}]} for i in range(41)]
+  path=Path(self.tmp.name)/'settings.json'
+  with patch.object(app,'SETTINGS_FILE',path),patch.object(app,'publish_settings'),patch.object(app,'sync_generated_content'),patch.object(app,'cleanup_removed_routine_tasks'),patch.object(app,'provision_family_features',lambda settings:(app.normalize_settings(settings),[],[])):
+   status,raw=self.call('/api/settings/section',payload={'section':'routines','value':routines})
+  self.assertEqual(status,200,raw);self.assertEqual(len(json.loads(raw)['settings']['routines']),41)
+  stored=json.loads(path.read_text());self.assertEqual([r['id'] for r in stored['routines']],[r['id'] for r in routines])
+ def test_over_capacity_is_rejected_without_saving_or_cleanup(self):
+  routines=[{'id':f'r{i}','title':'Routine'} for i in range(app.MAX_ROUTINES+1)]
+  with patch.object(app,'save_settings') as save,patch.object(app,'cleanup_removed_routine_tasks') as cleanup,patch.object(app,'ha_states') as states:
+   status,raw=self.call('/api/settings/section',payload={'section':'routines','value':routines})
+  self.assertEqual(status,400,raw);self.assertIn('500 routines',json.loads(raw)['error']);save.assert_not_called();cleanup.assert_not_called();states.assert_not_called()
  def test_settings_read_for_ha_admin(self):self.assertEqual(self.call('/api/settings')[0],200)
  def test_anonymous_all_api_routes_denied_before_processing(self):
   routes=set(re.findall(r'path == [\'"](/api/[^\'"]+)',(APP_ROOT/'app.py').read_text(encoding='utf-8-sig')))

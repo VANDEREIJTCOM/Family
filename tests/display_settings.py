@@ -22,3 +22,14 @@ assert clean['display_devices'][0]['values']['font_scale']==110
 bad=app.normalize_settings({'display_profiles':[None,{'id':'bad id'},{'id':'valid','values':{'font_scale':900,'navigation':'bad','photos':[{},1],'home_sections':[{}]}},{'id':'valid'}],'display_devices':'wrong'})
 assert len(bad['display_profiles'])==1 and bad['display_profiles'][0]['values']['font_scale']==140 and bad['display_devices']==[]
 print('DISPLAY_SETTINGS_PASSED: migration, roundtrip, privacy, device isolation, invalid payloads')
+
+# Old silent limits must preserve every ID and every step beyond the old boundary.
+capacity={'routines':[{'id':f'r{i}','title':'Routine','steps':[{'id':f's{n}','title':'Stap'} for n in range(21)]} for i in range(41)],'smart_tasks':[{'id':f't{i}','title':'Taak'} for i in range(101)]}
+normalized=app.normalize_settings(capacity)
+assert len(normalized['routines'])==41 and len(normalized['routines'][-1]['steps'])==21 and len(normalized['smart_tasks'])==101
+assert app.normalize_settings(normalized)==normalized
+for payload in ({'routines':[{'title':'R'}]*(app.MAX_ROUTINES+1)},{'smart_tasks':[{'title':'T'}]*(app.MAX_SMART_TASKS+1)},{'routines':[{'title':'R','steps':[{'title':'S'}]*(app.MAX_ROUTINE_STEPS+1)}]}):
+ try:app.normalize_settings(payload)
+ except ValueError as exc:assert 'Er is niets opgeslagen' in str(exc)
+ else:raise AssertionError('Oversized submission must fail explicitly')
+print('ROUTINE_CAPACITY_PASSED: 41 routines, 101 tasks, 21 steps persist; oversized requests reject without silent truncation')

@@ -208,6 +208,10 @@ async function saveSection(section,message="Opgeslagen"){
     value,
     members:section==="members"?undefined:namedMembers()
   })});
+  if(["routines","smart_tasks"].includes(section)){
+    const returned=new Set((d.settings?.[section]||[]).map(x=>x.id));
+    if(value.some(x=>x.id&&!returned.has(x.id)))throw new Error("Niet alle items zijn bewaard. Vernieuw de beheerpagina en probeer opnieuw.");
+  }
   if(section==="members"){
     mergeProvisionedMembers(d.settings?.members||[]);
   }else{
