@@ -7,6 +7,11 @@ from pathlib import Path
 import tempfile
 import threading
 
+def scheduled_on(item, date):
+    if item.get('schedule') == 'dates':
+        return date in (item.get('dates') or [])
+    return datetime.strptime(date, '%Y-%m-%d').weekday() in item.get('days', range(7))
+
 class ProgressError(ValueError):
     pass
 
@@ -166,7 +171,7 @@ class FamilyProgress:
         with self.lock:
             s=self._read();reserved=sum(r['cost'] for r in s['rewards'].values() if r['state']=='selected')
             return {'version':1,'initialized':s['initialized'],'family':{'earned':s['earned'],'spent':s['spent'],'balance':s['earned']-s['spent'],'reserved':reserved,'available':s['earned']-s['spent']-reserved},
-                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points')} for k,j in s['jobs'].items()},
+                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','before','target')} for k,j in s['jobs'].items()},
                     'rewards':list(copy.deepcopy(s['rewards']).values())}
 
 
@@ -202,7 +207,7 @@ def build_work(settings,todos,today):
             if not member or not member.get('points_entity'):continue
             rows=[r for r in todos.get(member.get('todo'),[]) if (x:=meta(r)).get('kind')=='routine_step' and x.get('routine_id')==routine['id'] and x.get('member_id')==mid]
             for date in dates(rows):
-                if datetime.strptime(date,'%Y-%m-%d').weekday() not in routine.get('days',range(7)):continue
+                if not scheduled_on(routine,date):continue
                 done={meta(r).get('step_id') for r in rows if meta(r).get('date')==date and r.get('status')=='completed'}
                 steps=routine.get('steps',[]);complete=bool(steps) and all(x['id'] in done for x in steps)
                 points=max(0,min(500,int(routine.get('completion_points',sum(int(s.get('points',0)) for s in steps)))))
@@ -214,7 +219,7 @@ def build_work(settings,todos,today):
             if not member.get('points_entity'):continue
             rows=[r for r in todos.get(member.get('todo'),[]) if (x:=meta(r)).get('kind')=='smart_task' and x.get('task_id')==task['id'] and x.get('member_id')==mid]
             for date in dates(rows):
-                if datetime.strptime(date,'%Y-%m-%d').weekday() not in task.get('days',range(7)):continue
+                if not scheduled_on(task,date):continue
                 complete=any(r.get('status')=='completed' and meta(r).get('date')==date for r in rows)
                 work.append({'key':f'chore:{task["id"]}:{mid}:{date}','kind':'chore','title':task['title'],'member_id':mid,'member_name':member.get('name',mid),'date':date,'points':max(0,min(500,int(task.get('points',0)))),'points_entity':member['points_entity'],'complete':complete,'legacy_complete':complete and not any(meta(r).get('progress_version') for r in rows if r.get('status')=='completed' and meta(r).get('date')==date),'optional':task.get('assignment')=='choice'})
     return work

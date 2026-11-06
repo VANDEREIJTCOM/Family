@@ -117,5 +117,19 @@ class ManualBonusTests(BridgeTests):
   self.bridge.resolve({'action':'manual_bonus','key':'manual:a:real-uid','points':2});self.assertEqual(len(events),2)
   self.assertTrue(all(scope=='progress' and len(revision)==64 for scope,revision in events))
 
+class DatedScheduleTests(unittest.TestCase):
+ def test_dated_work_and_confirmed_arithmetic(self):
+  from family_progress import build_work
+  settings={'members':[{'id':'a','name':'Alex','todo':'todo.a','points_entity':'input_number.a'}],'routines':[{'id':'r','title':'Eenmalig','schedule':'dates','dates':['2026-11-06'],'member_ids':['a'],'steps':[{'id':'s'}],'completion_points':1}],'smart_tasks':[]}
+  def row(date):return {'status':'completed','description':'FH_META:'+json.dumps({'kind':'routine_step','routine_id':'r','member_id':'a','step_id':'s','date':date})}
+  work=build_work(settings,{'todo.a':[row('2026-11-06'),row('2026-11-13')]},'2026-11-13')
+  self.assertEqual(len(work),1);self.assertEqual(work[0]['date'],'2026-11-06')
+  with tempfile.TemporaryDirectory() as tmp:
+   balance=[4]
+   store=FamilyProgress(Path(tmp)/'p.json',lambda entity:balance[0],lambda entity,value:balance.__setitem__(0,value))
+   store.observe([{**work[0],'complete':False}]);store.observe(work);job=next(iter(store.snapshot()['jobs'].values()))
+   self.assertEqual((job['before'],job['awarded_points'],job['target']),(4,1,5))
+   self.assertNotIn('points_entity',job)
+
 if __name__=='__main__':unittest.main()
 

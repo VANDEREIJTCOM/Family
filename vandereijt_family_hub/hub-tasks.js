@@ -2,13 +2,13 @@
 const FamilyHubTasks=(()=>{
  function install(p){
   if(p._hubTaskViews)return;p._hubTaskViews=true;const bind=p._bind,css=p._css,row=p._taskRow,add=p._addTodo;
-  p._routineOpenState=function(key,complete){
+  p._routineOpenState=function(key,complete,phase="normal"){
    this._routineUi??=new Map();const id=this._dateISO(new Date())+':'+key;let state=this._routineUi.get(id);
-   if(!state){state={open:!complete,complete};this._routineUi.set(id,state)}else if(state.complete!==complete){state.complete=complete;state.open=!complete}
+   if(!state){state={open:!complete&&!["upcoming","past"].includes(phase),complete,phase};this._routineUi.set(id,state)}else if(state.complete!==complete||state.phase!==phase){state.complete=complete;state.phase=phase;state.open=!complete&&!["upcoming","past"].includes(phase)}
    return state;
   };
   p._routineTaskGroup=function(m,group){
-   const done=group.items.filter(x=>x.status==='completed').length,key=group.id+':'+m.id,state=this._routineOpenState(key,group.items.length>0&&done===group.items.length);
+   const done=group.items.filter(x=>x.status==='completed').length,key=group.id+':'+m.id,routine=(this._config.routines||[]).find(r=>r.id===group.id)||{},state=this._routineOpenState(key,group.items.length>0&&done===group.items.length,this._routinePhase?.(routine)||'normal');
    return '<details class="routine-task-group hub-routine-group" data-routine-group="'+this._esc(key)+'" '+(state.open?'open':'')+'><summary class="routine-task-head"><ha-icon icon="mdi:progress-check"></ha-icon><strong>'+this._esc(group.title)+'</strong><span>'+done+'/'+group.items.length+' klaar</span></summary><div class="hub-routine-body">'+group.items.map(it=>this._taskRow(m.todo,it,m.id)).join('')+'</div></details>';
   };
   p._tasksScreen=function(){

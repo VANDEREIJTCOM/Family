@@ -10,7 +10,8 @@ s=path.read_text(encoding='utf-8')
 assert '_haContextHtml' not in s
 context=(ROOT/'ha-context.js').read_text(encoding='utf-8').replace("if(typeof module!=='undefined'&&module.exports)module.exports=FamilyHubHA;",'')
 layout=(ROOT/'ha-view-layout.js').read_text(encoding='utf-8').replace("if(typeof module!=='undefined'&&module.exports)module.exports=FamilyHubLayout;",'')
-s=context+'\n'+layout+'\n'+s
+icons=(ROOT/'static/family-icons.js').read_text(encoding='utf-8').replace("if(typeof module!=='undefined'&&module.exports)module.exports=FamilyHubIcons;",'')
+s=icons+'\n'+context+'\n'+layout+'\n'+s
 s=s.replace('  _calendarScreen(){','  _calendarScreenCore(){',1)
 s=s.replace('  _profilesScreen(){','  _profilesScreenCore(){',1).replace('  _modalHtml(){','  _modalHtmlCore(){',1)
 anchor='  _screenHtml(){'

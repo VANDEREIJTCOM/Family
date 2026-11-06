@@ -101,10 +101,10 @@
     </section>
 
     <section id="tab-routines" class="tab">
-      <div id="management-filters" class="card management-filters"><label>Dag<select data-management-filter="day"><option value="">Werkweek (ma–vr)</option><option value="0">Maandag</option><option value="1">Dinsdag</option><option value="2">Woensdag</option><option value="3">Donderdag</option><option value="4">Vrijdag</option><option value="5">Zaterdag</option><option value="6">Zondag</option></select></label><label>Persoon<select id="management-person" data-management-filter="person"><option value="">Iedereen</option></select></label><label>Kolommen<select data-management-filter="group"><option value="day">Per dag</option><option value="person">Per persoon (A–Z)</option></select></label></div>
+      <div id="management-filters" class="card management-filters"><label>Dag<select data-management-filter="day"><option value="">Werkweek (ma–vr)</option><option value="weekend">Weekend (za–zo)</option><option value="0">Maandag</option><option value="1">Dinsdag</option><option value="2">Woensdag</option><option value="3">Donderdag</option><option value="4">Vrijdag</option><option value="5">Zaterdag</option><option value="6">Zondag</option></select></label><label>Persoon<select id="management-person" data-management-filter="person"><option value="">Iedereen</option></select></label><label>Kolommen<select data-management-filter="group"><option value="day">Per dag</option><option value="person">Per persoon (A–Z)</option></select></label></div>
       <div class="section-head"><div><h2>Routines</h2><p>Hier zie je alleen het overzicht. Bewerken gebeurt in een compact venster, zodat deze pagina rustig en overzichtelijk blijft.</p></div><button id="add-routine" class="secondary">+ Routine maken</button></div>
       <div id="routines" class="manage-grid"></div>
-      <div class="section-head spaced"><div><h2>Klusjes op naam</h2><p>Taken die vanzelf op de juiste dagen klaarstaan, bijvoorbeeld kamer opruimen of papier buiten zetten.</p></div><button id="add-smart-task" class="secondary">+ Terugkerende taak</button></div>
+      <div class="section-head spaced"><div><h2>Klusjes op naam</h2><p>Taken die vanzelf op de juiste dagen klaarstaan, bijvoorbeeld kamer opruimen of papier buiten zetten.</p></div><button id="add-smart-task" class="secondary">+ Klusje maken</button></div>
       <div id="smart-tasks" class="manage-grid"></div>
     </section>
 
@@ -208,6 +208,7 @@
   <section id="tab-approvals" class="tab"><h2>Goedkeuren</h2><p>Klusjes krijgen pas punten na akkoord. Gezinsbeloningen verzilver je als ze zijn uitgevoerd.</p><div id="progress-inbox"></div></section></main>
 </div>
 <div id="toast" class="toast"></div>
+<script src="static/family-icons.js" defer></script>
 <script src="static/family-hub-admin-0.12.0.js" defer></script>
 <script src="static/routine-drag.js" defer></script>
 <script src="static/display-admin.js" defer></script>

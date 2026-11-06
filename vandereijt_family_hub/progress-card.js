@@ -16,7 +16,7 @@ const FamilyHubProgress=(()=>{
   };
   p._routineCard=function(r,compact,m){
    const html=routine.call(this,r,compact,m);if(compact)return html;
-   const key=r.id+':'+(m?.id||'all'),items=this._routineItems?.(r,m)||[],complete=!!r.steps?.length&&r.steps.every(step=>items.some(it=>this._meta(it)?.step_id===step.id&&it.status==='completed')),state=this._routineOpenState?.(key,complete),closed=state?!state.open:this._closedRoutines?.has(key),points=Number(r.completion_points??(r.steps||[]).reduce((n,s)=>n+Number(s.points||0),0));
+   const key=r.id+':'+(m?.id||'all'),items=this._routineItems?.(r,m)||[],complete=!!r.steps?.length&&r.steps.every(step=>items.some(it=>this._meta(it)?.step_id===step.id&&it.status==='completed')),state=this._routineOpenState?.(key,complete,this._routinePhase?.(r)||"normal"),closed=state?!state.open:this._closedRoutines?.has(key),points=Number(r.completion_points??(r.steps||[]).reduce((n,s)=>n+Number(s.points||0),0));
    const headStart=html.indexOf('<div class="routine-top">'),headEnd=html.indexOf('</b></div>',headStart);
    if(headStart>=0&&headEnd>=0){
     const shell=html.slice(0,headStart).replace('<article','<details').replace('class="routine-card','class="routine-card routine-collapse').replace(/>$/,' data-routine-collapse="'+this._esc(key)+'" '+(closed?'':'open')+'>');

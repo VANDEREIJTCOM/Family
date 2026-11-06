@@ -1,3 +1,12 @@
+## 0.16.0
+
+- Weekendfilter met zaterdag/zondag naast de werkweek.
+- Eén gedeelde lokale iconenset voor beheer en dashboard; nieuwe keuzes vis, zon, rugzak, telefoon en spellen.
+- Pop-ups alleen bij Goedemorgen (dagelijkse motivatie) en bevestigde sterren na een volledige routine; telanimatie toont het werkelijke vorige en nieuwe saldo.
+- Klusjes en routines kunnen op één of meerdere specifieke datums worden gepland, met behoud van de wekelijkse planning.
+- Routines direct verbergen/zichtbaar maken in beheer; dashboard toont alleen toepasselijke routines voor vandaag en het juiste gezinslid.
+- Start- en eindtijd bepalen de standaard open/dicht-stand en prioriteit. Actieve routines staan bovenaan; na afloop ingeklapt en handmatig te openen.
+
 ## 0.15.2
 
 - Verhelp stil afkappen na 40 routines: ruimte voor 500 routines, 1000 taken en 100 stappen per routine.

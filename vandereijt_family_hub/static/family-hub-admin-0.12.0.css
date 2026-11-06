@@ -143,3 +143,5 @@ body.editor-open{overflow:hidden}.admin-editor-overlay{position:fixed;inset:0;z-
 @media(max-width:700px){.management-board{grid-auto-flow:row;grid-template-columns:1fr}.management-filters{display:block}}
 
 .step-drag-handle{touch-action:none;cursor:grab;min-width:44px;min-height:44px;font-size:30px;color:#2e6ca5;border:1px solid #d7e1e9;background:white;border-radius:10px}.step-editor.is-sorting{outline:3px solid #2e6ca5;box-shadow:0 8px 25px #18324e25}.step-editor.is-sorting .step-drag-handle{cursor:grabbing}.icon-picker-current>span{font-size:32px}.icon-choice>span{font-size:30px}
+
+.family-icon{display:inline-block;vertical-align:middle;flex-shrink:0;color:inherit}.icon-choice .family-icon,.icon-picker-current .family-icon{width:32px;height:32px}.icon-choice,.icon-picker-current>span,.manage-icon{color:var(--family-icon-color,#2e6ca5)}.manage-icon .family-icon{width:30px;height:30px}

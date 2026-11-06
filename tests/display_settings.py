@@ -33,3 +33,25 @@ for payload in ({'routines':[{'title':'R'}]*(app.MAX_ROUTINES+1)},{'smart_tasks'
  except ValueError as exc:assert 'Er is niets opgeslagen' in str(exc)
  else:raise AssertionError('Oversized submission must fail explicitly')
 print('ROUTINE_CAPACITY_PASSED: 41 routines, 101 tasks, 21 steps persist; oversized requests reject without silent truncation')
+
+from family_progress import scheduled_on
+for kind in ('routines','smart_tasks'):
+ item={'id':'dated','title':'Eenmalig','schedule':'dates','dates':['2026-11-08','2026-11-06','2026-11-06'],'time':'07:00','end_time':'14:00','steps':[{'id':'s','title':'Stap'}]}
+ clean=app.normalize_settings({kind:[item]})[kind][0]
+ assert clean['dates']==['2026-11-06','2026-11-08'] and clean['days']==[]
+ assert scheduled_on(clean,'2026-11-06') and not scheduled_on(clean,'2026-11-13')
+ if kind=='routines':assert clean['duration_minutes']==420 and clean['end_time']=='14:00'
+ assert app.normalize_settings({kind:[clean]})[kind][0]==clean
+for invalid in ('2026-02-30','2026-1-01','not-a-date'):
+ try:app.normalize_settings({'routines':[{'title':'R','schedule':'dates','dates':[invalid]}]})
+ except ValueError:pass
+ else:raise AssertionError('Invalid date accepted')
+assert app.normalize_settings({'routines':[{'title':'R','days':[]}]})['routines'][0]['days']==[]
+try:app.normalize_settings({'routines':[{'title':'R','time':'14:00','end_time':'07:00'}]})
+except ValueError:pass
+else:raise AssertionError('Reversed window accepted')
+print('DATED_SCHEDULE_PASSED: routines/tasks use exact dates, duplicates normalized, weekly behavior retained, 7-14 spans 420 minutes')
+
+# Adding the equivalent end-time must not reset existing step generation keys.
+legacy={'title':'Ochtend','time':'07:00','duration_minutes':30,'days':[0],'member_ids':['a'],'steps':[{'id':'s','title':'Stap'}]}
+assert app._routine_fingerprint(legacy)==app._routine_fingerprint({**legacy,'end_time':'07:30'})
