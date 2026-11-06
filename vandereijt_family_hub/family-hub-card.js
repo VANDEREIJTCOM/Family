@@ -375,9 +375,20 @@ class FamilyHubCard extends HTMLElement{
     if(fromMember.length)return fromMember;
     return (this._routineTodos[r.id]||[]).filter(item=>{
       const meta=this._meta(item);
-      return !meta?.member_id||meta?.member_id===m.id;
+      return (!meta?.member_id||meta?.member_id===m.id)&&(!meta?.date||meta.date===today);
     });
   }
+
+  _routinePhase(r,now=new Date()){
+    if(!r.end_time)return "normal";
+    const minutes=t=>String(t).split(":").reduce((n,x)=>n*60+Number(x),0),current=now.getHours()*60+now.getMinutes();
+    return current<minutes(r.time||"07:00")?"upcoming":current<minutes(r.end_time)?"active":"past";
+  }
+  _todayRoutines(now=new Date()){
+    const date=this._dateISO(now),rank={active:0,normal:1,upcoming:1,past:2};
+    return (this._config.routines||[]).filter(r=>r.enabled!==false&&this._scheduledOn(r,date)).sort((a,b)=>rank[this._routinePhase(a,now)]-rank[this._routinePhase(b,now)]);
+  }
+  _scheduledOn(item,date){return item.schedule==="dates"?(item.dates||[]).includes(date):(item.days||[0,1,2,3,4,5,6]).map(Number).includes((new Date(date+"T12:00:00").getDay()+6)%7);}
 
   async _load(){
     if(!this._hass||!this._config||this._busy)return;
@@ -414,7 +425,7 @@ class FamilyHubCard extends HTMLElement{
       return {start:start.toISOString(),end:end.toISOString()};
     };
     for(const r of (this._config.routines||[])){
-      if(r.enabled===false||r.show_in_calendar===false||!(r.days||[]).map(Number).includes(weekday))continue;
+      if(r.enabled===false||r.show_in_calendar===false||!this._scheduledOn(r,date))continue;
       for(const m of this._routineMembers(r)){
         if(memberId&&m.id!==memberId)continue;
         if(!memberId&&!this._memberVisible(m))continue;
@@ -423,7 +434,7 @@ class FamilyHubCard extends HTMLElement{
       }
     }
     for(const t of (this._config.smart_tasks||[])){
-      if(t.enabled===false||t.show_in_calendar===false||!(t.days||[]).map(Number).includes(weekday))continue;
+      if(t.enabled===false||t.show_in_calendar===false||!this._scheduledOn(t,date))continue;
       for(const mid of (["all","choice"].includes(t.assignment)?(this._config.members||[]).map(m=>m.id):[t.member_id])){
       const m=this._member(mid);if(!m||memberId&&m.id!==memberId)continue;
       if(!memberId&&!this._memberVisible(m))continue;
@@ -691,12 +702,14 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
     const groups=new Map(),today=this._dateISO(new Date());
     for(const item of (this._todoAll[m.id]||[])){
       const meta=this._meta(item);
-      if(meta?.kind!=="routine_step"||meta?.date!==today)continue;
-      const id=meta.routine_id||"routine",title=meta.routine_title||"Routine";
+      if(meta?.kind!=="routine_step"||meta?.date!==today||meta.member_id&&meta.member_id!==m.id)continue;
+      const configured=(this._config.routines||[]).find(r=>r.id===meta.routine_id);
+      if(!configured||configured.enabled===false||!this._scheduledOn(configured,today)||!this._routineMemberIds(configured).includes(m.id))continue;
+      const id=meta.routine_id||"routine",title=configured.title||meta.routine_title||"Routine";
       if(!groups.has(id))groups.set(id,{id,title,items:[]});
       groups.get(id).items.push(item);
     }
-    return [...groups.values()];
+    return [...groups.values()].sort((a,b)=>{const rank={active:0,normal:1,upcoming:1,past:2},phase=id=>this._routinePhase((this._config.routines||[]).find(r=>r.id===id)||{});return rank[phase(a.id)]-rank[phase(b.id)]});
   }
   _routineTaskGroup(m,group){
     const done=group.items.filter(x=>x.status==="completed").length;
@@ -706,17 +719,17 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
   _routineSection(){
     const today=(new Date().getDay()+6)%7;
     const cards=[];
-    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[]).includes(today))){
-      for(const m of this._routineMembers(r).filter(m=>this._memberVisible(m)))cards.push(this._routineCard(r,true,m));
+    for(const r of this._todayRoutines()){
+      for(const m of this._routineMembers(r).filter(m=>this._memberVisible(m)))cards.push(this._routineCard(r,!r.end_time,m));
     }
-    const html=cards.length?cards.slice(0,6).join(""):'<div class="empty">Geen routines vandaag.</div>';
-    return this._section("Routines",html,"","routines");
+    const html=cards.length?cards.join(""):'<div class="empty">Geen routines vandaag.</div>';
+    return this._section("Routines",html,"","routines").replace('class="panel-block"','class="panel-block routine-today-panel"');
   }
   _routineCard(r,compact=false,mOverride=null){
     const m=mOverride||this._routineMembers(r)[0]||null,items=this._routineItems(r,m);
     const total=(r.steps||[]).length||items.length,done=items.filter(x=>x.status==="completed").length,progress=total?Math.round(done/total*100):0;
     const entity=m?.todo||r.todo_entity||"";
-    const top=compact?`<button class="routine-top routine-link" data-screen="routines">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b><i>›</i></button>`:`<div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc(r.time||"")} · ${done}/${total}</span></div><b>${progress}%</b></div>`;
+    const top=compact?`<button class="routine-top routine-link" data-screen="routines">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc((r.time||"")+(r.end_time?"–"+r.end_time:""))} · ${done}/${total}</span></div><b>${progress}%</b><i>›</i></button>`:`<div class="routine-top">${m?this._avatar(m,"tiny"):""}<div><strong>${this._esc(r.title)}</strong><span>${this._esc(m?.name||"Gezin")} · ${this._esc((r.time||"")+(r.end_time?"–"+r.end_time:""))} · ${done}/${total}</span></div><b>${progress}%</b></div>`;
     return `<article class="routine-card ${compact?"compact":""}" style="--member:${m?.color||this._config.accent_color}">${top}<div class="progress"><i style="width:${progress}%"></i></div>${compact?"":`<div class="routine-steps">${items.length?items.map(it=>this._taskRow(entity,it,m?.id||"")).join(""):'<div class="empty small">De stappen worden automatisch klaargezet.</div>'}</div>`}</article>`;
   }
   _mealSection(){
@@ -752,7 +765,9 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
 
   _homeScreen(){
     const map={departures:()=>this._departuresSection(),today:()=>this._todayAgenda(),tasks:()=>this._taskSection(),routines:()=>this._routineSection(),meals:()=>this._mealSection(),notifications:()=>this._notificationsSection(),house_status:()=>this._houseSection()};
-    return `<div class="home-grid">${(this._config.home_sections||[]).map(id=>map[id]?.()||"").join("")}</div>`;
+    const sections=[...(this._config.home_sections||[])],active=this._todayRoutines().some(r=>this._routinePhase(r)==="active"&&this._routineMembers(r).some(m=>this._memberVisible(m)));
+    if(active&&sections.includes("routines")){sections.splice(sections.indexOf("routines"),1);sections.unshift("routines");}
+    return `<div class="home-grid">${sections.map(id=>map[id]?.()||"").join("")}</div>`;
   }
 
   _calendarScreen(){
@@ -766,10 +781,10 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
 
   _routinesScreen(){
     const cards=[];
-    for(const r of (this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[0,1,2,3,4,5,6]).includes((new Date().getDay()+6)%7))){
+    for(const r of this._todayRoutines()){
       for(const m of this._routineMembers(r).filter(m=>this._memberVisible(m)))cards.push(this._routineCard(r,false,m));
     }
-    return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${cards.length?cards.join(""):'<div class="empty big">Maak routines aan in de Family Hub App.</div>'}</div>`;
+    return `<div class="screen-heading"><div><small>ROUTINES</small><h1>Stap voor stap</h1></div></div><div class="routine-grid">${cards.length?cards.join(""):'<div class="empty big">Geen routines voor vandaag.</div>'}</div>`;
   }
 
   _listsScreen(){
@@ -790,7 +805,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
 
   _profileScreen(){
     const m=this._member(this._profileId);if(!m){this._screen="profiles";return this._profilesScreen();}
-    const ev=this._eventsForDay(new Date(),m.id),normal=this._regularTodos(m),groups=this._routineTodoGroups(m),routines=(this._config.routines||[]).filter(r=>r.enabled!==false&&(r.days||[]).includes((new Date().getDay()+6)%7)&&this._routineMemberIds(r).includes(m.id)),memberRewards=this._memberRewards(m);
+    const ev=this._eventsForDay(new Date(),m.id),normal=this._regularTodos(m),groups=this._routineTodoGroups(m),routines=this._todayRoutines().filter(r=>this._routineMemberIds(r).includes(m.id)),memberRewards=this._memberRewards(m);
     const rewardPanel=memberRewards.length?`<section class="panel-block profile-rewards"><div class="block-head"><button class="section-link" data-screen="rewards"><h2>Mijn beloningen</h2><span>›</span></button></div><div class="profile-reward-list">${memberRewards.map(x=>{const isWheel=x.reward.reward_type==="wheel",won=x.claim?.wheel_result;return `<button class="profile-reward ${isWheel?"wheel-reward":""} ${x.state==="pending"?"pending":"ready"}" data-redeem="${this._esc(x.reward.id)}" data-redeem-member="${this._esc(m.id)}" ${x.state==="pending"?"disabled":""}><ha-icon icon="${this._esc(x.reward.icon||(isWheel?"mdi:ferris-wheel":"mdi:gift"))}"></ha-icon><div><strong>${this._esc(x.reward.title)}</strong><span>${x.state==="pending"?(won?"Gewonnen: "+this._esc(won)+" · wacht op ouder":"Aangevraagd · wacht op ouder"):(x.cost+" ★ · "+(isWheel?"rad klaar om te draaien":"klaar om te verzilveren"))}</span></div><b>${x.state==="pending"?"…":isWheel?"Draaien 🎡":"Verzilveren"}</b></button>`}).join("")}</div></section>`:"";
     return `<div class="profile-detail" style="--member:${m.color}"><div class="profile-hero"><button data-profile-back>‹</button>${this._avatar(m,"xlarge")}<div><small>${m.role==="child"?"KIND":"GEZINSLID"}</small><h1>${this._esc(m.name)}</h1><strong>${this._points(m)} ★</strong></div></div><div class="profile-columns"><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="calendar"><h2>Vandaag</h2><span>›</span></button></div>${ev.length?ev.map(x=>`<button class="agenda-row agenda-click" data-event-detail data-event-member="${this._esc(m.id)}" data-event-start="${this._esc(x.event.start||"")}" data-event-summary="${this._esc(x.event.summary||"")}" style="--member:${m.color}"><time>${this._esc(this._time(x.event))}</time><div><strong>${this._esc(x.event.summary)}</strong></div><b>›</b></button>`).join(""):'<div class="empty">Geen afspraken.</div>'}</section><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="tasks"><h2>Taken</h2><span>›</span></button><button class="mini" data-add-task-member="${this._esc(m.id)}">＋</button></div>${normal.map(it=>this._taskRow(m.todo,it,m.id)).join("")}${groups.map(g=>this._routineTaskGroup(m,g)).join("")}${!normal.length&&!groups.length?'<div class="empty">Alles gedaan.</div>':""}</section><section class="panel-block"><div class="block-head"><button class="section-link" data-screen="routines"><h2>Routines</h2><span>›</span></button></div>${routines.length?routines.map(r=>this._routineCard(r,true,m)).join(""):'<div class="empty">Geen routines.</div>'}</section>${rewardPanel}</div></div>`;
   }

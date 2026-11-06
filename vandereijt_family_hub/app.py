@@ -16,7 +16,7 @@ import uuid
 
 import websocket
 from progress_bridge import ProgressBridge
-from family_progress import ProgressError, task_members
+from family_progress import ProgressError, task_members, scheduled_on
 from ha_access import FamilyHubAccess, AccessError
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
@@ -128,6 +128,39 @@ MAX_ROUTINES = 500
 MAX_SMART_TASKS = 1000
 MAX_ROUTINE_STEPS = 100
 
+def normalize_schedule(item):
+    if item.get("schedule") != "dates":
+        return {}
+    dates = item.get("dates")
+    if not isinstance(dates, list) or not dates or len(dates) > 366:
+        raise ValueError("Kies één of meer specifieke datums (maximaal 366).")
+    clean = set()
+    for value in dates:
+        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            raise ValueError("Ongeldige datum; gebruik jaar-maand-dag.")
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Deze datum bestaat niet.")
+        clean.add(value)
+    return {"schedule": "dates", "dates": sorted(clean), "days": []}
+
+def normalize_routine_window(routine):
+    if not routine.get("end_time"):
+        return {}
+    start, end = str(routine.get("time") or "07:00"), str(routine["end_time"])
+    for value in (start, end):
+        if not re.fullmatch(r"\d{2}:\d{2}", value):
+            raise ValueError("Kies een geldige starttijd en eindtijd.")
+        try:
+            datetime.strptime(value, "%H:%M")
+        except ValueError:
+            raise ValueError("Kies een geldige starttijd en eindtijd.")
+    duration = int((datetime.strptime(end, "%H:%M") - datetime.strptime(start, "%H:%M")).total_seconds() / 60)
+    if duration <= 0:
+        raise ValueError("De eindtijd moet later zijn dan de starttijd op dezelfde dag.")
+    return {"end_time": end, "duration_minutes": duration}
+
 def normalize_settings(data):
     src = data if isinstance(data, dict) else {}
     # Reject oversized submissions before any provisioning or persistence.
@@ -235,7 +268,7 @@ def normalize_settings(data):
             "member_id": member_ids[0] if member_ids else "",
             "member_ids": member_ids[:16],
             "icon": str(routine.get("icon") or "mdi:progress-check")[:80],
-            "days": [int(x) for x in (routine.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
+            "days": [int(x) for x in (routine.get("days") if routine.get("days") is not None else [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
             "time": str(routine.get("time") or "07:00")[:5],
             "duration_minutes": max(5, min(240, int(routine.get("duration_minutes") or 30))),
             "show_in_calendar": bool(routine.get("show_in_calendar", True)),
@@ -244,6 +277,8 @@ def normalize_settings(data):
             "todo_entity": str(routine.get("todo_entity") or "")[:160],
             "completion_points": max(0, min(500, int(routine.get("completion_points", sum(s["points"] for s in steps))))),
             "steps": steps,
+            **normalize_schedule(routine),
+            **normalize_routine_window(routine),
         })
     out["routines"] = routines
 
@@ -261,10 +296,11 @@ def normalize_settings(data):
             "assignment": task.get("assignment") if task.get("assignment") in ("all", "choice") else "named",
             "icon": str(task.get("icon") or "mdi:checkbox-marked-circle-outline")[:80],
             "points": max(0, min(500, int(task.get("points") or 0))),
-            "days": [int(x) for x in (task.get("days") or [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
+            "days": [int(x) for x in (task.get("days") if task.get("days") is not None else [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
             "due_time": str(task.get("due_time") or "")[:5],
             "show_in_calendar": bool(task.get("show_in_calendar", True)),
             "enabled": bool(task.get("enabled", True)),
+            **normalize_schedule(task),
         })
     out["smart_tasks"] = smart_tasks
 
@@ -1550,6 +1586,8 @@ def _routine_fingerprint(routine):
         "show_in_tasks": routine.get("show_in_tasks"),
         "steps": routine.get("steps"),
     }
+    if routine.get("schedule") == "dates":
+        payload.update(schedule="dates", dates=routine.get("dates", []))
     return hashlib.sha1(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:10]
 
 
@@ -1745,7 +1783,7 @@ def sync_generated_content():
     members = {m.get("id"): m for m in settings.get("members", [])}
 
     for routine in settings.get("routines", []):
-        if not routine.get("enabled", True) or weekday not in (routine.get("days") or []):
+        if not routine.get("enabled", True) or not scheduled_on(routine, today):
             continue
         member_ids = routine.get("member_ids") or ([routine.get("member_id")] if routine.get("member_id") else [])
         fingerprint = _routine_fingerprint(routine)
@@ -1810,7 +1848,7 @@ def sync_generated_content():
                 )
 
     for task in settings.get("smart_tasks", []):
-        if not task.get("enabled", True) or weekday not in (task.get("days") or []):
+        if not task.get("enabled", True) or not scheduled_on(task, today):
             continue
         for assigned_id in task_members(task, members):
             member = members.get(assigned_id)

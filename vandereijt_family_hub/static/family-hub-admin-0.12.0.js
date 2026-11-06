@@ -40,24 +40,9 @@ const HOME_SECTION_META={
   departures:["Vertrekhulp","mdi:bag-personal"],today:["Vandaag / agenda","mdi:calendar-today"],tasks:["Taken","mdi:check-circle-outline"],routines:["Routines","mdi:progress-check"],meals:["Maaltijden","mdi:silverware-fork-knife"],notifications:["Meldingen","mdi:bell-outline"],house_status:["Huisstatus","mdi:home-automation"]
 };
 
-const ICON_LIBRARY=[
-  ["mdi:rabbit","🐰","Konijnen verzorgen"],["mdi:dog","🐕","Hond uitlaten"],["mdi:cat","🐈","Kat verzorgen"],
-  ["mdi:hand-wash","🧼","Handen wassen"],["mdi:toilet","🚽","Naar de wc"],["mdi:shoe-sneaker","👟","Schoenen aan"],
-  ["mdi:coat-rack","🧥","Jas aan"],["mdi:toy-brick","🧱","Speelgoed opruimen"],["mdi:bed-empty","🛌","Bed opmaken"],
-  ["mdi:food-apple","🍎","Fruit eten"],["mdi:water","💧","Water geven"],["mdi:volleyball","🏐","Volleybal"],
-  ["mdi:account","👤","Persoon"],["mdi:tshirt-crew","👕","Aankleden"],["mdi:toothbrush","🪥","Tandenpoetsen"],
-  ["mdi:shower","🚿","Douchen"],["mdi:food","🍽️","Eten"],["mdi:cup-water","🥤","Drinken"],
-  ["mdi:school","🎒","School"],["mdi:book-open-page-variant","📚","Lezen / huiswerk"],["mdi:bed","🛏️","Slapen"],
-  ["mdi:soccer","⚽","Sport"],["mdi:bicycle","🚲","Fiets"],["mdi:car","🚗","Auto"],
-  ["mdi:home","🏠","Thuis"],["mdi:broom","🧹","Opruimen"],["mdi:dishwasher","🍽️","Vaatwasser"],
-  ["mdi:washing-machine","🧺","Was"],["mdi:trash-can-outline","🗑️","Afval"],["mdi:bag-personal","🎒","Tas meenemen"],
-  ["mdi:check-circle-outline","✅","Taak"],["mdi:progress-check","☑️","Routine"],["mdi:star","⭐","Punten"],
-  ["mdi:gift","🎁","Beloning"],["mdi:cart","🛒","Boodschappen"],["mdi:silverware-fork-knife","🍴","Maaltijd"],
-  ["mdi:clock-outline","⏰","Tijd"],["mdi:calendar","📅","Agenda"],["mdi:party-popper","🎉","Feest"],
-  ["mdi:heart","❤️","Gezin"],["mdi:paw","🐾","Huisdier"],["mdi:music","🎵","Muziek"]
-];
+const ICON_LIBRARY=FamilyHubIcons.items.map(x=>[x.id,FamilyHubIcons.svg(x.id),x.label]);
 function iconInfo(value){
-  return ICON_LIBRARY.find(x=>x[0]===value)||[value||"mdi:circle-outline","•","Anders"];
+  return ICON_LIBRARY.find(x=>x[0]===value)||[value||"mdi:check-circle-outline",FamilyHubIcons.svg(value),"Anders"];
 }
 function iconPicker(value,hiddenAttr,compact=false){
   const current=value||"mdi:check-circle-outline";
@@ -322,28 +307,45 @@ function openRoutineTemplates(){
  const el=editorShell("Nieuwe routine","Kies een voorbeeld of begin leeg.",`<div class="template-grid">${cards}<button class="template-card blank" type="button" data-routine-template="blank"><span>＋</span><strong>Lege routine</strong><small>Helemaal zelf opbouwen.</small></button></div>`,"Verder");
  el.querySelector("[data-editor-save]").style.display="none";
 }
+function scheduleEditor(item,prefix){
+ const dated=item.schedule==="dates";
+ return `<label>Wanneer?<select id="ed-${prefix}-schedule"><option value="weekly" ${!dated?"selected":""}>Iedere week op vaste dagen</option><option value="dates" ${dated?"selected":""}>Eén of meer specifieke datums</option></select></label><div data-schedule-weekly ${dated?"hidden":""}><label>Dagen</label>${editorDays(item.days||[0,1,2,3,4])}</div><div data-schedule-dates ${dated?"":"hidden"}><label>Datums</label><div data-date-rows>${(item.dates?.length?item.dates:[""]).map(date=>dateRow(date)).join("")}</div><button type="button" class="secondary small-btn" data-add-date>+ Datum toevoegen</button><p>${prefix==="routine"?"Alleen op deze datums zichtbaar.":"Wordt op deze datums klaargezet, zonder wekelijkse herhaling."} Blijft in het beheeroverzicht bewaard.</p></div>`;
+}
+function dateRow(date=""){return `<div class="row" data-date-row><input type="date" data-schedule-date value="${esc(date)}" aria-label="Specifieke datum"><button type="button" class="secondary" data-remove-date aria-label="Datum verwijderen">×</button></div>`}
+function bindScheduleEditor(el,prefix){
+ const select=el.querySelector(`#ed-${prefix}-schedule`);select.onchange=()=>{el.querySelector('[data-schedule-weekly]').hidden=select.value==='dates';el.querySelector('[data-schedule-dates]').hidden=select.value!=='dates'};
+ el.querySelector('[data-add-date]').onclick=()=>el.querySelector('[data-date-rows]').insertAdjacentHTML('beforeend',dateRow());
+ el.addEventListener('click',e=>{const b=e.target.closest('[data-remove-date]');if(b)b.closest('[data-date-row]').remove()});
+}
+function collectSchedule(el,prefix){return {schedule:el.querySelector(`#ed-${prefix}-schedule`).value,dates:[...new Set([...el.querySelectorAll('[data-schedule-date]')].map(x=>x.value).filter(Boolean))].sort()}}
+function scheduleSummary(item){return item.schedule==='dates'?(item.dates||[]).map(d=>new Date(d+'T12:00:00').toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'})).join(', '):daySummary(item.days)}
+function routineEndTime(r){if(r.end_time)return r.end_time;const [h,m]=(r.time||"07:00").split(':').map(Number),end=Math.min(1439,h*60+m+Number(r.duration_minutes||30));return String(Math.floor(end/60)).padStart(2,'0')+':'+String(end%60).padStart(2,'0')}
 function openRoutineEditor(index=null,seed=null){
  const old=index==null?null:settings.routines[index];
  const r=deepClone(seed||old||{title:"",member_ids:[],icon:"mdi:progress-check",days:[0,1,2,3,4],time:"07:00",duration_minutes:30,show_in_calendar:true,show_in_tasks:true,enabled:true,steps:[]});
  const ids=Array.isArray(r.member_ids)&&r.member_ids.length?r.member_ids:(r.member_id?[r.member_id]:[]);
  const body=`<div class="editor-grid" data-routine="editor">
   <section class="editor-section span2"><h3>1. Voor wie en wanneer?</h3><label>Naam<input id="ed-routine-title" value="${esc(r.title||"")}" placeholder="Bijv. Opstaan en naar school"></label><label>Voor wie?</label>${memberCheckboxes(ids)}
-   <div class="editor-two"><label>Starttijd<input id="ed-routine-time" type="time" value="${esc(r.time||"07:00")}"></label><label>Duur<select id="ed-routine-duration">${[15,20,30,45,60,90].map(v=>`<option value="${v}" ${Number(r.duration_minutes||30)===v?"selected":""}>${v} minuten</option>`).join("")}</select></label></div>
-   <label>Dagen</label>${editorDays(r.days||[0,1,2,3,4])}
+   <div class="editor-two"><label>Starttijd<input id="ed-routine-time" type="time" value="${esc(r.time||"07:00")}"></label><label>Eindtijd<input id="ed-routine-end" type="time" value="${esc(routineEndTime(r))}"></label></div>
+   ${scheduleEditor(r,"routine")}
   </section>
   <section class="editor-section span2"><div class="builder-head"><div><h3>2. Wat moet er gebeuren?</h3><p>Maak alleen de stappen die echt helpen. Kort is meestal beter.</p></div><button type="button" class="secondary small-btn" data-add-step>+ Stap</button></div><div class="steps-editor">${(r.steps||[]).map((x,i)=>stepEditorHtml(x,i)).join("")||'<div class="builder-empty">Nog geen stappen.</div>'}</div></section>
-  <section class="editor-section"><h3>3. Punten en zichtbaarheid</h3><label>Punten voor de hele routine<input id="ed-routine-points" type="number" min="0" max="500" value="${Number(r.completion_points??(r.steps||[]).reduce((n,s)=>n+Number(s.points||0),0))}"></label><p>Deze punten volgen één keer als alle stappen van die dag klaar zijn.</p><label class="switch"><input id="ed-routine-calendar" type="checkbox" ${r.show_in_calendar!==false?"checked":""}> In de agenda van iedere gekozen persoon</label><label class="switch"><input id="ed-routine-tasks" type="checkbox" ${r.show_in_tasks!==false?"checked":""}> Stappen in de takenlijst</label><label class="switch"><input id="ed-routine-enabled" type="checkbox" ${r.enabled!==false?"checked":""}> Routine actief</label></section>
+  <section class="editor-section"><h3>3. Punten en zichtbaarheid</h3><label>Punten voor de hele routine<input id="ed-routine-points" type="number" min="0" max="500" value="${Number(r.completion_points??(r.steps||[]).reduce((n,s)=>n+Number(s.points||0),0))}"></label><p>Deze punten volgen één keer als alle stappen van die dag klaar zijn.</p><label class="switch"><input id="ed-routine-calendar" type="checkbox" ${r.show_in_calendar!==false?"checked":""}> In de agenda van iedere gekozen persoon</label><label class="switch"><input id="ed-routine-tasks" type="checkbox" ${r.show_in_tasks!==false?"checked":""}> Stappen in de takenlijst</label><label class="switch"><input id="ed-routine-enabled" type="checkbox" ${r.enabled!==false?"checked":""}> Zichtbaar op dashboard</label></section>
   <section class="editor-section"><h3>4. Icoon</h3>${iconPicker(r.icon||"mdi:progress-check",'id="ed-routine-icon"',false)}</section>
  </div>`;
  const el=editorShell(index==null?"Routine maken":"Routine bewerken","Na Opslaan is deze routine direct actief.",body,"Opslaan");
+ bindScheduleEditor(el,"routine");
  el.querySelectorAll("[data-day-preset]").forEach(b=>b.onclick=()=>{const sets={week:[0,1,2,3,4],all:[0,1,2,3,4,5,6],weekend:[5,6]},set=new Set(sets[b.dataset.dayPreset]);el.querySelectorAll("[data-editor-day]").forEach(x=>x.checked=set.has(Number(x.value)))});
  el.querySelector("[data-editor-save]").onclick=async()=>{
   const title=el.querySelector("#ed-routine-title").value.trim(),member_ids=[...el.querySelectorAll("[data-editor-member]:checked")].map(x=>x.value),days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value)),steps=collectEditorSteps(el);
   if(!title)return toast("Geef de routine een naam.");
   if(!member_ids.length)return toast("Kies minimaal één gezinslid.");
-  if(!days.length)return toast("Kies minimaal één dag.");
+  const startTime=el.querySelector("#ed-routine-time").value,endTime=el.querySelector("#ed-routine-end").value,minutes=t=>t.split(':').reduce((n,x)=>n*60+Number(x),0),duration=minutes(endTime)-minutes(startTime);
+  if(!startTime||!endTime||duration<=0)return toast("Kies een eindtijd later dan de starttijd op dezelfde dag.");
+  const schedule=collectSchedule(el,"routine");
+  if(schedule.schedule==="dates"?!schedule.dates.length:!days.length)return toast("Kies minimaal één dag of datum.");
   if(!steps.length)return toast("Voeg minimaal één stap toe.");
-  const next={...r,id:r.id||uid("routine"),title,member_ids,member_id:member_ids[0],time:el.querySelector("#ed-routine-time").value||"07:00",duration_minutes:Number(el.querySelector("#ed-routine-duration").value||30),days,steps,completion_points:Number(el.querySelector("#ed-routine-points").value||0),icon:el.querySelector("#ed-routine-icon").value||"mdi:progress-check",show_in_calendar:el.querySelector("#ed-routine-calendar").checked,show_in_tasks:el.querySelector("#ed-routine-tasks").checked,enabled:el.querySelector("#ed-routine-enabled").checked};
+  const next={...r,...schedule,id:r.id||uid("routine"),title,member_ids,member_id:member_ids[0],time:startTime,end_time:endTime,duration_minutes:duration,days,steps,completion_points:Number(el.querySelector("#ed-routine-points").value||0),icon:el.querySelector("#ed-routine-icon").value||"mdi:progress-check",show_in_calendar:el.querySelector("#ed-routine-calendar").checked,show_in_tasks:el.querySelector("#ed-routine-tasks").checked,enabled:el.querySelector("#ed-routine-enabled").checked};
   const inserted=index==null;if(inserted)settings.routines.push(next);else settings.routines[index]=next;
   const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
   const ok=await saveSection("routines",inserted?"Routine opgeslagen":"Routine bijgewerkt");
@@ -351,7 +353,10 @@ function openRoutineEditor(index=null,seed=null){
  };
 }
 function copyRoutine(index){const copy=deepClone(settings.routines[index]);copy.id=uid("routine");copy.title="Kopie van "+copy.title;copy.steps=(copy.steps||[]).map(x=>({...x,id:uid("step")}));openRoutineEditor(null,copy)}
+function routineActionButtons(r,index){return actionButtons('routine',index).replace('</div>',`<button type="button" data-toggle-routine="${index}" aria-label="${r.enabled===false?'Routine zichtbaar maken':'Routine verbergen'}">${r.enabled===false?'Zichtbaar maken':'Verbergen'}</button></div>`)}
 function bindRoutineActions(root){
+ root.querySelectorAll('[data-toggle-routine]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const i=Number(b.dataset.toggleRoutine),old=settings.routines[i].enabled;settings.routines[i].enabled=old===false;b.disabled=true;if(await saveSection('routines','Zichtbaarheid opgeslagen'))renderRoutines();else{settings.routines[i].enabled=old;b.disabled=false}});
+
  root.querySelectorAll("[data-edit-routine]").forEach(b=>b.onclick=e=>{e.stopPropagation();openRoutineEditor(Number(b.getAttribute("data-edit-routine")))});
  root.querySelectorAll("[data-copy-routine]").forEach(b=>b.onclick=e=>{e.stopPropagation();copyRoutine(Number(b.getAttribute("data-copy-routine")))});
  root.querySelectorAll("[data-remove-routine]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=Number(b.getAttribute("data-remove-routine"));if(confirm("Routine verwijderen?")){settings.routines.splice(i,1);renderRoutines();saveSection("routines","Routine verwijderd")}});
@@ -380,16 +385,17 @@ const managementView={day:"",person:"",group:"day"};
 function managementColumns(items,kind,card){
  const members=[...(settings.members||[])].sort((a,b)=>(a.name||"").localeCompare(b.name||"","nl",{sensitivity:"base"}));
  const ids=x=>kind==="routine"?routineMemberIds(x):["all","choice"].includes(x.assignment)?members.map(m=>m.id):[x.member_id];
- const matchesDay=(x,d)=>(Array.isArray(x.days)?x.days:[0,1,2,3,4]).includes(Number(d));
- const rows=items.map((x,i)=>({x,i})).filter(({x})=>(managementView.day===""?[0,1,2,3,4].some(d=>matchesDay(x,d)):matchesDay(x,managementView.day))&&(!managementView.person||ids(x).includes(managementView.person)));
- const groups=managementView.group==="person"?members.filter(m=>!managementView.person||m.id===managementView.person).map(m=>({label:m.name,match:x=>ids(x).includes(m.id)})):(managementView.day===""?[0,1,2,3,4]:[Number(managementView.day)]).map(d=>({label:["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"][d],match:x=>matchesDay(x,d)}));
+ const matchesDay=(x,d)=>x.schedule==="dates"?(x.dates||[]).some(date=>(new Date(date+"T12:00:00").getDay()+6)%7===Number(d)):(Array.isArray(x.days)?x.days:[0,1,2,3,4]).includes(Number(d));
+ const selectedDays=managementView.day===""?[0,1,2,3,4]:managementView.day==="weekend"?[5,6]:[Number(managementView.day)];
+ const rows=items.map((x,i)=>({x,i})).filter(({x})=>selectedDays.some(d=>matchesDay(x,d))&&(!managementView.person||ids(x).includes(managementView.person)));
+ const groups=managementView.group==="person"?members.filter(m=>!managementView.person||m.id===managementView.person).map(m=>({label:m.name,match:x=>ids(x).includes(m.id)})):selectedDays.map(d=>({label:["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"][d],match:x=>matchesDay(x,d)}));
  const filters=$("management-person");if(filters){filters.innerHTML='<option value="">Iedereen</option>'+members.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");filters.value=managementView.person;}
  return groups.map(g=>`<section class="management-column"><h3>${esc(g.label)}</h3>${rows.filter(({x})=>g.match(x)).map(({x,i})=>card(x,i)).join("")||'<p class="help-inline">Geen items</p>'}</section>`).join("");
 }
 function renderRoutines(){
  const root=$("routines"),items=settings.routines||[];
  root.className="management-board";
- root.innerHTML=items.length?managementColumns(items,"routine",(r,i)=>{const ids=routineMemberIds(r),icon=iconInfo(r.icon),points=Number(r.completion_points??(r.steps||[]).reduce((n,x)=>n+Number(x.points||0),0));return `<article class="manage-card routine-manage-card ${r.enabled===false?"disabled-card":""}"><div class="manage-icon">${icon[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(r.title)}</strong>${r.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${memberPills(ids)}<div class="manage-meta"><span>🕒 ${esc(r.time||"")} · ${Number(r.duration_minutes||30)} min</span><span>📅 ${esc(daySummary(r.days))}</span><span>☑ ${(r.steps||[]).length} stappen</span>${points?`<span>⭐ ${points} p/dag</span>`:""}</div><div class="manage-flags">${r.show_in_calendar!==false?"<span>Agenda</span>":""}${r.show_in_tasks!==false?"<span>Taken</span>":""}</div></div>${actionButtons("routine",i)}</article>`}):managementEmpty("Nog geen routines");
+ root.innerHTML=items.length?managementColumns(items,"routine",(r,i)=>{const ids=routineMemberIds(r),icon=iconInfo(r.icon),points=Number(r.completion_points??(r.steps||[]).reduce((n,x)=>n+Number(x.points||0),0));return `<article class="manage-card routine-manage-card ${r.enabled===false?"disabled-card":""}"><div class="manage-icon">${icon[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(r.title)}</strong>${r.enabled===false?'<span class="status-pill">Verborgen</span>':""}</div>${memberPills(ids)}<div class="manage-meta"><span>🕒 ${esc((r.time||"")+(r.end_time?"–"+r.end_time:""))} · ${Number(r.duration_minutes||30)} min</span><span>📅 ${esc(scheduleSummary(r))}</span><span>☑ ${(r.steps||[]).length} stappen</span>${points?`<span>⭐ ${points} p/dag</span>`:""}</div><div class="manage-flags">${r.show_in_calendar!==false?"<span>Agenda</span>":""}${r.show_in_tasks!==false?"<span>Taken</span>":""}</div></div>${routineActionButtons(r,i)}</article>`}):managementEmpty("Nog geen routines");
  bindRoutineActions(root);
 }
 function openTaskEditor(index=null,seed=null){
@@ -402,7 +408,7 @@ function openTaskEditor(index=null,seed=null){
     <label>Voor wie?<select id="ed-task-member">${memberOptions(t.member_id)}<option value="__all__" ${t.assignment==="all"?"selected":""}>Voor allemaal · klusje op naam</option><option value="__choice__" ${t.assignment==="choice"?"selected":""}>Keuzeklus · iedereen mag meedoen</option></select></label>
     <label>Tijd<input id="ed-task-time" type="time" value="${esc(t.due_time||"")}"></label>
    </div>
-   <label>Dagen</label>${editorDays(t.days||[0,1,2,3,4])}
+   ${scheduleEditor(t,"task")}
   </section>
   <section class="editor-section">
    <h3>Waar zichtbaar?</h3>
@@ -417,18 +423,20 @@ function openTaskEditor(index=null,seed=null){
   </section>
  </div>`;
  const el=editorShell(index==null?"Klusje op naam maken":"Taak bewerken","Na Opslaan staat de taak direct klaar voor Family Hub.",body,"Opslaan");
+ bindScheduleEditor(el,"task");
  el.querySelectorAll("[data-day-preset]").forEach(b=>b.onclick=()=>{const sets={week:[0,1,2,3,4],all:[0,1,2,3,4,5,6],weekend:[5,6]},set=new Set(sets[b.dataset.dayPreset]);el.querySelectorAll("[data-editor-day]").forEach(x=>x.checked=set.has(Number(x.value)))});
  el.querySelector("[data-editor-save]").onclick=async()=>{
   const title=el.querySelector("#ed-task-title").value.trim(),member_id=el.querySelector("#ed-task-member").value,days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value));
-  if(!title||!member_id||!days.length)return toast("Vul naam, persoon en dagen in.");
-  const next={...t,id:t.id||uid("task"),title,member_id:member_id.startsWith("__")?"":member_id,assignment:member_id==="__all__"?"all":member_id==="__choice__"?"choice":"named",days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),show_in_calendar:el.querySelector("#ed-task-calendar").checked,enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};
+  const schedule=collectSchedule(el,"task");
+  if(!title||!member_id||(schedule.schedule==="dates"?!schedule.dates.length:!days.length))return toast("Vul naam, persoon en dagen of datums in.");
+  const next={...t,...schedule,id:t.id||uid("task"),title,member_id:member_id.startsWith("__")?"":member_id,assignment:member_id==="__all__"?"all":member_id==="__choice__"?"choice":"named",days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),show_in_calendar:el.querySelector("#ed-task-calendar").checked,enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};
   const inserted=index==null;if(inserted)settings.smart_tasks.push(next);else settings.smart_tasks[index]=next;
   const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
   const ok=await saveSection("smart_tasks",inserted?"Taak opgeslagen":"Taak bijgewerkt");
   if(ok){closeEditor();renderSmartTasks()}else{if(inserted)settings.smart_tasks.pop();else settings.smart_tasks[index]=t;btn.disabled=false;btn.textContent="Opslaan"}
  };
 }
-function renderSmartTasks(){const root=$("smart-tasks"),items=settings.smart_tasks||[];root.className="management-board";root.innerHTML=items.length?managementColumns(items,"task",(t,i)=>`<article class="manage-card ${t.enabled===false?"disabled-card":""}"><div class="manage-icon">${iconInfo(t.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(t.title)}</strong>${t.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${t.assignment==="all"?"<span>Voor allemaal</span>":t.assignment==="choice"?"<span>Keuzeklus voor iedereen</span>":memberPills([t.member_id])}<small>Punten na ouderakkoord</small><div class="manage-meta"><span>📅 ${esc(daySummary(t.days))}</span>${t.due_time?`<span>🕒 ${esc(t.due_time)}</span>`:""}${Number(t.points||0)?`<span>⭐ ${Number(t.points)} punten</span>`:""}${t.show_in_calendar!==false?'<span>🗓 Agenda</span>':""}</div></div>${actionButtons("smart-task",i)}</article>`):managementEmpty("Nog geen klusjes op naam");bindSmartTaskActions(root)}
+function renderSmartTasks(){const root=$("smart-tasks"),items=settings.smart_tasks||[];root.className="management-board";root.innerHTML=items.length?managementColumns(items,"task",(t,i)=>`<article class="manage-card ${t.enabled===false?"disabled-card":""}"><div class="manage-icon">${iconInfo(t.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(t.title)}</strong>${t.enabled===false?'<span class="status-pill">Pauze</span>':""}</div>${t.assignment==="all"?"<span>Voor allemaal</span>":t.assignment==="choice"?"<span>Keuzeklus voor iedereen</span>":memberPills([t.member_id])}<small>Punten na ouderakkoord</small><div class="manage-meta"><span>📅 ${esc(scheduleSummary(t))}</span>${t.due_time?`<span>🕒 ${esc(t.due_time)}</span>`:""}${Number(t.points||0)?`<span>⭐ ${Number(t.points)} punten</span>`:""}${t.show_in_calendar!==false?'<span>🗓 Agenda</span>':""}</div></div>${actionButtons("smart-task",i)}</article>`):managementEmpty("Nog geen klusjes op naam");bindSmartTaskActions(root)}
 function openListEditor(index=null,seed=null){const l=deepClone(seed||(index==null?{title:"",icon:"mdi:format-list-checks",color:"#2E6CA5",todo_entity:""}:settings.lists[index]));const body=`<div class="editor-grid"><section class="editor-section span2"><label>Naam<input id="ed-list-title" value="${esc(l.title||"")}"></label><div class="editor-two"><label>Kleur<input id="ed-list-color" type="color" value="${esc(l.color||"#2E6CA5")}"></label><div><label>Icoon</label>${iconPicker(l.icon||"mdi:format-list-checks",'id="ed-list-icon"',true)}</div></div></section></div>`;const el=editorShell(index==null?"Lijst maken":"Lijst bewerken","Na Opslaan is de lijst direct beschikbaar.",body,"Opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const title=el.querySelector("#ed-list-title").value.trim();if(!title)return toast("Geef de lijst een naam.");const next={...l,id:l.id||uid("list"),title,color:el.querySelector("#ed-list-color").value,icon:el.querySelector("#ed-list-icon").value};const inserted=index==null;if(inserted)settings.lists.push(next);else settings.lists[index]=next;const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";const ok=await saveSection("lists",inserted?"Lijst opgeslagen":"Lijst bijgewerkt");if(ok){closeEditor();renderLists()}else{if(inserted)settings.lists.pop();else settings.lists[index]=l;btn.disabled=false;btn.textContent="Opslaan"}}}
 function renderLists(){const root=$("lists"),items=settings.lists||[];root.className="manage-grid";root.innerHTML=items.length?items.map((l,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(l.icon)[1]}</div><div class="manage-main"><strong>${esc(l.title)}</strong><div class="manage-meta"><span><i class="color-dot" style="background:${esc(l.color||"#2E6CA5")}"></i> Gedeelde lijst</span></div></div>${actionButtons("list",i,l.id!=="shopping")}</article>`).join(""):managementEmpty("Nog geen extra lijstjes");bindListActions(root)}
 function rewardCycleLabel(cycle){return ({balance:"Doorlopend sparen",daily:"Iedere dag",weekly:"Iedere week",monthly:"Iedere maand"})[cycle]||"Doorlopend sparen"}
@@ -528,6 +536,7 @@ function renderNavigation(){const root=$("navigation-editor");root.innerHTML=(se
 function renderHomeSections(){const visible=settings.home_sections||[];const hidden=Object.keys(HOME_SECTION_META).filter(id=>!visible.includes(id));const order=[...visible,...hidden];$("home-sections-editor").innerHTML=order.map(id=>{const enabled=visible.includes(id),meta=HOME_SECTION_META[id]||[id,""],visibleIndex=visible.indexOf(id);return `<div class="reorder-row" data-section="${esc(id)}"><label class="switch compact"><input data-section-enable="${esc(id)}" type="checkbox" ${enabled?"checked":""}><span></span></label><div class="reorder-main"><strong>${esc(meta[0])}</strong><small>${esc(id)}</small></div><button data-section-up="${esc(id)}" ${!enabled||visibleIndex<=0?"disabled":""}>↑</button><button data-section-down="${esc(id)}" ${!enabled||visibleIndex<0||visibleIndex===visible.length-1?"disabled":""}>↓</button></div>`}).join("")}
 function renderEntitySelects(){const all=entities.all||[];const html=all.map(e=>`<option value="${esc(e.entity_id)}">${esc(e.name)} — ${esc(e.state)}</option>`).join("");$("home_entities").innerHTML=html;$("notification_entities").innerHTML=html;fillMulti("home_entities",settings.home_entities);fillMulti("notification_entities",settings.notification_entities)}
 function fill(){
+  document.documentElement.style.setProperty("--family-icon-color",/^#[0-9a-f]{6}$/i.test(settings.accent_color||"")?settings.accent_color:"#2e6ca5");
   if($("tasks_layout"))$("tasks_layout").value=settings.tasks_layout||"two_plus_one";
   $("title").value=settings.title||"";$("subtitle").value=settings.subtitle||"";$("refresh_interval").value=String(settings.refresh_interval||120);if($("calendar_refresh_minutes"))$("calendar_refresh_minutes").value=String(settings.calendar_refresh_minutes||5);$("show_household_status").checked=settings.show_household_status!==false;$("idle_minutes").value=settings.idle_minutes??5;$("idle_show_clock").checked=settings.idle_show_clock!==false;if($("fullscreen_mode"))$("fullscreen_mode").checked=settings.fullscreen_mode===true;$("photos").value=(settings.photos||[]).join("\n");$("shopping_list").innerHTML=options("todo",settings.shopping_list);$("meals_todo").innerHTML=options("todo",settings.meals_todo);$("accent_color").value=settings.accent_color||"#2E6CA5";$("accent_color_text").value=settings.accent_color||"#2E6CA5";$("background_overlay").value=settings.background_overlay??82;$("overlay-label").textContent=(settings.background_overlay??82)+"%";if($("font_scale"))$("font_scale").value=String(settings.font_scale??100);if($("font-scale-label"))$("font-scale-label").textContent=(settings.font_scale??100)+"%";$("dashboard_title").value=settings.dashboard_title||"Family Hub";$("dashboard_show_sidebar").checked=settings.dashboard_show_sidebar!==false;if($("push_reward_requests"))$("push_reward_requests").checked=settings.push_reward_requests!==false;preview(settings.background_url);renderMembers();renderRoutines();renderSmartTasks();renderLists();renderRewards();renderDepartures();renderNavigation();renderHomeSections();renderEntitySelects();renderPushTargets();renderSuggestions();
 }

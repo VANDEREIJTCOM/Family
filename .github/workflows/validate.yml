@@ -258,6 +258,7 @@ jobs:
           python tests/display_settings.py
           node --check vandereijt_family_hub/static/display-admin.js
           node tests/hub-updates.cjs
+          node tests/hub-icons.cjs
           node tests/hub-family-experience.cjs
           node --check vandereijt_family_hub/static/routine-drag.js
           node tests/hub-calendar-drag.cjs
