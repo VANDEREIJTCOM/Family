@@ -154,6 +154,13 @@ class HttpTests(unittest.TestCase):
    status,raw=self.call('/api/settings/section',payload={'section':'routines','value':routines})
   self.assertEqual(status,400,raw);self.assertIn('500 routines',json.loads(raw)['error']);save.assert_not_called();cleanup.assert_not_called();states.assert_not_called()
  def test_settings_read_for_ha_admin(self):self.assertEqual(self.call('/api/settings')[0],200)
+ def test_reward_image_upload_uses_admin_endpoint_and_local_file(self):
+  encoded='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/b1sAAAAASUVORK5CYII='
+  with patch.object(app,'WWW_DIR',Path(self.tmp.name)/'www'):
+   status,raw=self.call('/api/reward-image',OWNER,{'image_data':'data:image/png;base64,'+encoded})
+   self.assertEqual(status,200);url=json.loads(raw)['url'];self.assertTrue(url.startswith('/local/family-hub/reward-images/'))
+   self.assertTrue((app.WWW_DIR/'reward-images'/url.split('/')[-1]).exists())
+   self.assertEqual(self.call('/api/reward-image',OWNER,{'image_data':'data:image/svg+xml;base64,PHN2Zz4='})[0],400)
  def test_anonymous_all_api_routes_denied_before_processing(self):
   routes=set(re.findall(r'path == [\'"](/api/[^\'"]+)',(APP_ROOT/'app.py').read_text(encoding='utf-8-sig')))
   for path in routes:

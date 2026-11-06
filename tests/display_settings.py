@@ -32,6 +32,9 @@ assert app.normalize_settings({})['routines_layout']=='columns'
 assert app.normalize_settings({'routines_layout':'invalid'})['routines_layout']=='columns'
 assert app.normalize_settings({'tasks_layout':'invalid'})['tasks_layout']=='two_plus_one'
 print('COLUMN_LAYOUTS_PASSED: tasks and routines persist 1/2/3 columns globally and per device/profile, with safe defaults')
+image='/local/family-hub/reward-images/'+'a'*64+'.webp'
+reward=app.normalize_settings({'rewards':[{'id':'r','title':'Uitje','member_id':'__family__','image_url':image}]})['rewards'][0]
+assert reward['image_url']==image and app.normalize_settings({'rewards':[reward]})['rewards'][0]==reward
 
 # Old silent limits must preserve every ID and every step beyond the old boundary.
 capacity={'routines':[{'id':f'r{i}','title':'Routine','steps':[{'id':f's{n}','title':'Stap'} for n in range(21)]} for i in range(41)],'smart_tasks':[{'id':f't{i}','title':'Taak'} for i in range(101)]}

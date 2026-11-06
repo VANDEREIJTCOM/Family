@@ -16,6 +16,9 @@ def scheduled_on(item, date):
 class ProgressError(ValueError):
     pass
 
+def shared_reward(reward):
+    return reward.get('member_id')=='__family__' or (not reward.get('member_id') and reward.get('reward_type')!='wheel')
+
 class FamilyProgress:
     def __init__(self, path, balance, set_balance):
         self.path=Path(path); self.balance=balance; self.set_balance=set_balance

@@ -19,7 +19,9 @@ with tempfile.TemporaryDirectory(prefix='family-ha-runtime-') as tmp:
  assert 'shared_calendars' in s and '_modalHtml()' in s
  assert s.count('const FamilyHubIcons=')==1
  assert s.count('FamilyHubCompletion.install(FamilyHubCard.prototype);')==1
+ assert s.count('FamilyHubStars.install(FamilyHubCard.prototype);')==1
  assert 'static/family-icons.js' in (root/'static/index.html').read_text(encoding='utf-8')
+ assert 'static/reward-images-admin.js' in (root/'static/index.html').read_text(encoding='utf-8')
  assert s.count('const FamilyHubTaskActions=')==1
  assert s.count('FamilyHubTaskActions.install(FamilyHubCard.prototype);')==1
  assert 'card._todoAll' in s and '_haTaskSaving' in s
@@ -33,5 +35,6 @@ with tempfile.TemporaryDirectory(prefix='family-ha-runtime-') as tmp:
  subprocess.run(['node','--check',str(root/'static/display-admin.js')],check=True)
  subprocess.run(['node','--check',str(root/'static/routine-drag.js')],check=True)
  subprocess.run([__import__('sys').executable,str(source.parent/'tests/display_settings.py')],check=True,env={**os.environ,'DISPLAY_SETTINGS_APP_ROOT':str(root)})
+ subprocess.run([__import__('sys').executable,str(source.parent/'tests/generated_tasks.py')],check=True,env={**os.environ,'FAMILY_GENERATION_APP_ROOT':str(root)})
  compile((root/'app.py').read_text(encoding='utf-8'),str(root/'app.py'),'exec')
  print('FAMILY_RUNTIME_BUILD_PASSED')

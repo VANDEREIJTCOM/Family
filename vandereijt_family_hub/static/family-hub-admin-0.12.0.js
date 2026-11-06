@@ -450,7 +450,7 @@ function openRewardEditor(index=null,seed=null){
    <label>Wat is de beloning?<input id="ed-reward-title" value="${esc(r.title||"")}" placeholder="Bijv. snoepje, film kiezen of uitje"></label>
    <div class="editor-two">
     <label>Punten nodig<input id="ed-reward-cost" type="number" min="1" value="${Number(r.cost||50)}"></label>
-    <label>Voor wie?<select id="ed-reward-member">${memberOptions(r.member_id,"Iedereen · persoonlijk")}<option value="__family__" ${r.member_id==="__family__"?"selected":""}>Gezin · samen sparen</option></select></label>
+    <label>Voor wie?<select id="ed-reward-member">${memberOptions(r.member_id,"Iedereen · persoonlijk en samen")}<option value="__family__" ${r.member_id==="__family__"?"selected":""}>Gezin · samen sparen</option></select></label>
    </div>
   </section>
   <section class="editor-section">
@@ -464,12 +464,15 @@ function openRewardEditor(index=null,seed=null){
    <p class="help-inline"><b>Dag/week/maand:</b> Family Hub telt alleen punten uit die periode. De teller begint daarna vanzelf opnieuw. <b>Doorlopend:</b> punten blijven staan en worden bij inwisselen afgetrokken.</p>
   </section>
   <section class="editor-section"><h3>Icoon</h3>${iconPicker(r.icon||"mdi:gift",'id="ed-reward-icon"',true)}</section>
+  ${FamilyHubRewardImages.html(r)}
  </div>`;
  const el=editorShell(index==null?"Beloning maken":"Beloning bewerken","Gezinsbeloning: samen sparen, ouders verzilveren na uitvoering. Persoonlijk inwisselen verlaagt de gezinspot niet.",body,"Opslaan");
+ const imageUpload=FamilyHubRewardImages.bind(el,r);
  el.querySelector("#ed-reward-member").onchange=e=>{if(e.target.value==="__family__"){el.querySelector("#ed-reward-cost").value=150;el.querySelector("#ed-reward-cycle").value="balance"}};
  el.querySelector("[data-editor-save]").onclick=async()=>{
+  if(imageUpload.busy)return toast("Wacht tot de afbeelding klaar is.");
   const title=el.querySelector("#ed-reward-title").value.trim();if(!title)return toast("Geef de beloning een naam.");
-  const next={...r,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-reward-cost").value||1),member_id:el.querySelector("#ed-reward-member").value,cycle:el.querySelector("#ed-reward-cycle").value,icon:el.querySelector("#ed-reward-icon").value,reward_type:"fixed",wheel_options:[]};
+  const next={...r,image_url:imageUpload.url,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-reward-cost").value||1),member_id:el.querySelector("#ed-reward-member").value,cycle:el.querySelector("#ed-reward-cycle").value,icon:el.querySelector("#ed-reward-icon").value,reward_type:"fixed",wheel_options:[]};
   const inserted=index==null;if(inserted)settings.rewards.push(next);else settings.rewards[index]=next;
   const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
   const ok=await saveSection("rewards",inserted?"Beloning opgeslagen":"Beloning bijgewerkt");
@@ -506,9 +509,11 @@ function openWheelRewardEditor(index=null,seed=null){
    <div id="wheel-options-editor" class="wheel-options-editor">${(r.wheel_options||[]).map((x,i)=>wheelOptionRow(x,i)).join("")||wheelOptionRow({},0)+wheelOptionRow({},1)}</div>
   </section>
   <section class="editor-section"><h3>Icoon</h3>${iconPicker(r.icon||"mdi:ferris-wheel",'id="ed-wheel-icon"',true)}</section>
+  ${FamilyHubRewardImages.html(r)}
   <section class="editor-section wheel-preview-admin"><h3>Voorbeeld</h3><div class="mini-wheel-preview"><span>🎡</span><strong>${Number(r.cost||5)} ★</strong><small>Draaien na behalen</small></div></section>
  </div>`;
  const el=editorShell(index==null?"Beloningsrad maken":"Beloningsrad bewerken","Je kunt meerdere radjes maken, bijvoorbeeld voor 5, 10 en 20 punten.",body,"Rad opslaan");
+ const imageUpload=FamilyHubRewardImages.bind(el,r);
  const list=el.querySelector("#wheel-options-editor");
  el.querySelector("[data-wheel-add]").onclick=()=>{list.insertAdjacentHTML("beforeend",wheelOptionRow({},list.querySelectorAll("[data-wheel-option]").length));renumberWheelOptions(list)};
  list.onclick=e=>{
@@ -518,17 +523,18 @@ function openWheelRewardEditor(index=null,seed=null){
    if(e.target.closest("[data-wheel-down]")){const next=row.nextElementSibling;if(next)list.insertBefore(next,row);renumberWheelOptions(list);return}
  };
  el.querySelector("[data-editor-save]").onclick=async()=>{
+   if(imageUpload.busy)return toast("Wacht tot de afbeelding klaar is.");
    const title=el.querySelector("#ed-wheel-title").value.trim();if(!title)return toast("Geef het rad een naam.");
    const options=[...list.querySelectorAll("[data-wheel-option]")].map(row=>({id:row.dataset.wheelOptionId||uid("wheel_option"),title:row.querySelector("[data-wheel-option-title]").value.trim()})).filter(x=>x.title);
    if(options.length<2)return toast("Voeg minimaal twee gevulde vakken toe aan het rad.");
-   const next={...r,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-wheel-cost").value||1),member_id:el.querySelector("#ed-wheel-member").value,cycle:"balance",icon:el.querySelector("#ed-wheel-icon").value||"mdi:ferris-wheel",reward_type:"wheel",wheel_options:options};
+   const next={...r,image_url:imageUpload.url,id:r.id||uid("reward"),title,cost:Number(el.querySelector("#ed-wheel-cost").value||1),member_id:el.querySelector("#ed-wheel-member").value,cycle:"balance",icon:el.querySelector("#ed-wheel-icon").value||"mdi:ferris-wheel",reward_type:"wheel",wheel_options:options};
    const inserted=index==null;if(inserted)settings.rewards.push(next);else settings.rewards[index]=next;
    const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
    const ok=await saveSection("rewards",inserted?"Beloningsrad opgeslagen":"Beloningsrad bijgewerkt");
    if(ok){closeEditor();renderRewards()}else{if(inserted)settings.rewards.pop();else settings.rewards[index]=r;btn.disabled=false;btn.textContent="Rad opslaan"}
  };
 }
-function renderRewards(){const root=$("rewards"),items=settings.rewards||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>{const isWheel=r.reward_type==="wheel";return `<article class="manage-card ${isWheel?"wheel-manage-card":""}"><div class="manage-icon">${isWheel?"🎡":iconInfo(r.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(r.title)}</strong>${isWheel?'<span class="status-pill wheel-pill">RAD</span>':""}</div><div class="manage-meta"><span>⭐ ${Number(r.cost||0)} punten</span><span>🔁 ${isWheel?"Doorlopend":esc(rewardCycleLabel(r.cycle))}</span><span>👤 ${r.member_id?esc(memberName(r.member_id)):"Iedereen"}</span>${isWheel?`<span>🎁 ${(r.wheel_options||[]).length} vakken</span>`:""}</div></div>${actionButtons("reward",i)}</article>`}).join(""):managementEmpty("Nog geen beloningen");bindRewardActions(root)}
+function renderRewards(){const root=$("rewards"),items=settings.rewards||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>{const isWheel=r.reward_type==="wheel";return `<article class="manage-card ${isWheel?"wheel-manage-card":""}"><div class="manage-icon">${FamilyHubRewardImages.safe(r.image_url)?`<img src="${esc(r.image_url)}" alt="">`:isWheel?"🎡":iconInfo(r.icon)[1]}</div><div class="manage-main"><div class="manage-title"><strong>${esc(r.title)}</strong>${isWheel?'<span class="status-pill wheel-pill">RAD</span>':""}</div><div class="manage-meta"><span>⭐ ${Number(r.cost||0)} punten</span><span>🔁 ${isWheel?"Doorlopend":esc(rewardCycleLabel(r.cycle))}</span><span>👤 ${r.member_id?esc(memberName(r.member_id)):"Iedereen"}</span>${isWheel?`<span>🎁 ${(r.wheel_options||[]).length} vakken</span>`:""}</div></div>${actionButtons("reward",i)}</article>`}).join(""):managementEmpty("Nog geen beloningen");bindRewardActions(root)}
 function openDepartureEditor(index=null,seed=null){const r=deepClone(seed||(index==null?{match:"",lead_minutes:45,icon:"mdi:bag-personal",checklist:[]}:settings.departure_rules[index]));const body=`<div class="editor-grid" data-departure="editor"><section class="editor-section span2"><label>Bij welke afspraak?<input id="ed-depart-match" value="${esc(r.match||"")}" placeholder="Bijv. voetbal"><small>Family Hub kijkt of dit woord in de afspraak staat.</small></label><div class="editor-two"><label>Hoe lang vooraf?<select id="ed-depart-lead">${[15,30,45,60,90,120].map(v=>`<option value="${v}" ${Number(r.lead_minutes||45)===v?"selected":""}>${v<60?v+" min":v===60?"1 uur":v===90?"1,5 uur":"2 uur"}</option>`).join("")}</select></label><div><label>Icoon</label>${iconPicker(r.icon||"mdi:bag-personal",'id="ed-depart-icon"',true)}</div></div></section><section class="editor-section span2"><div class="builder-head"><div><h3>Checklist</h3><p>Wat moet mee of klaar zijn?</p></div><button type="button" class="secondary small-btn" data-add-check>+ Regel</button></div><div class="checklist-editor">${(r.checklist||[]).map((x,i)=>checklistRowHtml(x,i)).join("")||'<div class="builder-empty">Nog geen regels.</div>'}</div></section></div>`;const el=editorShell(index==null?"Vertrekhulp maken":"Vertrekhulp bewerken","Na Opslaan gebruikt Family Hub deze vertrekhulp direct.",body,"Opslaan");el.querySelector("[data-editor-save]").onclick=async()=>{const match=el.querySelector("#ed-depart-match").value.trim(),checklist=[...el.querySelectorAll("[data-checklist-text]")].map(x=>x.value.trim()).filter(Boolean);if(!match)return toast("Vul in bij welke afspraak dit hoort.");const next={...r,id:r.id||uid("departure"),match,lead_minutes:Number(el.querySelector("#ed-depart-lead").value||45),icon:el.querySelector("#ed-depart-icon").value,checklist};const inserted=index==null;if(inserted)settings.departure_rules.push(next);else settings.departure_rules[index]=next;const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";const ok=await saveSection("departure_rules",inserted?"Vertrekhulp opgeslagen":"Vertrekhulp bijgewerkt");if(ok){closeEditor();renderDepartures()}else{if(inserted)settings.departure_rules.pop();else settings.departure_rules[index]=r;btn.disabled=false;btn.textContent="Opslaan"}}}
 function renderDepartures(){const root=$("departures"),items=settings.departure_rules||[];root.className="manage-grid";root.innerHTML=items.length?items.map((r,i)=>`<article class="manage-card"><div class="manage-icon">${iconInfo(r.icon)[1]}</div><div class="manage-main"><strong>${esc(r.match)}</strong><div class="manage-meta"><span>⏱ ${Number(r.lead_minutes||45)} min vooraf</span><span>☑ ${(r.checklist||[]).length} checklistregels</span></div></div>${actionButtons("departure",i)}</article>`).join(""):managementEmpty("Nog geen vertrekhulp");bindDepartureActions(root)}
 async function loadSuggestions(){try{const d=await api("api/suggestions");suggestions=d.suggestions||[];renderSuggestions()}catch(e){console.warn("[Family Hub] aanbevelingen laden mislukt",e)}}

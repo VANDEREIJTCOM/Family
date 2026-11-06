@@ -18,6 +18,7 @@ import websocket
 from progress_bridge import ProgressBridge
 from family_progress import ProgressError, task_members, scheduled_on
 from ha_access import FamilyHubAccess, AccessError
+from reward_images import image_url as reward_image_url, save_image as save_reward_image
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -344,6 +345,7 @@ def normalize_settings(data):
             "cycle": "balance" if reward.get("member_id")=="__family__" else cycle,
             "reward_type": reward_type,
             "wheel_options": wheel_options[:24],
+            "image_url": reward_image_url(reward.get("image_url")),
         })
     out["rewards"] = rewards[:100]
 
@@ -1781,7 +1783,24 @@ def cleanup_removed_routine_tasks(old_settings, new_settings):
 
 
 
+GENERATION_LOCK = threading.RLock()
+
+
 def sync_generated_content():
+    # Scheduler and concurrent settings requests must not generate the same rows.
+    with GENERATION_LOCK:
+        return _sync_generated_content()
+
+
+def _generated_items(entity_id):
+    result = ha_service("todo", "get_items", {"status": ["needs_action", "completed"]}, entity_id, True)
+    payload = _service_payload(result, entity_id)
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        raise RuntimeError("Takenlijst niet beschikbaar; geen nieuwe stappen aangemaakt")
+    return payload["items"]
+
+
+def _sync_generated_content():
     settings = load_settings()
     runtime = load_runtime()
     today = time.strftime("%Y-%m-%d")
@@ -1799,19 +1818,20 @@ def sync_generated_content():
             member = members.get(member_id) or {}
             if not member:
                 continue
-            key = f"routine:{routine.get('id')}:{member_id}:{today}:{fingerprint}"
+            key = f"routine-safe:{routine.get('id')}:{member_id}:{today}:{fingerprint}"
             if runtime.get(key):
                 continue
             try:
                 if routine.get("show_in_tasks", True) and member.get("todo"):
-                    remove_generated_todo_items(
-                        member["todo"],
-                        "routine_step",
-                        routine_id=routine.get("id"),
-                        member_id=member_id,
-                        date=today,
-                    )
+                    existing = _generated_items(member["todo"])
                     for step in routine.get("steps", []):
+                        matches = [item for item in existing if (meta := _fh_meta(item)).get("kind") == "routine_step" and meta.get("routine_id") == routine.get("id") and meta.get("member_id") == member_id and meta.get("date") == today and meta.get("step_id") == step.get("id")]
+                        if matches:
+                            # Retain completion, legacy credit metadata and stable UIDs.
+                            for item in matches:
+                                if item.get("summary") != step.get("title"):
+                                    ha_service("todo", "update_item", {"item": item["uid"], "rename": step.get("title") or "Stap"}, member["todo"])
+                            continue
                         meta = {
                             "kind": "routine_step",
                             "routine_id": routine.get("id"),
@@ -1868,6 +1888,10 @@ def sync_generated_content():
             if runtime.get(key):
                 continue
             try:
+                existing = _generated_items(member["todo"])
+                if any((meta := _fh_meta(item)).get("kind") == "smart_task" and meta.get("task_id") == task.get("id") and meta.get("member_id") == assigned_id and meta.get("date") == today for item in existing):
+                    runtime[key] = int(time.time()); changed = True
+                    continue
                 meta = {
                     "kind": "smart_task",
                     "task_id": task.get("id"),
@@ -3028,6 +3052,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
             except Exception:
                 return self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Verwerking tijdelijk niet beschikbaar; controleer opnieuw"})
+
+        if path == "/api/reward-image":
+            try:
+                if not isinstance(payload, dict):raise ValueError("Ongeldige afbeelding")
+                return self._json(HTTPStatus.OK, {"ok": True, "url": save_reward_image(WWW_DIR, payload.get("image_data"))})
+            except ValueError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            except OSError:
+                return self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Afbeelding kon niet worden opgeslagen; probeer opnieuw"})
 
         if path == "/api/access":
             try:
