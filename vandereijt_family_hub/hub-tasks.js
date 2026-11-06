@@ -9,7 +9,7 @@ const FamilyHubTasks=(()=>{
   };
   p._routineTaskGroup=function(m,group){
    const done=group.items.filter(x=>x.status==='completed').length,key=group.id+':'+m.id,state=this._routineOpenState(key,group.items.length>0&&done===group.items.length);
-   return '<details class="routine-task-group hub-routine-group" data-routine-group="'+this._esc(key)+'" '+(state.open?'open':'')+'><summary class="routine-task-head"><ha-icon icon="mdi:progress-check"></ha-icon><strong>'+this._esc(group.title)+'</strong><span>'+done+'/'+group.items.length+' klaar</span><b aria-hidden="true">⌄</b></summary><div class="hub-routine-body">'+group.items.map(it=>this._taskRow(m.todo,it,m.id)).join('')+'</div></details>';
+   return '<details class="routine-task-group hub-routine-group" data-routine-group="'+this._esc(key)+'" '+(state.open?'open':'')+'><summary class="routine-task-head"><ha-icon icon="mdi:progress-check"></ha-icon><strong>'+this._esc(group.title)+'</strong><span>'+done+'/'+group.items.length+' klaar</span></summary><div class="hub-routine-body">'+group.items.map(it=>this._taskRow(m.todo,it,m.id)).join('')+'</div></details>';
   };
   p._tasksScreen=function(){
    const layout=['stacked','columns','two_plus_one'].includes(this._config.tasks_layout)?this._config.tasks_layout:'two_plus_one';

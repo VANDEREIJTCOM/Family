@@ -1,3 +1,8 @@
+## 0.15.1
+
+- Taaktekst verticaal gecentreerd naast het pictogram.
+- Eén routinekop: klik op de volledige gekleurde titelbalk om in of uit te klappen, zonder los pijltje.
+
 ## 0.15.0
 
 - Beheerfilters en kolommen per dag of persoon; schermen en uiterlijk samen met profielen per apparaat.
