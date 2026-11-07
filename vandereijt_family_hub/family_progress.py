@@ -28,10 +28,14 @@ class FamilyProgress:
         if not self.path.exists():
             return {'version':1,'initialized':False,'earned':0,'spent':0,'jobs':{},'rewards':{}}
         value=json.loads(self.path.read_text(encoding='utf-8'))
+        value.setdefault('revoked',0)
+        value.setdefault('debts',{})
         if value.get('version')!=1 or not isinstance(value.get('jobs'),dict) or not isinstance(value.get('rewards'),dict):
             raise ProgressError('Puntenregistratie is niet leesbaar; niets aangepast')
         if any(type(value.get(k)) is not int or value[k]<0 for k in ('earned','spent')) or value['spent']>value['earned']:
             raise ProgressError('Ongeldige gezinspot; niets aangepast')
+        if type(value['revoked']) is not int or not 0<=value['revoked']<=value['earned'] or not isinstance(value['debts'],dict) or any(type(n) is not int or n<0 for n in value['debts'].values()):
+            raise ProgressError('Ongeldige correctie; niets aangepast')
         return value
 
     def _save(self,state):
@@ -48,12 +52,13 @@ class FamilyProgress:
         if job['state'] in ('awarded','legacy'):return
         amount=max(0,int(job['points'])-int(job.get('legacy_credit',0)))
         if not amount:
-            job['state']='awarded';job['awarded_points']=0;self._save(state);return
+            job['state']='awarded';job['awarded_points']=0;job['resolved_at']=datetime.now().isoformat(timespec='seconds');self._save(state);return
         entity=job['points_entity']
         current=self.balance(entity)
         if current is None:raise ProgressError('Puntensaldo tijdelijk niet beschikbaar')
         if job['state']!='crediting':
-            job.update(state='crediting',before=int(current),target=int(current)+amount)
+            repayment=min(amount,state.get('debts',{}).get(entity,0))
+            job.update(state='crediting',before=int(current),target=int(current)+amount-repayment,debt_repaid=repayment)
             self._save(state) # Journal before the external side effect.
         if int(current)==job['target']:
             pass # A previous attempt succeeded before its acknowledgement was saved.
@@ -66,12 +71,37 @@ class FamilyProgress:
             job['state']='review';self._save(state)
             raise ProgressError('Saldo is tegelijk aangepast; controle door ouder nodig')
         job['state']='awarded';job['awarded_points']=amount
+        job['resolved_at']=datetime.now().isoformat(timespec='seconds')
+        job['award_revision']=job.get('award_revision',0)+1
+        state.setdefault('debts',{})[entity]=max(0,state.get('debts',{}).get(entity,0)-job.get('debt_repaid',0))
         state['earned']+=amount
+        self._save(state)
+
+    def _revoke_routine(self,state,job):
+        """Journal both the HA debit and family correction, including retries."""
+        entity=job['points_entity'];current=self.balance(entity)
+        if current is None:raise ProgressError('Puntensaldo tijdelijk niet beschikbaar')
+        if job['state']!='reversing':
+            amount=int(job.get('awarded_points',0))
+            job.update(state='reversing',reverse_points=amount,reverse_before=int(current),reverse_target=max(0,int(current)-amount),reverse_debt=max(0,amount-int(current)))
+            self._save(state)
+        if int(current)==job['reverse_target']:pass
+        elif int(current)==job['reverse_before']:
+            self.set_balance(entity,job['reverse_target'])
+            actual=self.balance(entity)
+            if actual is None or int(actual)!=job['reverse_target']:raise ProgressError('Correctie wordt nog verwerkt')
+        else:
+            job['state']='review';self._save(state)
+            raise ProgressError('Saldo tegelijk aangepast; correctie vraagt controle')
+        state['revoked']=state.get('revoked',0)+job['reverse_points']
+        state.setdefault('debts',{})[entity]=state.get('debts',{}).get(entity,0)+job.get('reverse_debt',0)
+        job.update(state='revoked',awarded_points=0)
         self._save(state)
 
     def observe(self,work):
         with self.lock:
             state=self._read();first=not state['initialized'];notices=[]
+            first_manual=not state.get('manual_approval_initialized')
             seen={item['key'] for item in work}
             for key,job in state['jobs'].items():
                 if key not in seen and job['state'] in ('open','pending','rejected'):
@@ -81,13 +111,21 @@ class FamilyProgress:
                 key=item['key'];job=state['jobs'].get(key)
                 if job is None:
                     job={k:copy.deepcopy(v) for k,v in item.items() if k not in ('complete','legacy_credit')}
-                    job.update(state='legacy' if first and item['complete'] else 'open',attempt=0)
+                    job.update(state='legacy' if item['complete'] and (first or (first_manual and item['kind']=='manual')) else 'open',attempt=0)
                     if first and item['kind']=='routine':job['legacy_credit']=int(item.get('legacy_credit',0))
                     state['jobs'][key]=job
+                if job['kind']=='routine':
+                    if job['state']=='reversing' or (job['state']=='awarded' and not item['complete'] and job.get('awarded_points',0)>0):
+                        self._revoke_routine(state,job)
+                    if job['state']=='revoked':
+                        if not item['complete']:continue
+                        job['state']='open'
                 if job['state'] in ('awarded','legacy','review'):continue
                 if job['state']=='cancelled':job['state']='open'
                 if job['state']=='crediting':
-                    self._credit(state,job);continue
+                    self._credit(state,job)
+                    if job['kind']=='routine' and not item['complete'] and job.get('awarded_points',0)>0:self._revoke_routine(state,job)
+                    continue
                 if not item['complete']:
                     if job['state'] in ('pending','rejected'):job['state']='open'
                     continue
@@ -101,7 +139,7 @@ class FamilyProgress:
                     job['state']='legacy'
                 elif job['state']=='open':
                     job['state']='pending';job['attempt']+=1;notices.append(copy.deepcopy(job))
-            state['initialized']=True;self._save(state)
+            state['initialized']=True;state['manual_approval_initialized']=True;self._save(state)
             return notices
 
     def resolve(self,key,approve,current_work):
@@ -114,7 +152,7 @@ class FamilyProgress:
             if job['state'] not in ('pending','crediting'):raise ProgressError('Deze aanvraag is niet meer open')
             if not approve:
                 if job['state']=='crediting':raise ProgressError('Punten worden al verwerkt')
-                job['state']='rejected';self._save(state)
+                job['state']='rejected';job['resolved_at']=datetime.now().isoformat(timespec='seconds');self._save(state)
             else:self._credit(state,job)
             return copy.deepcopy(job)
 
@@ -124,13 +162,14 @@ class FamilyProgress:
         with self.lock:
             state=self._read();key=unit['key'];job=state['jobs'].get(key)
             if job and job['kind']!='manual':raise ProgressError('Ongeldige taak')
-            if job and job['state']=='awarded':return copy.deepcopy(job)
+            if job and job['state']=='awarded' and job.get('awarded_points',0)>0:return copy.deepcopy(job)
             if job and job['state']=='review':raise ProgressError('Dit saldo vraagt eerst controle')
             if job and job['state']=='crediting':
                 self._credit(state,job);return copy.deepcopy(job)
             if not job:
                 job={k:copy.deepcopy(v) for k,v in unit.items() if k!='complete'}
                 job.update(state='open',attempt=0);state['jobs'][key]=job
+            if job['state'] in ('awarded','legacy'):job['state']='open'
             job.update(points=points,points_entity=unit['points_entity'],title=unit['title'])
             self._save(state)
             if unit['complete']:self._credit(state,job)
@@ -141,7 +180,7 @@ class FamilyProgress:
             state=self._read()
             if key in state['rewards']:return copy.deepcopy(state['rewards'][key])
             cost=int(reward['cost']);reserved=sum(r['cost'] for r in state['rewards'].values() if r['state']=='selected')
-            available=state['earned']-state['spent']-reserved
+            available=state['earned']-state['spent']-state.get('revoked',0)-reserved
             if cost<=0:raise ProgressError('Ongeldige sterrenprijs')
             if available<cost:
                 state['rewards'][key]={'key':key,'reward_id':reward['id'],'title':reward['title'],'cost':cost,'state':'declined'}
@@ -156,7 +195,7 @@ class FamilyProgress:
             if not reward:raise ProgressError('Gezinsbeloning niet gevonden')
             if reward['state'] in ('fulfilled','cancelled'):return copy.deepcopy(reward)
             if performed:
-                if state['earned']-state['spent']<reward['cost']:raise ProgressError('Onvoldoende gezinssterren')
+                if state['earned']-state['spent']-state.get('revoked',0)<reward['cost']:raise ProgressError('Onvoldoende gezinssterren')
                 state['spent']+=reward['cost'];reward['state']='fulfilled'
             else:reward['state']='cancelled'
             self._save(state);return copy.deepcopy(reward)
@@ -195,8 +234,9 @@ class FamilyProgress:
     def snapshot(self):
         with self.lock:
             s=self._read();reserved=sum(r['cost'] for r in s['rewards'].values() if r['state']=='selected')
-            return {'version':1,'initialized':s['initialized'],'family':{'earned':s['earned'],'spent':s['spent'],'balance':s['earned']-s['spent'],'reserved':reserved,'available':s['earned']-s['spent']-reserved},
-                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','before','target')} for k,j in s['jobs'].items()},
+            balance=max(0,s['earned']-s['spent']-s.get('revoked',0))
+            return {'version':1,'initialized':s['initialized'],'family':{'earned':s['earned'],'spent':s['spent'],'revoked':s.get('revoked',0),'balance':balance,'reserved':reserved,'available':max(0,balance-reserved)},
+                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','award_revision','resolved_at','before','target')} for k,j in s['jobs'].items()},
                     'rewards':list(copy.deepcopy(s['rewards']).values())}
 
 

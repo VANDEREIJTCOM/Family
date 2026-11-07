@@ -8,10 +8,24 @@ const FamilyHubProgress=(()=>{
   if(p._familyProgress)return;p._familyProgress=true;
   p._isSharedReward=function(r){return r.member_id==='__family__'||(!r.member_id&&r.reward_type!=='wheel')};
   const load=p._load,bind=p._bind,css=p._css,routine=p._routineCard,rewards=p._rewardsScreen,task=p._taskRow;
+  p._refreshProgress=function(render=true){
+   if(this._progressFetch)return this._progressFetch;
+   this._progressFetch=(async()=>{
+    try{const u=new URL(this._configUrl,location.href);u.pathname=u.pathname.replace(/[^/]*$/,'progress.json');u.search='?t='+Date.now();const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw Error('Voortgang laden mislukt');this._progress=await r.json();this._progressAt=Date.now();this._progressError=false;this._observeProgress?.();if(render)this._render()}
+    catch{this._progressError=true}finally{this._progressFetch=null}
+   })();return this._progressFetch;
+  };
+  p._refreshActivityTodos=async function(){
+   const members=this._config.members||[];
+   await Promise.all([...new Set(members.map(m=>m.todo).filter(Boolean))].map(async entity=>{
+    const rows=await this._todo(entity,['needs_action','completed']);
+    for(const m of members.filter(m=>m.todo===entity)){this._todoAll[m.id]=rows;this._todos[m.id]=rows.filter(it=>it.status!=='completed')}
+   }));if(!this._modal)this._render();
+  };
   p._load=async function(...args){
    if(!this._progressLoading&&Date.now()-(this._progressAt||0)>10000){
     this._progressLoading=true;
-    try{const u=new URL(this._configUrl,location.href);u.pathname=u.pathname.replace(/[^/]*$/,'progress.json');u.search='?t='+Date.now();const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw Error('Voortgang laden mislukt');this._progress=await r.json();this._progressAt=Date.now();this._progressError=false}catch{this._progressError=true}finally{this._progressLoading=false}
+    try{await this._refreshProgress(false)}finally{this._progressLoading=false}
    }
    return load.apply(this,args);
   };

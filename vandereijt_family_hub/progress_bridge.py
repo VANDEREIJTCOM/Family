@@ -4,14 +4,16 @@ import hashlib
 from pathlib import Path
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from family_progress import FamilyProgress,ProgressError,build_work,manual_work,shared_reward
 
 class ProgressBridge:
     def __init__(self,app):
         self.app=app;self.sync_lock=threading.RLock()
+        self.wakeup=threading.Event()
         self.store=FamilyProgress(app['DATA_DIR']/'family-progress.json',self.balance,self.set_balance)
     def balance(self,entity):
-        state=next((s for s in self.app['ha_states']() if s.get('entity_id')==entity),None)
+        state=self.app['ha_api']('GET','states/'+entity) if self.app.get('ha_api') else next((s for s in self.app['ha_states']() if s.get('entity_id')==entity),None)
         try:return int(float(state['state']))
         except (TypeError,ValueError,KeyError):return None
     def set_balance(self,entity,value):
@@ -27,19 +29,21 @@ class ProgressBridge:
         settings=self.app['load_settings']()
         entities={m.get('todo') for m in settings.get('members',[]) if m.get('todo')}
         if settings.get('family_todo'):entities.add(settings['family_todo'])
-        todos={}
-        for entity in entities:
+        def fetch(entity):
             result=self.app['ha_service']('todo','get_items',{'status':['needs_action','completed']},entity,True)
             payload=self.app['_service_payload'](result,entity)
             if not isinstance(payload,dict) or not isinstance(payload.get('items'),list):
                 raise ProgressError('Takenlijst tijdelijk niet beschikbaar; puntenregistratie uitgesteld')
-            todos[entity]=payload['items']
+            return entity,payload['items']
+        with ThreadPoolExecutor(max_workers=max(1,min(8,len(entities)))) as pool:
+            todos=dict(pool.map(fetch,sorted(entities)))
         work=build_work(settings,todos,time.strftime('%Y-%m-%d'))
         jobs=self.store.snapshot()['jobs']
         for unit in manual_work(settings,todos):
             job=jobs.get(unit['key'])
             if job and job['kind']=='manual':
-                unit['points']=job['points'];work.append(unit)
+                unit['points']=job['points']
+            work.append(unit)
         return settings,todos,work
     def publish(self):
         value=self.store.snapshot();target=self.app['WWW_DIR']/'progress.json';temp=target.with_suffix('.tmp')
@@ -71,10 +75,22 @@ class ProgressBridge:
                     token=notice['notification_token']
                     data={'tag':'fh-chore-'+notice['key'],'actions':[
                         {'action':'FH_CHORE_APPROVE_'+token,'title':'Goedkeuren','authenticationRequired':True},
-                        {'action':'FH_CHORE_REJECT_'+token,'title':'Nog niet goed','authenticationRequired':True}]}
-                    result=self.app['send_push_notification'](targets,'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. Goedkeuren geeft '+str(notice['points'])+' sterren aan dit gezinslid én het gezin.',data)
+                        {'action':'FH_CHORE_REJECT_'+token,'title':'Afkeuren','authenticationRequired':True}]}
+                    result=self.app['send_push_notification'](targets,'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. '+('Goedkeuren geeft '+str(notice['points'])+' sterren aan dit gezinslid én het gezin.' if notice['points'] else 'Goedkeuren bevestigt het klusje. Er is nog geen ouderbonus ingesteld.'),data)
                     if set(targets).issubset(result.get('sent') or []):self.store.notified(notice['key'],notice['attempt'])
             return self.store.snapshot()
+    def decision_feedback(self,key):
+        try:self._decision_feedback(key)
+        except Exception as exc:print('[Family Hub] Beslismelding uitgesteld: '+str(exc),flush=True)
+    def dispatch_feedback(self,key):
+        threading.Thread(target=self.decision_feedback,args=(key,),daemon=True).start()
+    def _decision_feedback(self,key):
+        job=self.store.snapshot()['jobs'].get(key,{})
+        if job.get('state') not in ('awarded','rejected'):return
+        approved=job['state']=='awarded';targets=self.notification_targets()
+        if targets:
+            message=str(job.get('member_name','Gezinslid'))+': '+str(job.get('title','Klusje'))+'. '+(str(job.get('awarded_points',0))+' sterren bij kind en gezin opgeteld.' if approved else 'Afgekeurd. Er zijn geen sterren toegekend; het klusje kan opnieuw worden gedaan.')
+            self.app['send_push_notification'](targets,'Klusje goedgekeurd' if approved else 'Klusje afgekeurd',message,{'tag':'fh-chore-'+key,'actions':[]})
     def manual_overview(self):
         with self.sync_lock:
             settings,todos,_=self.collect();jobs=self.store.snapshot()['jobs'];result=[]
@@ -96,15 +112,19 @@ class ProgressBridge:
             elif action in ('family_fulfil','family_cancel'):
                 self.store.finish_reward(key,action=='family_fulfil')
             else:raise ProgressError('Onbekende goedkeuringsactie')
-            return {'ok':True,**self.publish()}
+            value={'ok':True,**self.publish()}
+            if action in ('approve','reject'):self.dispatch_feedback(key)
+            return value
     def resolve_notification(self,action):
         with self.sync_lock:
             _,_,work=self.collect()
-            self.store.resolve_notification(action,work)
-            return {'ok':True,**self.publish()}
+            job=self.store.resolve_notification(action,work)
+            value={'ok':True,**self.publish()};self.dispatch_feedback(job['key'])
+            return value
     def loop(self):
         time.sleep(3)
         while True:
             try:self.sync()
             except Exception as exc:print('[Family Hub] Progress check: '+str(exc),flush=True)
-            time.sleep(12)
+            self.wakeup.wait(12)
+            self.wakeup.clear()

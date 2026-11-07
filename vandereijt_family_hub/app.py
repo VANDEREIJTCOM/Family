@@ -16,6 +16,7 @@ import uuid
 
 import websocket
 from progress_bridge import ProgressBridge
+import chore_actions
 from family_progress import ProgressError, task_members, scheduled_on
 from ha_access import FamilyHubAccess, AccessError
 from reward_images import image_url as reward_image_url, save_image as save_reward_image
@@ -527,6 +528,8 @@ def notify_frontends(scope, revision):
     if not SUPERVISOR_TOKEN:
         return
     try:
+        if scope in ('settings','progress'):
+            ha_api('POST','states/sensor.family_hub_'+scope,{'state':str(revision),'attributes':{'friendly_name':'Family Hub '+scope,'icon':'mdi:account-group'}},timeout=5)
         ha_api("POST", "events/family_hub_updated", {"scope": scope, "revision": revision}, timeout=5)
     except Exception as exc:
         print(f"[Family Hub] Frontend update deferred: {exc}", flush=True)
@@ -1182,14 +1185,34 @@ def reward_notification_action_loop():
             if auth.get("type") != "auth_ok":
                 raise RuntimeError("WebSocket-authenticatie mislukt")
             ws.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "mobile_app_notification_action"}))
+            ws.send(json.dumps({"id": 2, "type": "subscribe_events", "event_type": "state_changed"}))
+            ws.send(json.dumps({"id": 3, "type": "subscribe_events", "event_type": "family_hub_chore_action"}))
+            heartbeat=100
+            awaiting_pong=False
             while True:
-                raw = ws.recv()
+                try:
+                    raw = ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    if awaiting_pong:raise RuntimeError('Home Assistant heartbeat ontbreekt')
+                    heartbeat+=1
+                    ws.send(json.dumps({"id":heartbeat,"type":"ping"}))
+                    awaiting_pong=True
+                    continue
+                awaiting_pong=False
                 if not raw:
                     raise RuntimeError("WebSocket-verbinding verbroken")
                 msg = json.loads(raw)
                 if msg.get("type") != "event":
                     continue
                 data = ((msg.get("event") or {}).get("data") or {})
+                event=msg.get('event') or {}
+                if event.get('event_type')=='state_changed':
+                    if str(data.get('entity_id','')).startswith('todo.'):
+                        PROGRESS.wakeup.set()
+                    continue
+                if event.get('event_type')=='family_hub_chore_action':
+                    chore_actions.handle(globals(),event)
+                    continue
                 action = str(data.get("action") or "")
                 if action.startswith("FH_REWARD_APPROVE_"):
                     _resolve_reward_request(action[len("FH_REWARD_APPROVE_"):], True)
@@ -3347,6 +3370,8 @@ def main():
     ensure_dirs()
     current = load_settings()
     save_settings(current)
+    try:chore_actions.ensure_script(globals())
+    except Exception as exc:print(f'[Family Hub] Goedkeurknoppen instellen uitgesteld: {exc}',flush=True)
     print(f"[Family Hub] v{APP_VERSION} listening on {PORT}", flush=True)
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
     threading.Thread(target=PROGRESS.loop, daemon=True).start()

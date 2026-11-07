@@ -9,8 +9,26 @@ class ProgressTests(unittest.TestCase):
   def set_value(e,v):self.balance[e]=v;self.calls.append(v)
   self.set_value=set_value;self.store=FamilyProgress(self.path,lambda e:self.balance.get(e),set_value)
  def unit(self,kind='routine',complete=False,key='r',points=5):return dict(key=key,kind=kind,member_id='a',title='Test',date='2026-11-05',points=points,points_entity='input_number.a',complete=complete,legacy_credit=0)
- def test_routine_only_complete_once_after_restart(self):
-  self.store.observe([self.unit()]);self.store.observe([self.unit(complete=True)]);self.store=FamilyProgress(self.path,lambda e:self.balance.get(e),self.set_value);self.store.observe([self.unit()]);self.store.observe([self.unit(complete=True)]);self.assertEqual(self.calls,[55]);self.assertEqual(self.store.snapshot()['family']['earned'],5)
+ def test_routine_revoke_and_reearn_after_restart_without_extra_stars(self):
+  self.store.observe([self.unit()]);self.store.observe([self.unit(complete=True)]);self.store=FamilyProgress(self.path,lambda e:self.balance.get(e),self.set_value);self.store.observe([self.unit()]);self.store.observe([self.unit()]);self.assertEqual(self.balance['input_number.a'],50);self.assertEqual(self.store.snapshot()['family']['balance'],0)
+  self.store.observe([self.unit(complete=True)]);self.store.observe([self.unit(complete=True)]);self.assertEqual(self.calls,[55,50,55]);self.assertEqual(self.store.snapshot()['family']['balance'],5)
+ def test_routine_debit_crash_recovers_once(self):
+  self.store.observe([self.unit()]);self.store.observe([self.unit(complete=True)]);save=self.store._save
+  def crash(state):
+   if state.get('revoked'):raise OSError('crash after debit')
+   save(state)
+  with patch.object(self.store,'_save',side_effect=crash):
+   with self.assertRaises(OSError):self.store.observe([self.unit()])
+  self.store=FamilyProgress(self.path,lambda e:self.balance.get(e),self.set_value);self.store.observe([self.unit()]);self.store.observe([self.unit()]);self.assertEqual(self.calls,[55,50]);self.assertEqual(self.store.snapshot()['family']['balance'],0)
+ def test_spent_routine_points_cannot_be_farmed_by_rechecking(self):
+  self.store.observe([self.unit()]);self.store.observe([self.unit(complete=True)]);self.balance['input_number.a']=0
+  self.store.select_reward('spent',dict(id='tiny',title='Test',cost=5));self.store.finish_reward('spent',True)
+  for _ in range(3):
+   self.store.observe([self.unit()]);self.assertEqual(self.store.snapshot()['family']['balance'],0)
+   self.store.observe([self.unit(complete=True)]);self.assertEqual(self.balance['input_number.a'],0);self.assertEqual(self.store.snapshot()['family']['balance'],0)
+ def test_revoked_points_cannot_be_spent_from_reserved_reward(self):
+  self.store.observe([self.unit()]);self.store.observe([self.unit(complete=True)]);self.store.select_reward('f',dict(id='x',title='X',cost=5));self.store.observe([self.unit()])
+  with self.assertRaises(ProgressError):self.store.finish_reward('f',True)
  def test_existing_completed_is_not_reawarded(self):
   self.store.observe([self.unit(complete=True)]);self.store.observe([self.unit(complete=True)]);self.assertEqual(self.calls,[])
  def test_partial_migration_only_remaining_points(self):
@@ -102,6 +120,7 @@ class BridgeTests(unittest.TestCase):
   def notify(targets,*args):self.sent.append(targets);return {'sent':targets,'errors':[]}
   self.app={'DATA_DIR':self.root,'WWW_DIR':self.root,'ha_states':lambda:[{'entity_id':'input_number.a','state':str(self.bal)}],'ha_service':service,'_service_payload':lambda r,e:r,'load_settings':lambda:copy.deepcopy(self.settings),'send_push_notification':notify}
   self.bridge=ProgressBridge(self.app)
+  self.bridge.dispatch_feedback=self.bridge.decision_feedback
  def chore(self):
   self.settings['smart_tasks']=[dict(id='c',title='Opruimen',member_id='a',days=list(range(7)),points=5)]
   import time
@@ -110,13 +129,33 @@ class BridgeTests(unittest.TestCase):
   self.chore();(self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_parent_a','mobile_app_parent_b']}));self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();self.bridge.sync();self.assertEqual(self.bal,50);self.assertEqual(self.sent,[['mobile_app_parent_a','mobile_app_parent_b']]);key=next(iter(self.bridge.store.snapshot()['jobs']));self.bridge.resolve({'action':'approve','key':key,'points':999});self.assertEqual(self.bal,55);self.assertEqual(self.bridge.store.snapshot()['family']['earned'],5)
  def test_empty_chore_targets_do_not_reuse_general_targets(self):
   self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();self.assertEqual(self.sent,[])
+ def test_parent_decision_replaces_both_pushes_and_publishes_result(self):
+  messages=[]
+  def notify(targets,title,message,data):messages.append((targets,title,data));return {'sent':targets}
+  self.app['send_push_notification']=notify;(self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_parent_a','mobile_app_parent_b']}))
+  self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();key=next(iter(self.bridge.store.snapshot()['jobs']))
+  result=self.bridge.resolve({'action':'approve','key':key});self.assertEqual(result['jobs'][key]['state'],'awarded');self.assertEqual(messages[-1][0],['mobile_app_parent_a','mobile_app_parent_b']);self.assertEqual(messages[-1][1],'Klusje goedgekeurd');self.assertEqual(messages[-1][2]['actions'],[]);self.assertEqual(messages[-1][2]['tag'],messages[0][2]['tag'])
+ def test_push_failure_does_not_hide_a_successful_approval(self):
+  self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();key=next(iter(self.bridge.store.snapshot()['jobs']))
+  (self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_parent']}));self.app['send_push_notification']=lambda *args:(_ for _ in ()).throw(OSError('phone offline'))
+  result=self.bridge.resolve({'action':'approve','key':key});self.assertTrue(result['ok']);self.assertEqual(self.bal,55)
+ def test_slow_push_does_not_block_publishing_approval(self):
+  import threading,time
+  self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();key=next(iter(self.bridge.store.snapshot()['jobs']))
+  (self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_parent']}));started=threading.Event();release=threading.Event();finished=threading.Event()
+  def slow(*args):
+   started.set();release.wait(3);finished.set();return {'sent':['mobile_app_parent']}
+  self.app['send_push_notification']=slow;self.bridge.dispatch_feedback=ProgressBridge.dispatch_feedback.__get__(self.bridge)
+  try:
+   before=time.monotonic();result=self.bridge.resolve({'action':'approve','key':key});self.assertLess(time.monotonic()-before,1);self.assertTrue(result['ok']);self.assertTrue(started.wait(1));self.assertEqual(self.bal,55)
+  finally:release.set();self.assertTrue(finished.wait(2))
  def test_push_buttons_resolve_via_bridge_with_current_server_work(self):
   messages=[]
   def notify(targets,title,message,data):messages.append(data);return {'sent':targets}
   self.app['send_push_notification']=notify
   (self.root/'options.json').write_text(json.dumps({'chore_push_targets':['mobile_app_parent']}))
   self.chore();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync()
-  actions=messages[0]['actions'];self.assertEqual([a['title'] for a in actions],['Goedkeuren','Nog niet goed'])
+  actions=messages[0]['actions'];self.assertEqual([a['title'] for a in actions],['Goedkeuren','Afkeuren'])
   self.assertTrue(all(a['authenticationRequired'] for a in actions));self.assertEqual(self.bal,50)
   action=actions[0]['action'];self.bridge=ProgressBridge(self.app)
   self.bridge.resolve_notification(action);self.bridge.resolve_notification(action)
@@ -146,6 +185,9 @@ class BridgeTests(unittest.TestCase):
 
 
 class ManualBonusTests(BridgeTests):
+ def test_manual_request_approval_without_points_then_bonus(self):
+  self.manual();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();key='manual:a:real-uid';self.assertEqual(self.bridge.store.snapshot()['jobs'][key]['state'],'pending')
+  self.bridge.resolve({'action':'approve','key':key});self.assertEqual(self.bal,50);self.bridge.resolve({'action':'manual_bonus','key':key,'points':2});self.assertEqual(self.bal,52)
  def manual(self,complete=False):
   self.items=[{'uid':'real-uid','summary':'Zelf bedacht','status':'completed' if complete else 'needs_action','description':'FH_META:'+json.dumps(dict(kind='manual_task',member_id='a',date='2026-11-05',points=999,points_entity='input_number.forged'))}]
  def test_completed_bonus_once_and_independent_family_credit(self):
