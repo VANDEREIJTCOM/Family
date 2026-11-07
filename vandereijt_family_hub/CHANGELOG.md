@@ -1,3 +1,9 @@
+## 0.16.4
+
+- Personen bij Taken en Routines rechtstreeks aan- en uitvinken, ook in de blokken op Vandaag. De selectie wordt gedeeld tussen Taken en Routines; Iedereen en Standaard zijn direct beschikbaar.
+- Per gezinslid instelbaar of die standaard aangevinkt staat. Zonder eigen keuze zijn kinderen aangevinkt en volwassenen uitgevinkt. Geen namen vastgelegd in de code; agenda, punten en gezinsprofielen houden hun eigen filter.
+- Handmatige keuzes blijven tijdens verversen en wisselen tussen Taken en Routines staan; opnieuw openen van het dashboard begint met de ingestelde standaardselectie.
+
 ## 0.16.3
 
 - Nieuw puntenscherm met naamloze portretten en echte persoonlijke saldi, één gezinspot en een balk richting 150 sterren. Geen herhaalde personenlijst per beloning.

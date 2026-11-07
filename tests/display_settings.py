@@ -35,6 +35,10 @@ print('COLUMN_LAYOUTS_PASSED: tasks and routines persist 1/2/3 columns globally 
 image='/local/family-hub/reward-images/'+'a'*64+'.webp'
 reward=app.normalize_settings({'rewards':[{'id':'r','title':'Uitje','member_id':'__family__','image_url':image}]})['rewards'][0]
 assert reward['image_url']==image and app.normalize_settings({'rewards':[reward]})['rewards'][0]==reward
+members=app.normalize_settings({'members':[{'id':'a','name':'Alex','role':'adult'},{'id':'b','name':'Zora','role':'child'},{'id':'c','name':'Bo','role':'child','activity_default_visible':False},{'id':'d','name':'Dani','role':'adult','activity_default_visible':True}]})['members']
+assert [m['activity_default_visible'] for m in members]==[False,True,False,True]
+assert app.normalize_settings({'members':members})['members']==members
+assert 'activity_default_visible' not in app.normalize_settings({'display_profiles':[{'id':'p','values':{'activity_default_visible':True}}]})['display_profiles'][0]['values']
 
 # Old silent limits must preserve every ID and every step beyond the old boundary.
 capacity={'routines':[{'id':f'r{i}','title':'Routine','steps':[{'id':f's{n}','title':'Stap'} for n in range(21)]} for i in range(41)],'smart_tasks':[{'id':f't{i}','title':'Taak'} for i in range(101)]}
