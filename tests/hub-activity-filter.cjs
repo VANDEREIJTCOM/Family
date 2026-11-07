@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),filter=require('../vandereijt_family_hub/hub-activity-filter.js');
+const members=[{id:'adult-a',name:'Alex',role:'adult'},{id:'child-b',name:'Zora',role:'child'},{id:'child-c',name:'Bo',role:'child',activity_default_visible:false},{id:'adult-d',name:'Dani',role:'adult',activity_default_visible:true}];
+let renders=0;
+const p={_memberVisible(m){return !this._memberFilter||this._memberFilter.has(m.id)},_memberLegend(){return 'calendar-filter'},_toggleMemberFilter(id){this._memberFilter=new Set([id])},_showAllMembers(){this._memberFilter=null},_bind(){},_css(){return ''},_openHubToday(){this._screen='home'},_tasksScreen(){return '<h1>Taken</h1><div class="member-columns hub-task-columns">'+members.filter(m=>this._memberVisible(m)).map(m=>m.id).join('|')+'</div>'},_routinesScreen(){return '<h1>Routines</h1><div class="routine-grid hub-routine-columns">'+members.filter(m=>this._memberVisible(m)).map(m=>m.id).join('|')+'</div>'},_taskSection(){return '<div class="hub-task-columns">'+members.filter(m=>this._memberVisible(m)).map(m=>m.id).join('|')+'</div>'}};
+filter.install(p);
+const c=Object.assign(Object.create(p),{_config:{members},_screen:'tasks',_esc:x=>String(x),_render(){renders++}});
+assert(!c._memberVisible(members[0]));assert(c._memberVisible(members[1]));assert(!c._memberVisible(members[2]));assert(c._memberVisible(members[3]));
+assert(c._tasksScreen().includes('child-b|adult-d'));assert(c._tasksScreen().indexOf('<fieldset')<c._tasksScreen().indexOf('<div class="member-columns'));
+let html=c._activityFilterHtml();assert(html.includes('type="checkbox"'));assert(html.indexOf('>Alex<')<html.indexOf('>Bo<'));assert(!html.includes('data-activity-member="adult-a" checked'));
+c._toggleActivityMember('adult-a');assert(c._memberVisible(members[0]));assert.equal(renders,1);c._screen='routines';c._resetMemberFilter=()=>{c._memberFilter=null};c._resetMemberFilter();assert(c._memberVisible(members[0]),'manual choice survives switching task/routine tabs');
+c._toggleActivityMember('adult-a');c._toggleActivityMember('child-b');c._toggleActivityMember('adult-d');assert(members.every(m=>!c._memberVisible(m)),'empty selection stays empty');c._toggleActivityMember('unknown');assert.equal(c._activityMemberFilter.size,0);
+c._screen='calendar';assert(members.every(m=>c._memberVisible(m)));assert.equal(c._memberLegend(),'calendar-filter');c._toggleMemberFilter('child-b');assert(!c._memberVisible(members[0]));
+c._screen='tasks';c._showAllMembers();assert(members.every(m=>c._memberVisible(m)));c._openHubToday();assert.equal(c._activityMemberFilter,null);assert(members.every(m=>c._memberVisible(m)===(!c._memberFilter||c._memberFilter.has(m.id))));
+assert(c._taskSection().includes('child-b|adult-d'));assert.equal(c._activityRendering,undefined);
+c._screen='rewards';c._memberFilter=null;assert(c._memberVisible(members[0]),'personal points and family overview retain adults');
+console.log('ACTIVITY_FILTER_PASSED: configurable role-based defaults, real checkboxes, alphabetical names, shared manual selection, empty/all/reset, home blocks, unrelated screens and new entry reset');

@@ -238,8 +238,9 @@ function renderMembers(){
  <article class="member config-card friendly-card" data-member="${i}" style="--member:${esc(m.color||palette[i%palette.length])}">
   <div class="member-head"><div class="dot">${esc((m.name||"?").charAt(0).toUpperCase())}</div><div><div class="member-title">${esc(m.name||"Nieuw gezinslid")}</div><div class="member-sub">${m.role==="child"?"Kind":"Volwassene"}</div></div><button class="remove" data-remove-member="${i}">×</button></div>
   <div class="form-grid">
-   <label class="span2">Naam<input data-member-key="name" value="${esc(m.name||"")}" placeholder="Bijv. Joes"></label>
+   <label class="span2">Naam<input data-member-key="name" value="${esc(m.name||"")}" placeholder="Bijv. Sam"></label>
    <label>Rol<select data-member-key="role"><option value="adult" ${m.role!=="child"?"selected":""}>Volwassene</option><option value="child" ${m.role==="child"?"selected":""}>Kind</option></select></label>
+   <label class="switch span2"><input type="checkbox" data-member-key="activity_default_visible" ${(typeof m.activity_default_visible==='boolean'?m.activity_default_visible:m.role==='child')?'checked':''}> Standaard aangevinkt bij Taken en Routines</label>
    <label>Kleur<div class="member-color"><input data-member-key="color" type="color" value="${esc(m.color||palette[i%palette.length])}"><input data-member-key="colorText" value="${esc(m.color||palette[i%palette.length])}"></div></label>
    <div class="span2"><label>Icoon</label>${iconPicker(m.icon||"mdi:account",'data-member-key="icon"',true)}</div>
    <details class="advanced span2"><summary>Home Assistant-koppelingen <span>optioneel</span></summary><p>Laat dit leeg als Family Hub de agenda en takenlijst zelf mag regelen.</p>
@@ -556,7 +557,7 @@ function syncMembersDraft(validate=false){
   const old=settings.members[i]||{},get=k=>card.querySelector(`[data-member-key="${k}"]`);
   let color=(get("colorText")?.value||get("color")?.value||palette[i%palette.length]).trim();
   if(!/^#[0-9a-f]{6}$/i.test(color))color=get("color")?.value||palette[i%palette.length];
-  return {...old,id:old.id||uid("member"),name:(get("name")?.value||"").trim(),role:get("role")?.value||"adult",color,icon:(get("icon")?.value||"mdi:account").trim(),person:get("person")?.value||"",calendar:get("calendar")?.value||"",todo:get("todo")?.value||"",points_entity:old.points_entity||""};
+  return {...old,id:old.id||uid("member"),name:(get("name")?.value||"").trim(),role:get("role")?.value||"adult",activity_default_visible:get("activity_default_visible")?get("activity_default_visible").checked:(typeof old.activity_default_visible==="boolean"?old.activity_default_visible:old.role==="child"),color,icon:(get("icon")?.value||"mdi:account").trim(),person:get("person")?.value||"",calendar:get("calendar")?.value||"",todo:get("todo")?.value||"",points_entity:old.points_entity||""};
  });
  if(validate){
   const nameless=settings.members.findIndex(m=>!m.name);

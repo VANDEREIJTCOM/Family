@@ -203,6 +203,7 @@ def normalize_settings(data):
             "person": str(member.get("person") or "")[:160],
             "points_entity": str(member.get("points_entity") or "")[:160],
             "role": "child" if str(member.get("role") or "").lower() == "child" else "adult",
+            "activity_default_visible": member["activity_default_visible"] if type(member.get("activity_default_visible")) is bool else str(member.get("role") or "").lower() == "child",
         })
     out["members"] = members[:16]
 

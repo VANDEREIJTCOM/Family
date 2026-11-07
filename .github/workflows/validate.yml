@@ -261,6 +261,7 @@ jobs:
           node tests/hub-icons.cjs
           node tests/hub-completion.cjs
           node tests/hub-stars.cjs
+          node tests/hub-activity-filter.cjs
           node tests/hub-family-experience.cjs
           node --check vandereijt_family_hub/static/routine-drag.js
           node tests/hub-calendar-drag.cjs
