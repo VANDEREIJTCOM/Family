@@ -32,20 +32,23 @@ def handle(app,event):
             settings,todos,work=bridge.collect();task=next((t for t in settings.get('smart_tasks',[]) if t['id']==data.get('task_id')),None)
             mid=data.get('member_id');member=next((m for m in settings.get('members',[]) if m['id']==mid),None);action=data.get('action')
             selected=data.get('member_ids') or [mid]
-            if not task or task.get('assignment')!='choice' or not task.get('enabled',True) or not scheduled_on(task,today):raise ProgressError('Dit klusje is nu niet beschikbaar.')
+            if not task or task.get('assignment')!='choice' or (action=='claim' and (not task.get('enabled',True) or not scheduled_on(task,today))):raise ProgressError('Dit klusje is nu niet beschikbaar.')
             if not member or not member.get('todo') or not member.get('points_entity') or action not in ('claim','release'):raise ProgressError('Ongeldige keuze.')
             if action=='claim':
                 if not isinstance(selected,list) or any(not isinstance(x,str) for x in selected) or len(set(selected))!=len(selected) or len(selected)!=int(task.get('participant_count',1)) or not selected or selected[0]!=mid:raise ProgressError('Kies precies '+str(task.get('participant_count',1))+' verschillende personen.')
                 if any(not any(m['id']==x and m.get('todo') and m.get('points_entity') for m in settings.get('members',[])) for x in selected):raise ProgressError('Een gekozen persoon is niet beschikbaar.')
             bridge.store.observe(work);snapshot=bridge.store.snapshot();claims={c['key']:c for c in snapshot['claims']};slot=claims.get(chore_claim_key(task,mid,today))
+            rejected=any(j.get('last_decision')=='rejected' and j.get('state') in ('open','cancelled','rejected') and not j.get('reset_pending') and key.startswith('chore:'+task['id']+':'+mid+':') and j['date']<=today for key,j in snapshot['jobs'].items())
+            owns=slot and slot.get('state')=='active' and mid in claim_members(slot)
             relevant=[w for w in work if w['kind']=='chore' and w['key'].startswith('chore:'+task['id']+':') and chore_period(task,w['date'])==chore_period(task,today) and (task.get('claim_scope')!='per_member' or w['member_id']==mid)]
             for unit in relevant:
                 job=snapshot['jobs'].get(unit['key'],{})
                 protected=unit['complete'] or job.get('state') in ('awarded','legacy','crediting','review')
                 same_team=slot and slot.get('state')=='active' and set(claim_members(slot))==set(selected)
-                if protected and (action=='release' or not same_team):raise ProgressError('Dit klusje is al gedaan of wacht op ouderakkoord.')
-            if action=='release' and (not slot or mid not in claim_members(slot)):raise ProgressError('Dit klusje staat niet bij deze persoon.')
-            claim=bridge.store.set_claim(task,mid,today,release=action=='release',member_ids=selected)
+                if protected and (action=='release' or not same_team) and not (action=='release' and rejected and not owns):raise ProgressError('Dit klusje is al gedaan of wacht op ouderakkoord.')
+            if action=='release' and not owns and not rejected:raise ProgressError('Dit klusje staat niet bij deze persoon.')
+            claim=bridge.store.set_claim(task,mid,today,release=action=='release',member_ids=selected) if action=='claim' or owns else None
+            if action=='release':bridge.store.dismiss_rejected(task,mid,today)
             app['sync_generated_content']();bridge.sync()
             result.update(ok=True,action=action,member_id=mid,member_ids=claim_members(claim or {}),task_id=task['id'])
     except Exception as exc:result['error']=str(exc) if isinstance(exc,ProgressError) else 'Kiezen niet gelukt. Ververs en probeer opnieuw.'

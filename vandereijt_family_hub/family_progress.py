@@ -108,6 +108,13 @@ class FamilyProgress:
         with self.lock:
             return list(dict.fromkeys(mid for c in self._read().get('claims',{}).values() if c['task_id']==task['id'] and c.get('state')=='active' and c['period_id']==chore_period(task,date) for mid in claim_members(c)))
 
+    def dismiss_rejected(self,task,mid,date):
+        with self.lock:
+            state=self._read()
+            for key,job in state['jobs'].items():
+                if key.startswith('chore:'+task['id']+':'+mid+':') and job.get('last_decision')=='rejected' and job.get('state') in ('open','cancelled','rejected') and not job.get('reset_pending') and job['date']<=date:job['dismissed']=True
+            self._save(state)
+
     def rejection_reset(self,key,finished=False):
         """Release a rejected optional slot durably, before changing native todo state."""
         with self.lock:
@@ -232,7 +239,7 @@ class FamilyProgress:
                 elif item.get('legacy_complete'):
                     job['state']='legacy'
                 elif job['state']=='open':
-                    job['state']='pending';job['attempt']+=1;notices.append(copy.deepcopy(job))
+                    job['state']='pending';job['dismissed']=False;job['attempt']+=1;notices.append(copy.deepcopy(job))
             state['initialized']=True;state['manual_approval_initialized']=True;self._save(state)
             return notices
 
@@ -332,7 +339,7 @@ class FamilyProgress:
             balance=max(0,s['earned']-s['spent']-s.get('revoked',0))
             return {'version':1,'initialized':s['initialized'],'family':{'earned':s['earned'],'spent':s['spent'],'revoked':s.get('revoked',0),'balance':balance,'reserved':reserved,'available':max(0,balance-reserved)},
                     'claims':list(copy.deepcopy(s.get('claims',{})).values()),
-                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','award_revision','resolved_at','request_id','period_id','before','target','last_decision','reset_pending')} for k,j in s['jobs'].items()},
+                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','award_revision','resolved_at','request_id','period_id','before','target','last_decision','reset_pending','dismissed')} for k,j in s['jobs'].items()},
                     'rewards':list(copy.deepcopy(s['rewards']).values())}
 
 
