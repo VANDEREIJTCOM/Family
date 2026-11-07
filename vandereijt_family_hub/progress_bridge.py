@@ -5,7 +5,7 @@ from pathlib import Path
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from family_progress import FamilyProgress,ProgressError,build_work,manual_work,bonus_work,shared_reward
+from family_progress import FamilyProgress,ProgressError,build_work,manual_work,bonus_work,shared_reward,chore_period
 
 class ProgressBridge:
     def __init__(self,app):
@@ -58,6 +58,7 @@ class ProgressBridge:
     def sync(self):
         with self.sync_lock:
             settings,todos,work=self.collect()
+            if self.reset_rejections(settings,todos):settings,todos,work=self.collect()
             notices=self.store.observe(work)
             rewards={r['id']:r for r in settings.get('rewards',[]) if shared_reward(r)}
             for item in todos.get(settings.get('family_todo'),[]):
@@ -80,6 +81,36 @@ class ProgressBridge:
                     result=self.app['send_push_notification'](targets,'Bonusster controleren' if notice['kind']=='bonus' else 'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. '+('Goedkeuren geeft '+str(notice['points'])+' sterren aan dit gezinslid én het gezin.' if notice['points'] else 'Goedkeuren bevestigt het klusje. Er is nog geen ouderbonus ingesteld.'),data)
                     if set(targets).issubset(result.get('sent') or []):self.store.notified(notice['key'],notice['attempt'])
             return self.store.snapshot()
+    def reset_rejections(self,settings,todos):
+        changed=False;members={m['id']:m for m in settings.get('members',[])}
+        snapshot=self.store.snapshot()
+        for key,job in snapshot['jobs'].items():
+            if not job.get('reset_pending'):continue
+            team=self.store.rejection_reset(key)
+            task=next((t for t in settings.get('smart_tasks',[]) if key.startswith('chore:'+t['id']+':')),None)
+            for mid in team:
+                entity=members.get(mid,{}).get('todo')
+                reset_ids=[]
+                for item in todos.get(entity,[]):
+                    try:meta=json.loads(item.get('description','')[8:])
+                    except (TypeError,ValueError):continue
+                    if not isinstance(meta,dict):continue
+                    match=job['kind']=='manual' and key=='manual:'+mid+':'+str(item.get('uid'))
+                    if task and meta.get('kind')=='smart_task' and meta.get('task_id')==task['id'] and meta.get('member_id')==mid:
+                        date=meta.get('date','')
+                        try:match=chore_period(task,date)==chore_period(task,job['date'])
+                        except (TypeError,ValueError):match=False
+                        other=snapshot['jobs'].get('chore:'+task['id']+':'+mid+':'+date,{})
+                        if other.get('state') in ('awarded','legacy','crediting','review'):match=False
+                    if match and item.get('status')=='completed':
+                        self.app['ha_service']('todo','update_item',{'item':item['uid'],'status':'needs_action'},entity);reset_ids.append(item['uid']);changed=True
+                if reset_ids:
+                    result=self.app['ha_service']('todo','get_items',{'status':['needs_action','completed']},entity,True)
+                    payload=self.app['_service_payload'](result,entity)
+                    if not isinstance(payload,dict) or not isinstance(payload.get('items'),list) or any(r.get('uid') in reset_ids and r.get('status')=='completed' for r in payload['items']):
+                        raise ProgressError('Het lege vakje wordt nog verwerkt; herstel wordt opnieuw geprobeerd.')
+            self.store.rejection_reset(key,finished=True);changed=True
+        return changed
     def decision_feedback(self,key):
         try:self._decision_feedback(key)
         except Exception as exc:print('[Family Hub] Beslismelding uitgesteld: '+str(exc),flush=True)
@@ -87,7 +118,7 @@ class ProgressBridge:
         threading.Thread(target=self.decision_feedback,args=(key,),daemon=True).start()
     def _decision_feedback(self,key):
         job=self.store.snapshot()['jobs'].get(key,{})
-        if job.get('state') not in ('awarded','rejected'):return
+        if job.get('state') not in ('awarded','rejected') and job.get('last_decision')!='rejected':return
         approved=job['state']=='awarded';targets=self.notification_targets()
         if targets:
             message=str(job.get('member_name','Gezinslid'))+': '+str(job.get('title','Klusje'))+'. '+(str(job.get('awarded_points',0))+' sterren bij kind en gezin opgeteld.' if approved else 'Afgekeurd. Er zijn geen sterren toegekend; het klusje kan opnieuw worden gedaan.')
@@ -118,7 +149,11 @@ class ProgressBridge:
                 if not unit:raise ProgressError('Deze zelfbedachte taak bestaat niet meer')
                 self.store.assign_manual_bonus(unit,payload.get('points'))
             elif action in ('approve','reject'):
-                _,_,work=self.collect();self.store.resolve(key,action=='approve',work)
+                settings,todos,work=self.collect();self.store.resolve(key,action=='approve',work)
+                if action=='reject':
+                    try:self.reset_rejections(settings,todos)
+                    except Exception as exc:
+                        self.wakeup.set();print('[Family Hub] Klusje herstellen wordt opnieuw geprobeerd: '+str(exc),flush=True)
             elif action in ('family_fulfil','family_cancel'):
                 self.store.finish_reward(key,action=='family_fulfil')
             else:raise ProgressError('Onbekende goedkeuringsactie')
@@ -127,8 +162,12 @@ class ProgressBridge:
             return value
     def resolve_notification(self,action):
         with self.sync_lock:
-            _,_,work=self.collect()
+            settings,todos,work=self.collect()
             job=self.store.resolve_notification(action,work)
+            if job.get('reset_pending'):
+                try:self.reset_rejections(settings,todos)
+                except Exception as exc:
+                    self.wakeup.set();print('[Family Hub] Klusje herstellen wordt opnieuw geprobeerd: '+str(exc),flush=True)
             value={'ok':True,**self.publish()};self.dispatch_feedback(job['key'])
             return value
     def loop(self):

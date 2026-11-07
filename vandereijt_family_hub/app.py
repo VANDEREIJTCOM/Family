@@ -18,7 +18,7 @@ import websocket
 from progress_bridge import ProgressBridge
 import chore_actions
 import chore_claims
-from family_progress import ProgressError, task_members, scheduled_on, chore_period, same_chore_period
+from family_progress import ProgressError, task_members, scheduled_on, chore_period, same_chore_period, chore_closed_through
 from ha_access import FamilyHubAccess, AccessError
 from reward_images import image_url as reward_image_url, save_image as save_reward_image
 from collections import Counter, defaultdict
@@ -351,6 +351,8 @@ def normalize_settings(data):
             "assignment": task.get("assignment") if task.get("assignment") in ("all", "choice") else "named",
             "repeat_mode": "period" if task.get("repeat_mode")=="period" else "daily",
             "claim_scope": "per_member" if task.get("claim_scope")=="per_member" else "shared",
+            "participant_count": _clamp_int(task.get('participant_count',1),1,16,1),
+            "keep_until_done": task['keep_until_done'] if type(task.get('keep_until_done')) is bool else task.get('assignment')!='choice',
             "icon": str(task.get("icon") or "mdi:checkbox-marked-circle-outline")[:80],
             "points": max(0, min(500, int(task.get("points") or 0))),
             "days": [int(x) for x in (task.get("days") if task.get("days") is not None else [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
@@ -360,6 +362,9 @@ def normalize_settings(data):
             **normalize_schedule(task),
         })
     out["smart_tasks"] = smart_tasks
+    for task in smart_tasks:
+        if task['participant_count']>1:task['claim_scope']='shared'
+        if task['assignment']=='choice':task['keep_until_done']=False
 
     rewards = []
     for idx, reward in enumerate(src.get("rewards") or []):
@@ -1972,6 +1977,10 @@ def _sync_generated_content():
                 continue
             try:
                 existing = _generated_items(member["todo"])
+                if task.get('keep_until_done'):
+                    jobs=PROGRESS.store.snapshot()['jobs'];closed=chore_closed_through(task,assigned_id,jobs)
+                    unfinished=any((m:=_fh_meta(item)).get('kind')=='smart_task' and m.get('task_id')==task['id'] and m.get('member_id')==assigned_id and closed<str(m.get('date',''))<=today and scheduled_on(task,m['date']) for item in existing)
+                    if closed>=today or unfinished:continue
                 if any((meta := _fh_meta(item)).get("kind") == "smart_task" and meta.get("task_id") == task.get("id") and meta.get("member_id") == assigned_id and same_chore_period(task,meta.get('date'),today) for item in existing):
                     runtime[key] = int(time.time()); changed = True
                     continue

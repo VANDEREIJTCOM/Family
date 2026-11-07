@@ -26,5 +26,26 @@ class Claims(unittest.TestCase):
   self.assertFalse(chore_claims.handle(self.app,self.event('a','release'))['ok']);self.assertFalse(chore_claims.handle(self.app,self.event('b'))['ok']);self.assertEqual(self.bal,10)
  def test_system_or_forged_member_cannot_choose(self):
   self.assertFalse(chore_claims.handle(self.app,self.event('a',uid='system'))['ok']);self.assertFalse(chore_claims.handle(self.app,self.event('missing'))['ok']);self.assertEqual(self.store.snapshot()['claims'],[])
+ def test_team_requires_two_distinct_real_people_before_any_claim(self):
+  self.task['participant_count']=2
+  for ids in ([],['a'],['a','a'],['a','missing'],['b','a'],['a','b','c']):
+   event=self.event('a');event['data']['member_ids']=ids;self.assertFalse(chore_claims.handle(self.app,event)['ok'],ids)
+  self.assertEqual(self.store.snapshot()['claims'],[])
+  event=self.event('a');event['data']['member_ids']=['a','b'];self.assertTrue(chore_claims.handle(self.app,event)['ok'])
+  self.assertEqual(self.store.claimed_members(self.task,__import__('time').strftime('%Y-%m-%d')),['a','b']);self.assertEqual(self.bal,10)
+  self.assertTrue(chore_claims.handle(self.app,self.event('b','release'))['ok']);self.assertEqual(self.store.snapshot()['claims'][0]['state'],'released')
+ def test_team_builds_one_work_unit_for_each_person(self):
+  import json
+  self.task['participant_count']=2;date='2026-11-07';self.store.set_claim(self.task,'a',date,member_ids=['a','b'])
+  todos={m['todo']:[{'uid':m['id'],'status':'needs_action','description':'FH_META:'+json.dumps({'kind':'smart_task','task_id':self.task['id'],'member_id':m['id'],'date':date,'progress_version':1})}] for m in self.members}
+  work=build_work({'members':self.members,'smart_tasks':[self.task]},todos,date,claims={c['key']:c for c in self.store.snapshot()['claims']})
+  self.assertEqual({w['member_id'] for w in work},{'a','b'});self.assertEqual(len(work),2)
+ def test_script_upgrades_only_unmodified_managed_version(self):
+  from copy import deepcopy
+  for current,expected in ((chore_claims.LEGACY_SCRIPT,1),(chore_claims.SCRIPT,0),({'alias':'My custom chooser'},0)):
+   writes=[]
+   chore_claims.ensure_script({'ha_api':lambda method,path,*data:writes.append(data[0]) if method=='POST' else deepcopy(current)})
+   self.assertEqual(len(writes),expected)
+   if writes:self.assertEqual(writes[0],chore_claims.SCRIPT)
 
 if __name__=='__main__':unittest.main()

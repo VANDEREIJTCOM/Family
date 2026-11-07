@@ -57,5 +57,15 @@ class GenerationTests(unittest.TestCase):
    with patch.object(app,'PROGRESS',types.SimpleNamespace(store=store)):
     app.sync_generated_content();self.assertEqual(self.rows,[])
     store.set_claim(task,'a',time.strftime('%Y-%m-%d'));app.sync_generated_content();app.sync_generated_content();self.assertEqual(len(self.rows),1)
+ def test_obligation_keeps_original_uid_across_weeks_until_parent_approval(self):
+  day=['2026-11-07'];jobs={};self.settings['routines']=[];task=self.settings['smart_tasks'][0];task.update(keep_until_done=True,days=[5])
+  clock=types.SimpleNamespace(strftime=lambda *args:day[0],localtime=time.localtime,time=time.time)
+  with patch.object(app,'time',clock),patch.object(app,'PROGRESS',types.SimpleNamespace(store=types.SimpleNamespace(snapshot=lambda:{'jobs':jobs}))):
+   app.sync_generated_content();self.assertEqual(len(self.rows),1);uid=self.rows[0]['uid']
+   day[0]='2026-11-08';self.runtime.clear();app.sync_generated_content();self.assertEqual(len(self.rows),1)
+   day[0]='2026-11-14';app.sync_generated_content();self.assertEqual(len(self.rows),1,'no weekly pile-up while still open')
+   self.rows[0]['status']='completed';jobs['chore:t:a:2026-11-07']={'state':'pending','date':'2026-11-07'};app.sync_generated_content();self.assertEqual(len(self.rows),1,'child completion alone is not approval')
+   jobs['chore:t:a:2026-11-07'].update(state='awarded',resolved_at='2026-11-14T10:00:00');app.sync_generated_content();self.assertEqual(len(self.rows),1,'no replacement on the approval day')
+   day[0]='2026-11-21';app.sync_generated_content();self.assertEqual(len(self.rows),2);self.assertEqual(self.rows[0]['uid'],uid)
 
 if __name__=='__main__':unittest.main()

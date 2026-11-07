@@ -1,3 +1,10 @@
+## 0.16.8
+
+- Grabbelbak begint ingeklapt en opent of sluit via de volledige Grabbelbak-knop. De bonusster blijft bereikbaar.
+- Stel het aantal deelnemers van een keuzeklusje in. Kies eerst je eigen foto en daarna ‘Samen met…’. Het klusje staat bij alle gekozen personen met de naam van de ander erbij. Punten en oudergoedkeuring gelden per persoon; de volledige groep wordt samen gereserveerd.
+- Afgewezen klusjes krijgen weer een leeg vakje met ‘Afgewezen’. Een keuzeklusje komt terug in de grabbelbak; herstellen wordt bij een verbindingsprobleem veilig opnieuw geprobeerd.
+- Klusjes op naam blijven standaard staan totdat ze zijn uitgevoerd en door een ouder goedgekeurd. De ingestelde dag is de startdag, zonder stapeling van dagelijkse exemplaren. Dit kan per klusje worden uitgezet. Bestaande vinkjes, taakrecords en verdiende sterren blijven behouden.
+
 ## 0.16.7
 
 - Grabbelbak boven de persoonskolommen met icoon, punten en kiezen via profielfoto. Keuzeklusjes verschijnen alleen bij de gekozen persoon. Eén gedeeld plekje of één gelegenheid per persoon is instelbaar; serverreservering voorkomt dubbele keuzes. Open klusjes kunnen worden teruggelegd.
