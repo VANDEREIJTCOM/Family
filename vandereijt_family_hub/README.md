@@ -109,3 +109,12 @@ Bij een klusje kiest **Hoe vaak binnen de gekozen dagen?** tussen **Iedere gekoz
 Kies bij **Voor wie?** de optie **Grabbelbak · zelf kiezen**. Het klusje blijft boven de persoonskolommen staan, met zijn ingestelde icoon en sterrenwaarde. Een gezinslid kiest het klusje en vervolgens een profielfoto; alleen bij die persoon verschijnt het onder Klusjes. Open werk kan worden teruggelegd. Na afvinken volgen de bestaande oudercontrole en sterrenregistratie.
 
 **Eén plekje** reserveert het klusje voor één persoon tegelijk. **Iedereen mag dit voor zichzelf kiezen** biedt ieder gezinslid een eigen gelegenheid, bijvoorbeeld de eigen kamer. De reservering volgt de gekozen herhaling (dagelijks of eenmaal in de periode). De server schrijft de keuze vast voordat hij de taak aanmaakt; gelijktijdige keuzes, herstarts en herhaalde verzoeken maken geen dubbele gedeelde reservering of extra sterren. Reeds afgeronde en aangevraagde oude klusjes blijven behouden; onbeantwoorde lege keuzelijsten worden niet meer automatisch onder iedereen aangemaakt.
+
+
+### Klusjes samen doen en laten staan
+
+Bij **Routines & taken** stelt **Aantal personen samen** de grootte van een groep uit de grabbelbak in. Kies op het dashboard eerst je eigen foto en daarna de andere deelnemers. Punten en oudergoedkeuring gelden per deelnemer. De grabbelbak start ingeklapt en opent via de Grabbelbak-balk; de bonusster blijft bereikbaar.
+
+Voor klusjes op naam staat **Blijven staan tot uitgevoerd en goedgekeurd** standaard aan. De gekozen dag is de startdag; het klusje blijft daarna open totdat een ouder goedkeurt. Er ontstaat geen extra exemplaar per dag. Na goedkeuring volgt pas een nieuwe gelegenheid op een latere geplande dag. Keuzeklusjes behouden hun ingestelde dagelijkse of eenmalige periode.
+
+Bij afwijzen wordt het vakje weer leeg met **Afgewezen**. Een keuzeklusje komt weer beschikbaar in de grabbelbak. Tijdens herstel bij een verbindingsprobleem blijft de reservering beschermd; er worden geen sterren toegekend.

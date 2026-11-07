@@ -413,7 +413,10 @@ function openTaskEditor(index=null,seed=null){
     <label>Tijd<input id="ed-task-time" type="time" value="${esc(t.due_time||"")}"></label>
    </div>
    ${scheduleEditor(t,"task")}
-   <label>Bij zelf kiezen<select id="ed-task-claim-scope"><option value="shared" ${t.claim_scope!=="per_member"?"selected":""}>Eén plekje · één persoon kiest dit klusje</option><option value="per_member" ${t.claim_scope==="per_member"?"selected":""}>Iedereen mag dit voor zichzelf kiezen</option></select><small>Alleen van toepassing bij Grabbelbak · zelf kiezen.</small></label>
+   <label>Aantal personen samen<input id="ed-task-participants" type="number" min="1" max="${Math.max(1,(settings.members||[]).length)}" value="${Number(t.participant_count||1)}"><small>Voor de grabbelbak. Bij meer personen kies je eerst jezelf, daarna ‘Samen met…’. Punten en oudergoedkeuring gelden per persoon.</small></label>
+   <label>Bij zelf kiezen<select id="ed-task-claim-scope"><option value="shared" ${t.claim_scope!=="per_member"?"selected":""}>Eén plekje voor de gekozen persoon of groep</option><option value="per_member" ${t.claim_scope==="per_member"?"selected":""}>Iedereen mag dit voor zichzelf kiezen</option></select><small>Bij meerdere personen samen wordt één groepsplekje gebruikt.</small></label>
+   <label class="switch"><input id="ed-task-keep" type="checkbox" ${t.assignment==="choice"?"disabled":""} ${(t.keep_until_done??t.assignment!=="choice")?"checked":""}> Blijven staan tot uitgevoerd en goedgekeurd</label>
+   <p class="help-inline">Voor klusjes op naam: de gekozen dag is de startdag. Een open klusje blijft daarna zichtbaar, zonder dagelijks een extra exemplaar. Uitvinken laat de gewone planning gelden.</p>
    <label>Hoe vaak binnen de gekozen dagen?<select id="ed-task-repeat"><option value="daily" ${t.repeat_mode!=="period"?"selected":""}>Iedere gekozen dag opnieuw</option><option value="period" ${t.repeat_mode==="period"?"selected":""}>Eén keer binnen de gekozen dagen</option></select></label>
    <p class="help-inline">Bij weekdagen: één keer per kalenderweek, bijvoorbeeld zaterdag óf zondag. Bij specifieke datums: één keer over alle gekozen datums. Dit geldt voor ieder kind apart. Dagelijkse keuzeklusjes kunnen elke gekozen dag opnieuw.</p>
   </section>
@@ -431,12 +434,17 @@ function openTaskEditor(index=null,seed=null){
  </div>`;
  const el=editorShell(index==null?"Klusje op naam maken":"Taak bewerken","Na Opslaan staat de taak direct klaar voor Family Hub.",body,"Opslaan");
  bindScheduleEditor(el,"task");
+ el.querySelector("#ed-task-member").onchange=()=>{const choice=el.querySelector("#ed-task-member").value==="__choice__",keep=el.querySelector("#ed-task-keep");keep.disabled=choice;if(choice||t.keep_until_done==null)keep.checked=!choice};
  el.querySelectorAll("[data-day-preset]").forEach(b=>b.onclick=()=>{const sets={week:[0,1,2,3,4],all:[0,1,2,3,4,5,6],weekend:[5,6]},set=new Set(sets[b.dataset.dayPreset]);el.querySelectorAll("[data-editor-day]").forEach(x=>x.checked=set.has(Number(x.value)))});
  el.querySelector("[data-editor-save]").onclick=async()=>{
   const title=el.querySelector("#ed-task-title").value.trim(),member_id=el.querySelector("#ed-task-member").value,days=[...el.querySelectorAll("[data-editor-day]:checked")].map(x=>Number(x.value));
   const schedule=collectSchedule(el,"task");
+  const participants=Number(el.querySelector("#ed-task-participants").value);
+  if(!Number.isInteger(participants)||participants<1||participants>Math.max(1,(settings.members||[]).length))return toast("Kies een geldig aantal personen.");
   if(!title||!member_id||(schedule.schedule==="dates"?!schedule.dates.length:!days.length))return toast("Vul naam, persoon en dagen of datums in.");
   const next={...t,...schedule,id:t.id||uid("task"),title,member_id:member_id.startsWith("__")?"":member_id,assignment:member_id==="__all__"?"all":member_id==="__choice__"?"choice":"named",repeat_mode:el.querySelector("#ed-task-repeat").value,claim_scope:el.querySelector("#ed-task-claim-scope").value,days,due_time:el.querySelector("#ed-task-time").value,points:Number(el.querySelector("#ed-task-points").value||0),show_in_calendar:el.querySelector("#ed-task-calendar").checked,enabled:el.querySelector("#ed-task-enabled").checked,icon:el.querySelector("#ed-task-icon").value};
+  next.participant_count=participants;next.keep_until_done=next.assignment!=="choice"&&el.querySelector("#ed-task-keep").checked;
+  if(participants>1)next.claim_scope="shared";
   const inserted=index==null;if(inserted)settings.smart_tasks.push(next);else settings.smart_tasks[index]=next;
   const btn=el.querySelector("[data-editor-save]");btn.disabled=true;btn.textContent="Opslaan…";
   const ok=await saveSection("smart_tasks",inserted?"Taak opgeslagen":"Taak bijgewerkt");

@@ -72,3 +72,11 @@ print('DATED_SCHEDULE_PASSED: routines/tasks use exact dates, duplicates normali
 # Adding the equivalent end-time must not reset existing step generation keys.
 legacy={'title':'Ochtend','time':'07:00','duration_minutes':30,'days':[0],'member_ids':['a'],'steps':[{'id':'s','title':'Stap'}]}
 assert app._routine_fingerprint(legacy)==app._routine_fingerprint({**legacy,'end_time':'07:30'})
+
+# Required chores carry by default; daily pool opportunities retain their old cadence.
+source={'smart_tasks':[{'id':'required','title':'Glas'},{'id':'pool','title':'Bladeren','assignment':'choice','participant_count':2,'claim_scope':'per_member'},{'id':'daily','title':'Dagtaak','keep_until_done':False}]}
+normalized=app.normalize_settings(source);required,pool,daily=normalized['smart_tasks']
+assert required['keep_until_done'] and required['participant_count']==1
+assert not pool['keep_until_done'] and pool['participant_count']==2 and pool['claim_scope']=='shared'
+assert not daily['keep_until_done'] and app.normalize_settings(normalized)==normalized
+print('CHORE_SETTINGS_PASSED: carry defaults, explicit opt-out, team count, shared group slot and round-trip')

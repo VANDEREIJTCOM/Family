@@ -21,6 +21,8 @@ with tempfile.TemporaryDirectory(prefix='family-ha-runtime-') as tmp:
  assert s.count('FamilyHubCompletion.install(FamilyHubCard.prototype);')==1
  assert s.count('FamilyHubStars.install(FamilyHubCard.prototype);')==1
  assert s.count('FamilyHubActivityFilter.install(FamilyHubCard.prototype);')==1
+ assert s.count('FamilyHubRequiredTasks.install(FamilyHubCard.prototype);')==1
+ assert 'hub-required-tasks.js' in (source/'Dockerfile').read_text(encoding='utf-8')
  assert 'static/family-icons.js' in (root/'static/index.html').read_text(encoding='utf-8')
  assert 'static/reward-images-admin.js' in (root/'static/index.html').read_text(encoding='utf-8')
  assert s.count('const FamilyHubTaskActions=')==1

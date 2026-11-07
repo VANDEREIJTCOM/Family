@@ -36,6 +36,32 @@ def same_chore_period(task,date,target):
 def chore_claim_key(task,mid,date):
     return 'claim:'+task['id']+':'+chore_period(task,date)+':'+(mid if task.get('claim_scope')=='per_member' else 'family')
 
+def claim_members(claim):
+    return list(claim.get('member_ids') or ([claim['member_id']] if claim.get('member_id') else []))
+
+def chore_closed_through(task,mid,jobs):
+    return max(['']+[max(str(j.get('date') or ''),str(j.get('resolved_at') or '')[:10]) for key,j in jobs.items() if key.startswith(f'chore:{task["id"]}:{mid}:') and j.get('state') in ('awarded','legacy')])
+
+def chore_groups(task,mid,rows,today,jobs):
+    """Keep original identities; carry one unfinished obligation across calendar days."""
+    periods={}
+    for row in rows:
+        try:
+            date=json.loads(row['description'][8:])['date']
+            datetime.strptime(date,'%Y-%m-%d')
+            if date>today or not scheduled_on(task,date):continue
+        except (KeyError,TypeError,ValueError):continue
+        periods.setdefault(chore_period(task,date),[]).append(row)
+    if not task.get('keep_until_done'):return periods
+    closed=chore_closed_through(task,mid,jobs)
+    history={};active=[]
+    for period,group in periods.items():
+        date=chore_job_date(task,mid,group,jobs)
+        if jobs.get(f'chore:{task["id"]}:{mid}:{date}',{}).get('state') in ('awarded','legacy'):history[period]=group
+        else:active.extend(r for r in group if json.loads(r['description'][8:])['date']>closed)
+    if active:history['unfinished']=active
+    return history
+
 class ProgressError(ValueError):
     pass
 
@@ -60,22 +86,46 @@ class FamilyProgress:
             raise ProgressError('Ongeldige gezinspot; niets aangepast')
         if type(value['revoked']) is not int or not 0<=value['revoked']<=value['earned'] or not isinstance(value['debts'],dict) or any(type(n) is not int or n<0 for n in value['debts'].values()):
             raise ProgressError('Ongeldige correctie; niets aangepast')
+        for job in value['jobs'].values():
+            if job.get('state')=='rejected' and not job.get('last_decision'):
+                job.update(last_decision='rejected',reset_pending=job.get('kind') in ('chore','manual'))
         return value
 
-    def set_claim(self,task,mid,date,release=False):
+    def set_claim(self,task,mid,date,release=False,member_ids=None):
         with self.lock:
             state=self._read();claims=state.setdefault('claims',{});key=chore_claim_key(task,mid,date);old=claims.get(key)
-            if old and old.get('state')=='active' and old['member_id']!=mid:raise ProgressError('Dit klusje is al gekozen door iemand anders.')
+            team=list(member_ids) if member_ids is not None else [mid]
+            if not release and (len(team)!=int(task.get('participant_count',1)) or len(set(team))!=len(team) or not team or team[0]!=mid):raise ProgressError('Kies het ingestelde aantal verschillende personen.')
+            if old and old.get('state')=='active' and ((release and mid not in claim_members(old)) or (not release and set(claim_members(old))!=set(team))):raise ProgressError('Dit klusje is al gekozen door iemand anders.')
             if release:
                 if not old or old.get('state')!='active':return old
                 old['state']='released';self._save(state);return copy.deepcopy(old)
             if old and old.get('state')=='active':return copy.deepcopy(old)
-            claims[key]={'key':key,'task_id':task['id'],'member_id':mid,'period_id':chore_period(task,date),'state':'active','date':date}
+            claims[key]={'key':key,'task_id':task['id'],'member_id':mid,'member_ids':team,'period_id':chore_period(task,date),'state':'active','date':date}
             self._save(state);return copy.deepcopy(claims[key])
 
     def claimed_members(self,task,date):
         with self.lock:
-            return [c['member_id'] for c in self._read().get('claims',{}).values() if c['task_id']==task['id'] and c.get('state')=='active' and c['period_id']==chore_period(task,date)]
+            return list(dict.fromkeys(mid for c in self._read().get('claims',{}).values() if c['task_id']==task['id'] and c.get('state')=='active' and c['period_id']==chore_period(task,date) for mid in claim_members(c)))
+
+    def rejection_reset(self,key,finished=False):
+        """Release a rejected optional slot durably, before changing native todo state."""
+        with self.lock:
+            state=self._read();job=state['jobs'][key]
+            if not job.get('reset_pending'):return []
+            team=[job['member_id']]
+            if job.get('optional'):
+                task_id=key.split(':')[1]
+                for claim in state.get('claims',{}).values():
+                    if claim['task_id']==task_id and job['member_id'] in claim_members(claim) and (claim.get('date')==job['date'] or claim.get('period_id')==job.get('period_id')):
+                        if finished:claim['state']='released'
+                        team=claim_members(claim)
+            if finished:job.update(reset_pending=False,state='cancelled' if job.get('optional') else 'open')
+            if finished and job.get('optional'):
+                for other_key,other in state['jobs'].items():
+                    if other_key!=key and other.get('optional') and other_key.startswith('chore:'+key.split(':')[1]+':') and other.get('member_id') in team and (other.get('date')==job['date'] or (job.get('period_id') and other.get('period_id')==job['period_id'])) and other.get('state') in ('open','pending','rejected'):
+                        other['state']='cancelled'
+            self._save(state);return team
 
     def _save(self,state):
         self.path.parent.mkdir(parents=True,exist_ok=True)
@@ -89,6 +139,7 @@ class FamilyProgress:
 
     def _credit(self,state,job):
         if job['state'] in ('awarded','legacy'):return
+        job.update(last_decision='approved',reset_pending=False)
         amount=max(0,int(job['points'])-int(job.get('legacy_credit',0)))
         if not amount:
             job['state']='awarded';job['awarded_points']=0;job['resolved_at']=datetime.now().isoformat(timespec='seconds');self._save(state);return
@@ -166,6 +217,9 @@ class FamilyProgress:
                     self._credit(state,job)
                     if job['kind']=='routine' and not item['complete'] and job.get('awarded_points',0)>0:self._revoke_routine(state,job)
                     continue
+                if job.get('reset_pending'):
+                    if item['complete'] or job.get('optional'):continue
+                    job['reset_pending']=False
                 if not item['complete']:
                     if job['state'] in ('pending','rejected'):job['state']='open'
                     continue
@@ -187,12 +241,13 @@ class FamilyProgress:
             state=self._read();job=state['jobs'].get(key)
             if not job:raise ProgressError('Klus niet gevonden')
             if job['state']=='awarded':return copy.deepcopy(job)
+            if not approve and job.get('last_decision')=='rejected' and job['state'] in ('rejected','open','cancelled'):return copy.deepcopy(job)
             valid=next((w for w in current_work if w['key']==key and w['kind'] in ('chore','manual','bonus') and w['complete']),None)
             if not valid:raise ProgressError('Het klusje staat niet meer als gedaan gemeld')
             if job['state'] not in ('pending','crediting'):raise ProgressError('Deze aanvraag is niet meer open')
             if not approve:
                 if job['state']=='crediting':raise ProgressError('Punten worden al verwerkt')
-                job['state']='rejected';job['resolved_at']=datetime.now().isoformat(timespec='seconds');self._save(state)
+                job.update(state='rejected',last_decision='rejected',reset_pending=job['kind'] in ('chore','manual'),resolved_at=datetime.now().isoformat(timespec='seconds'));self._save(state)
             else:self._credit(state,job)
             return copy.deepcopy(job)
 
@@ -262,7 +317,7 @@ class FamilyProgress:
             # Never accept a job key or an amount supplied by a notification event.
             job=next((j for j in self._read()['jobs'].values() if secrets.compare_digest(j.get('notification_token',''),token)),None)
             if not job or job.get('notification_attempt')!=job['attempt']:raise ProgressError('Deze melding is verlopen')
-            if decision=='REJECT' and job['state']=='rejected':return copy.deepcopy(job)
+            if decision=='REJECT' and job.get('last_decision')=='rejected' and job['state'] in ('rejected','open','cancelled'):return copy.deepcopy(job)
             return self.resolve(job['key'],decision=='APPROVE',current_work)
 
     def notified(self,key,attempt):
@@ -277,7 +332,7 @@ class FamilyProgress:
             balance=max(0,s['earned']-s['spent']-s.get('revoked',0))
             return {'version':1,'initialized':s['initialized'],'family':{'earned':s['earned'],'spent':s['spent'],'revoked':s.get('revoked',0),'balance':balance,'reserved':reserved,'available':max(0,balance-reserved)},
                     'claims':list(copy.deepcopy(s.get('claims',{})).values()),
-                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','award_revision','resolved_at','request_id','period_id','before','target')} for k,j in s['jobs'].items()},
+                    'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','award_revision','resolved_at','request_id','period_id','before','target','last_decision','reset_pending')} for k,j in s['jobs'].items()},
                     'rewards':list(copy.deepcopy(s['rewards']).values())}
 
 
@@ -324,17 +379,14 @@ def build_work(settings,todos,today,jobs=None,claims=None):
             member=members[mid]
             if not member.get('points_entity'):continue
             rows=[r for r in todos.get(member.get('todo'),[]) if (x:=meta(r)).get('kind')=='smart_task' and x.get('task_id')==task['id'] and x.get('member_id')==mid]
-            periods={}
-            for date in dates(rows):
-                if not scheduled_on(task,date):continue
-                periods.setdefault(chore_period(task,date),[]).extend(r for r in rows if meta(r).get('date')==date)
+            periods=chore_groups(task,mid,rows,today,jobs or {})
             for period,group in periods.items():
                 date=chore_job_date(task,mid,group,jobs or {})
                 if task.get('assignment')=='choice' and claims is not None:
                     claim=claims.get(chore_claim_key(task,mid,date),{});existing=(jobs or {}).get(f'chore:{task["id"]}:{mid}:{date}',{})
-                    if not (claim.get('state')=='active' and claim.get('member_id')==mid) and existing.get('state') not in ('awarded','legacy','pending','rejected','crediting','review'):continue
+                    if not (claim.get('state')=='active' and mid in claim_members(claim)) and existing.get('state') not in ('awarded','legacy','pending','crediting','review'):continue
                 complete=any(r.get('status')=='completed' for r in group)
-                work.append({'key':f'chore:{task["id"]}:{mid}:{date}','kind':'chore','title':task['title'],'member_id':mid,'member_name':member.get('name',mid),'date':date,'period_id':period if task.get('repeat_mode')=='period' else None,'points':max(0,min(500,int(task.get('points',0)))),'points_entity':member['points_entity'],'complete':complete,'legacy_complete':complete and not any(meta(r).get('progress_version') for r in group if r.get('status')=='completed'),'optional':task.get('assignment')=='choice'})
+                work.append({'key':f'chore:{task["id"]}:{mid}:{date}','kind':'chore','title':task['title'],'member_id':mid,'member_name':member.get('name',mid),'date':date,'period_id':chore_period(task,date) if task.get('repeat_mode')=='period' else None,'points':max(0,min(500,int(task.get('points',0)))),'points_entity':member['points_entity'],'complete':complete,'legacy_complete':complete and not any(meta(r).get('progress_version') for r in group if r.get('status')=='completed'),'optional':task.get('assignment')=='choice'})
     return work
 
 

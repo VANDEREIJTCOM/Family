@@ -1,17 +1,25 @@
 """Reserve optional work atomically. Claiming never grants points."""
 from datetime import datetime
-from family_progress import ProgressError,scheduled_on,chore_period,chore_claim_key
+from copy import deepcopy
+from family_progress import ProgressError,scheduled_on,chore_period,chore_claim_key,claim_members
 
 SCRIPT_ID='family_hub_choose_chore'
 SCRIPT={'alias':'Family Hub · klusje kiezen','description':'Family Hub managed claim bridge v1','mode':'queued','max':20,
         'fields':{key:{'required':True} for key in ('task_id','member_id','action','request_id')},
         'sequence':[{'event':'family_hub_chore_claim','event_data':{key:'{{ '+key+' }}' for key in ('task_id','member_id','action','request_id')}}]}
+LEGACY_SCRIPT=deepcopy(SCRIPT)
+SCRIPT['description']='Family Hub managed claim bridge v2'
+SCRIPT['fields']['member_ids']={'required':False}
+SCRIPT['sequence'][0]['event_data']['member_ids']='{{ member_ids | default([]) }}'
 
 def ensure_script(app):
-    if any(s.get('entity_id')=='script.'+SCRIPT_ID for s in app['ha_states']()):return
-    try:app['ha_api']('GET','config/script/config/'+SCRIPT_ID);return
+    try:
+        current=app['ha_api']('GET','config/script/config/'+SCRIPT_ID)
+        if current==LEGACY_SCRIPT:app['ha_api']('POST','config/script/config/'+SCRIPT_ID,SCRIPT)
+        return
     except RuntimeError as exc:
         if not str(exc).startswith('Home Assistant API 404:'):raise
+    if any(s.get('entity_id')=='script.'+SCRIPT_ID for s in app['ha_states']()):return
     app['ha_api']('POST','config/script/config/'+SCRIPT_ID,SCRIPT)
 
 def handle(app,event):
@@ -23,18 +31,23 @@ def handle(app,event):
         with bridge.sync_lock:
             settings,todos,work=bridge.collect();task=next((t for t in settings.get('smart_tasks',[]) if t['id']==data.get('task_id')),None)
             mid=data.get('member_id');member=next((m for m in settings.get('members',[]) if m['id']==mid),None);action=data.get('action')
+            selected=data.get('member_ids') or [mid]
             if not task or task.get('assignment')!='choice' or not task.get('enabled',True) or not scheduled_on(task,today):raise ProgressError('Dit klusje is nu niet beschikbaar.')
             if not member or not member.get('todo') or not member.get('points_entity') or action not in ('claim','release'):raise ProgressError('Ongeldige keuze.')
+            if action=='claim':
+                if not isinstance(selected,list) or any(not isinstance(x,str) for x in selected) or len(set(selected))!=len(selected) or len(selected)!=int(task.get('participant_count',1)) or not selected or selected[0]!=mid:raise ProgressError('Kies precies '+str(task.get('participant_count',1))+' verschillende personen.')
+                if any(not any(m['id']==x and m.get('todo') and m.get('points_entity') for m in settings.get('members',[])) for x in selected):raise ProgressError('Een gekozen persoon is niet beschikbaar.')
             bridge.store.observe(work);snapshot=bridge.store.snapshot();claims={c['key']:c for c in snapshot['claims']};slot=claims.get(chore_claim_key(task,mid,today))
             relevant=[w for w in work if w['kind']=='chore' and w['key'].startswith('chore:'+task['id']+':') and chore_period(task,w['date'])==chore_period(task,today) and (task.get('claim_scope')!='per_member' or w['member_id']==mid)]
             for unit in relevant:
                 job=snapshot['jobs'].get(unit['key'],{})
                 protected=unit['complete'] or job.get('state') in ('awarded','legacy','crediting','review')
-                if protected and (action=='release' or unit['member_id']!=mid):raise ProgressError('Dit klusje is al gedaan of wacht op ouderakkoord.')
-            if action=='release' and (not slot or slot.get('member_id')!=mid):raise ProgressError('Dit klusje staat niet bij deze persoon.')
-            bridge.store.set_claim(task,mid,today,release=action=='release')
+                same_team=slot and slot.get('state')=='active' and set(claim_members(slot))==set(selected)
+                if protected and (action=='release' or not same_team):raise ProgressError('Dit klusje is al gedaan of wacht op ouderakkoord.')
+            if action=='release' and (not slot or mid not in claim_members(slot)):raise ProgressError('Dit klusje staat niet bij deze persoon.')
+            claim=bridge.store.set_claim(task,mid,today,release=action=='release',member_ids=selected)
             app['sync_generated_content']();bridge.sync()
-            result.update(ok=True,action=action,member_id=mid,task_id=task['id'])
+            result.update(ok=True,action=action,member_id=mid,member_ids=claim_members(claim or {}),task_id=task['id'])
     except Exception as exc:result['error']=str(exc) if isinstance(exc,ProgressError) else 'Kiezen niet gelukt. Ververs en probeer opnieuw.'
     app['ha_api']('POST','states/sensor.family_hub_chore_claim_result',{'state':rid or 'idle','attributes':{'friendly_name':'Family Hub klusjeskeuze',**result}})
     return result

@@ -269,6 +269,8 @@ jobs:
           node tests/hub-pool.cjs
           python tests/chore_claims.py
           python tests/chore_periods.py
+          python tests/chore_obligations.py
+          node tests/hub-required-tasks.cjs
           python tests/chore_actions.py
           python tests/activity_settings.py
           node tests/hub-family-experience.cjs
