@@ -37,5 +37,25 @@ class GenerationTests(unittest.TestCase):
  def test_unavailable_items_never_treated_as_empty(self):
   with patch.object(app,'ha_service',return_value=None):app.sync_generated_content()
   self.assertEqual(self.rows,[]);self.assertFalse(self.runtime)
+ def test_period_reuses_saturday_uid_on_sunday_and_next_week_creates_new(self):
+  import datetime
+  class Clock:
+   day=datetime.datetime(2026,11,7,10)
+   @classmethod
+   def now(cls,*args):return cls.day
+  self.settings['routines']=[];self.settings['smart_tasks'][0].update(repeat_mode='period',days=[5,6])
+  with patch.object(app,'time',types.SimpleNamespace(strftime=lambda *args:Clock.day.isoformat()[:10],localtime=time.localtime,time=time.time)):
+   app.sync_generated_content();self.assertEqual(len(self.rows),1);uid=self.rows[0]['uid'];self.rows[0]['status']='completed'
+   Clock.day=datetime.datetime(2026,11,8,10);self.runtime.clear();app.sync_generated_content();self.assertEqual(len(self.rows),1);self.assertEqual(self.rows[0]['uid'],uid)
+   Clock.day=datetime.datetime(2026,11,14,10);app.sync_generated_content();self.assertEqual(len(self.rows),2)
+ def test_optional_chore_is_generated_only_after_choice(self):
+  from family_progress import FamilyProgress
+  import tempfile
+  self.settings['routines']=[];task=self.settings['smart_tasks'][0];task.update(assignment='choice')
+  with tempfile.TemporaryDirectory() as folder:
+   store=FamilyProgress(Path(folder)/'progress.json',lambda e:0,lambda *args:None)
+   with patch.object(app,'PROGRESS',types.SimpleNamespace(store=store)):
+    app.sync_generated_content();self.assertEqual(self.rows,[])
+    store.set_claim(task,'a',time.strftime('%Y-%m-%d'));app.sync_generated_content();app.sync_generated_content();self.assertEqual(len(self.rows),1)
 
 if __name__=='__main__':unittest.main()

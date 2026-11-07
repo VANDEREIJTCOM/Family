@@ -5,7 +5,7 @@ from pathlib import Path
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from family_progress import FamilyProgress,ProgressError,build_work,manual_work,shared_reward
+from family_progress import FamilyProgress,ProgressError,build_work,manual_work,bonus_work,shared_reward
 
 class ProgressBridge:
     def __init__(self,app):
@@ -37,8 +37,9 @@ class ProgressBridge:
             return entity,payload['items']
         with ThreadPoolExecutor(max_workers=max(1,min(8,len(entities)))) as pool:
             todos=dict(pool.map(fetch,sorted(entities)))
-        work=build_work(settings,todos,time.strftime('%Y-%m-%d'))
-        jobs=self.store.snapshot()['jobs']
+        snapshot=self.store.snapshot();jobs=snapshot['jobs']
+        work=build_work(settings,todos,time.strftime('%Y-%m-%d'),jobs=jobs,claims={c['key']:c for c in snapshot['claims']})
+        work.extend(bonus_work(settings,todos))
         for unit in manual_work(settings,todos):
             job=jobs.get(unit['key'])
             if job and job['kind']=='manual':
@@ -76,7 +77,7 @@ class ProgressBridge:
                     data={'tag':'fh-chore-'+notice['key'],'actions':[
                         {'action':'FH_CHORE_APPROVE_'+token,'title':'Goedkeuren','authenticationRequired':True},
                         {'action':'FH_CHORE_REJECT_'+token,'title':'Afkeuren','authenticationRequired':True}]}
-                    result=self.app['send_push_notification'](targets,'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. '+('Goedkeuren geeft '+str(notice['points'])+' sterren aan dit gezinslid én het gezin.' if notice['points'] else 'Goedkeuren bevestigt het klusje. Er is nog geen ouderbonus ingesteld.'),data)
+                    result=self.app['send_push_notification'](targets,'Bonusster controleren' if notice['kind']=='bonus' else 'Klusje controleren',str(member.get('name','Gezinslid'))+': '+notice['title']+'. '+('Goedkeuren geeft '+str(notice['points'])+' sterren aan dit gezinslid én het gezin.' if notice['points'] else 'Goedkeuren bevestigt het klusje. Er is nog geen ouderbonus ingesteld.'),data)
                     if set(targets).issubset(result.get('sent') or []):self.store.notified(notice['key'],notice['attempt'])
             return self.store.snapshot()
     def decision_feedback(self,key):
@@ -91,6 +92,15 @@ class ProgressBridge:
         if targets:
             message=str(job.get('member_name','Gezinslid'))+': '+str(job.get('title','Klusje'))+'. '+(str(job.get('awarded_points',0))+' sterren bij kind en gezin opgeteld.' if approved else 'Afgekeurd. Er zijn geen sterren toegekend; het klusje kan opnieuw worden gedaan.')
             self.app['send_push_notification'](targets,'Klusje goedgekeurd' if approved else 'Klusje afgekeurd',message,{'tag':'fh-chore-'+key,'actions':[]})
+        if job.get('kind')=='bonus':
+            member=next((m for m in self.app['load_settings']().get('members',[]) if m['id']==job['member_id']),{})
+            if member.get('todo'):
+                raw=self.app['ha_service']('todo','get_items',{'status':['needs_action','completed']},member['todo'],True)
+                for item in self.app['_service_payload'](raw,member['todo']).get('items',[]):
+                    try:meta=json.loads(item.get('description','')[8:])
+                    except (ValueError,TypeError):continue
+                    if meta.get('kind')=='bonus_request' and str(meta.get('request_id') or item.get('uid'))==job['request_id'] and item.get('status')!='completed':
+                        self.app['ha_service']('todo','update_item',{'item':item['uid'],'status':'completed'},member['todo'])
     def manual_overview(self):
         with self.sync_lock:
             settings,todos,_=self.collect();jobs=self.store.snapshot()['jobs'];result=[]

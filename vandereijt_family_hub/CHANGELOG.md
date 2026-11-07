@@ -1,3 +1,11 @@
+## 0.16.7
+
+- Grabbelbak boven de persoonskolommen met icoon, punten en kiezen via profielfoto. Keuzeklusjes verschijnen alleen bij de gekozen persoon. Eén gedeeld plekje of één gelegenheid per persoon is instelbaar; serverreservering voorkomt dubbele keuzes. Open klusjes kunnen worden teruggelegd.
+
+- Per klusje kiezen tussen iedere gekozen dag opnieuw en één keer binnen de gekozen dagen. Een weekendklus hoeft maar één keer per kalenderweek; een selectie specifieke datums vormt één gelegenheid. Dit geldt per persoon. Bestaande dagelijkse klusjes behouden hun gedrag.
+- Eén taakrecord en ouderaanvraag per periode; zaterdag afgerond en goedgekeurd betekent zondag geen nieuwe klus. Een open aanvraag blijft dezelfde aanvraag en na afkeuren kan hetzelfde klusje opnieuw worden gedaan. Volgende week is er een nieuwe gelegenheid.
+- Sterretje-knop boven Routines & klusjes met de echte kinderprofielfoto's. De bonusster wordt eerst door een ouder beoordeeld en telt pas daarna mee bij kind en gezin. Bevestigde bonus krijgt de speelse pop-up Sterretje voor een sterretje — Top gedaan! Verbindingsherstel en dubbele taps leveren geen extra sterren op.
+
 ## 0.16.6
 
 - Klusjes tonen een oranje aangevraagd vinkje en pas na ouderakkoord een groen vinkje. Afkeuren is duidelijk herkenbaar. Ook zelf toegevoegde klusjes kunnen ter controle worden aangeboden; de bestaande regel zonder automatische bonus blijft behouden.

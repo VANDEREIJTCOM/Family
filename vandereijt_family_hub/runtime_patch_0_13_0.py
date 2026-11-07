@@ -59,5 +59,8 @@ s=s.replace(marker,(ROOT/'hub-activity-filter.js').read_text(encoding='utf-8')+'
 s=s.replace(marker,(ROOT/'hub-activity-board.js').read_text(encoding='utf-8')+'\nFamilyHubActivityBoard.install(FamilyHubCard.prototype);\n'+marker,1)
 s=s.replace(marker,(ROOT/'hub-chore-status.js').read_text(encoding='utf-8')+'\nFamilyHubChoreStatus.install(FamilyHubCard.prototype);\n'+marker,1)
 s=s.replace(marker,(ROOT/'hub-approvals.js').read_text(encoding='utf-8')+'\n'+marker,1)
+s=s.replace(marker,(ROOT/'hub-chore-periods.js').read_text(encoding='utf-8')+'\nFamilyHubChorePeriods.install(FamilyHubCard.prototype);\n'+marker,1)
+s=s.replace(marker,(ROOT/'hub-bonus.js').read_text(encoding='utf-8')+'\nFamilyHubBonus.install(FamilyHubCard.prototype);\n'+marker,1)
+s=s.replace(marker,(ROOT/'hub-pool.js').read_text(encoding='utf-8')+'\nFamilyHubPool.install(FamilyHubCard.prototype);\n'+marker,1)
 path.write_text(s,encoding='utf-8')
 print('HA_THEME_AND_CONTEXT_PATCHED')

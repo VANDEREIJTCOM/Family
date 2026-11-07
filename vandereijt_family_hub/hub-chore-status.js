@@ -21,11 +21,11 @@ const FamilyHubChoreStatus=(()=>{
    return html;
   };
   p._regularTodos=function(m){
-   const rows=regular.call(this,m),seen=new Set(rows.map(it=>it.uid)),today=this._dateISO(new Date());
+   const rows=regular.call(this,m),seen=new Set(rows.map(it=>it.uid)),seenJobs=new Set(rows.map(it=>key(this._meta(it),it))),today=this._dateISO(new Date());
    for(const item of this._todoAll[m.id]||[]){
     const meta=this._meta(item),job=this._progress?.jobs?.[key(meta,item)];
-    if(!seen.has(item.uid)&&job&&(['pending','rejected','crediting','review'].includes(job.state)||(job.state==='awarded'&&String(job.resolved_at||'').startsWith(today)))){
-     rows.push(item);seen.add(item.uid);
+    if(!seen.has(item.uid)&&!seenJobs.has(key(meta,item))&&job&&(['pending','rejected','crediting','review'].includes(job.state)||(job.state==='awarded'&&String(job.resolved_at||'').startsWith(today)))){
+     rows.push(item);seen.add(item.uid);seenJobs.add(key(meta,item));
     }
    }return rows;
   };
