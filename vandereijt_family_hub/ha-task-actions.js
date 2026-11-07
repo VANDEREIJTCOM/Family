@@ -18,7 +18,7 @@ const FamilyHubTaskActions=(()=>{
     this._haTaskSaving=true;
     this.shadowRoot.querySelectorAll('[data-toggle-task-entity],[data-task-detail]').forEach(b=>b.disabled=true);
     this.shadowRoot.querySelectorAll('[data-toggle-task-entity]').forEach(b=>{if(String(b.dataset.toggleTaskId)===String(id)){b.textContent=item.status==='completed'?'':'✓';b.setAttribute('aria-busy','true');}});
-    try{await this._toggleTodo(entity,item);}
+    try{if(this._prepareChoreToggle&&!await this._prepareChoreToggle(entity,item))return;await this._toggleTodo(entity,item);}
     catch(error){
      console.error('[Family Hub] taak wijzigen',error);
      const message=document.createElement('p');message.setAttribute('role','alert');message.className='ha-task-error';message.textContent='De taak kon niet worden bijgewerkt. Controleer de verbinding en probeer opnieuw.';

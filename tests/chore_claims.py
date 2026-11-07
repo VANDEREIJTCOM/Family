@@ -47,5 +47,12 @@ class Claims(unittest.TestCase):
    chore_claims.ensure_script({'ha_api':lambda method,path,*data:writes.append(data[0]) if method=='POST' else deepcopy(current)})
    self.assertEqual(len(writes),expected)
    if writes:self.assertEqual(writes[0],chore_claims.SCRIPT)
+ def test_returning_rejected_reminder_never_releases_someone_elses_claim(self):
+  from datetime import datetime
+  date=datetime.now().strftime('%Y-%m-%d');key='chore:leaves:a:'+date
+  unit={'key':key,'kind':'chore','member_id':'a','member_name':'a','title':'Bladeren','date':date,'points':2,'points_entity':'input_number.a','complete':False,'optional':True}
+  self.store.observe([unit]);unit['complete']=True;self.store.observe([unit]);self.store.resolve(key,False,[unit]);self.store.rejection_reset(key,finished=True)
+  self.store.set_claim(self.task,'b',date);self.task['days']=[];self.assertTrue(chore_claims.handle(self.app,self.event('a','release'))['ok'])
+  self.assertTrue(self.store.snapshot()['jobs'][key]['dismissed']);self.assertEqual(self.store.claimed_members(self.task,date),['b']);self.assertEqual(self.bal,10)
 
 if __name__=='__main__':unittest.main()

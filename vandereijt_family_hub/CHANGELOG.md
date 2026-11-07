@@ -1,3 +1,10 @@
+## 0.16.9
+
+- Een afgewezen klusje heeft een wit, opnieuw aanklikbaar vakje. Bij opnieuw afvinken wordt eerst de serverreservering bevestigd; als iemand anders het klusje al koos, wordt niets afgevinkt en worden geen punten toegekend.
+- Duidelijke knop **Terug naar Sterrenpakkers** bij een open gekozen of afgewezen klusje. De persoonlijke afgewezen herinnering verdwijnt na teruggeven; de beoordeling blijft in het ouderoverzicht bewaard. Teruggeven raakt nooit de reservering van een ander.
+
+- De grabbelbak heet voortaan **Sterrenpakkers**, ook in de instellingen en op de teruggeefknop.
+
 ## 0.16.8
 
 - Grabbelbak begint ingeklapt en opent of sluit via de volledige Grabbelbak-knop. De bonusster blijft bereikbaar.
