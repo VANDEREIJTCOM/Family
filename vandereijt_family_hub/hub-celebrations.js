@@ -1,7 +1,7 @@
 /* Visual feedback only. HA/server remain the sole authority for task state and points. */
 const FamilyHubCelebrations=(()=>{
  const variants=['confetti','burst','praise'];
- function awardChanges(before,after){return Object.entries(after?.jobs||{}).filter(([key,j])=>j.kind==='routine'&&j.state==='awarded'&&Number(j.awarded_points)>0&&!(before?.jobs?.[key]?.state==='awarded'&&Number(before.jobs[key].awarded_points)===Number(j.awarded_points))).map(([key,job])=>({key,job}))}
+ function awardChanges(before,after){return Object.entries(after?.jobs||{}).filter(([key,j])=>j.kind==='routine'&&j.state==='awarded'&&Number(j.awarded_points)>0&&!(before?.jobs?.[key]?.state==='awarded'&&Number(before.jobs[key].awarded_points)===Number(j.awarded_points)&&before.jobs[key].award_revision===j.award_revision)).map(([key,job])=>({key,job}))}
  const morningMessages=["Fijne zondag! Vandaag is er ruimte voor iets leuks.","Een nieuwe week! Begin rustig, stap voor stap.","Goed begonnen! Elke kleine stap telt vandaag.","Je bent al op weg. Maak er een fijne woensdag van!","Jij kunt dit! We doen het vandaag stap voor stap.","Bijna weekend! Een mooie dag begint met jou.","Fijne zaterdag! Wat ga jij vandaag ontdekken?"];
  function morningMessage(day=new Date().getDay()){return morningMessages[day]||morningMessages[0]}
  function isMorning(item,meta,config){const routine=(config.routines||[]).find(r=>r.id===meta?.routine_id),step=routine?.steps?.find(s=>s.id===meta?.step_id);return /^(goede\s*morgen)[!?.\s]*$/i.test(String(step?.title||item?.summary||'').trim())}
@@ -20,6 +20,7 @@ const FamilyHubCelebrations=(()=>{
    this._celebrationLayer?.remove();clearTimeout(this._celebrationTimer);(this._celebrationCountTimers||[]).forEach(clearTimeout);this._celebrationCountTimers=[];
    const math=arithmetic({before,target:after,awarded_points:points}),reduced=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
    if(points>0)this._lastAwardCelebration=Date.now();
+   this._celebrationPoints=points;
    const layer=document.createElement('div');layer.style.cssText='position:fixed;inset:0;z-index:2147483000;pointer-events:none;';
    const shadow=layer.attachShadow({mode:'open'}),esc=x=>this._esc(String(x||''));
    const variant=points>0?'jar':'praise';
@@ -42,7 +43,7 @@ const FamilyHubCelebrations=(()=>{
    this._celebrationTimer=setTimeout(()=>{layer.remove();if(this._celebrationLayer===layer)this._celebrationLayer=null;const next=this._celebrationQueue?.shift();if(next&&this.isConnected)this._showCelebration(next)},duration);
 
   };
-  p._queueCelebration=function(detail){if(this._celebrationLayer){this._celebrationQueue??=[];this._celebrationQueue.push(detail)}else this._showCelebration(detail)};
+  p._queueCelebration=function(detail){if(this._celebrationLayer&&!(Number(detail.points)>0&&this._celebrationPoints===0)){this._celebrationQueue??=[];this._celebrationQueue.push(detail)}else this._showCelebration(detail)};
   p._toggleTodo=async function(entity,item,...args){
    const pending=item?.status!=='completed',meta=this._meta(item),id=String(item?.uid||item?.summary||''),day=meta?.date||this._dateISO(new Date());
    const result=await toggle.call(this,entity,item,...args);
@@ -51,17 +52,17 @@ const FamilyHubCelebrations=(()=>{
    if(this._celebrationOnce('morning:'+member?.id+':'+day))this._queueCelebration({kind:'morning',name:member?.name});
    return result;
   };
-  p._load=async function(...args){
-   const before=this._celebrationProgress;const result=await load.apply(this,args);
+  p._observeProgress=function(){
+   const before=this._celebrationProgress;
    if(this._progress&&!this._progressError){
     // Snapshot first load as a baseline; never replay yesterday's or already saved awards.
     const changes=before?awardChanges(before,this._progress):[];
     this._celebrationProgress=JSON.parse(JSON.stringify(this._progress));
-    const fresh=changes.filter(({key,job})=>this._celebrationOnce('award:'+key+':'+Number(job.awarded_points)));
+    const fresh=changes.filter(({key,job})=>this._celebrationOnce('award:'+key+':'+Number(job.awarded_points)+':'+Number(job.award_revision||0)));
     for(const {job} of fresh){const math=arithmetic(job);this._queueCelebration({kind:'routine',points:Number(job.awarded_points),name:job.member_name,title:job.title,...(math||{})})}
    }
-   return result;
   };
+  p._load=async function(...args){const result=await load.apply(this,args);this._observeProgress();return result};
   p.disconnectedCallback=function(...args){clearTimeout(this._celebrationTimer);(this._celebrationCountTimers||[]).forEach(clearTimeout);this._celebrationQueue=[];this._celebrationLayer?.remove();this._celebrationLayer=null;return disconnect?.apply(this,args)};
  }
  return {install,awardChanges,isMorning,morningMessage,arithmetic};

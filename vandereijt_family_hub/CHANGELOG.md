@@ -1,3 +1,11 @@
+## 0.16.6
+
+- Klusjes tonen een oranje aangevraagd vinkje en pas na ouderakkoord een groen vinkje. Afkeuren is duidelijk herkenbaar. Ook zelf toegevoegde klusjes kunnen ter controle worden aangeboden; de bestaande regel zonder automatische bonus blijft behouden.
+- Blijvend ouderoverzicht met openstaande en eerdere beoordelingen op een optioneel gekoppeld HA-thuisscherm. Goedkeuren en Afkeuren tonen resultaat en vernieuwen de pushmelding op beide oudertelefoons. Oudermachtiging wordt op de server gecontroleerd op de ingelogde HA-gebruiker.
+- Het actuele persoonlijke sterrensaldo staat bij de foto boven de routines.
+- Een onvolledige routine verliest de verdiende ster bij kind en gezin. Opnieuw afronden herstelt de ster zonder extra saldo door herhaald uit- en aanvinken. Terugboekingen zijn bestand tegen herstarts; al bestede sterren leveren geen nieuwe sterren op via opnieuw aanvinken.
+- Vinkjes reageren direct. Na een taakwijziging wordt niet meer op een volledige agendaverversing gewacht. Sterrencontrole start bij een HA-taakwijziging en bevestigde toekenningen komen rechtstreeks naar de pop-up.
+
 ## 0.16.5
 
 - Routines en klusjes samen in persoonskolommen met de gekoppelde profielfoto. Alle routines van vandaag blijven bij hun persoon, met tijdvakgestuurd openklappen; klusjes en de persoonlijke plusknop staan eronder. Taken en Routines openen hetzelfde overzicht, ook op Vandaag verschijnt het blok één keer.

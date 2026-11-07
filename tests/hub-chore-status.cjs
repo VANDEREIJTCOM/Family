@@ -1,0 +1,9 @@
+const assert=require('node:assert/strict'),status=require('../vandereijt_family_hub/hub-chore-status.js');
+const item={uid:'real',status:'completed',description:''},meta={kind:'smart_task',task_id:'t',member_id:'m',date:'2026-11-07'},key=status.key(meta,item);
+assert.equal(status.status(item,undefined),'pending');assert.equal(status.status(item,{state:'awarded'}),'approved');assert.equal(status.status(item,{state:'rejected'}),'rejected');assert.equal(status.status({...item,status:'needs_action'},{state:'awarded'}),'open');
+assert.equal(status.key({kind:'manual_task',member_id:'m'},item),'manual:m:real');assert.equal(status.key({kind:'routine_step'},item),null);
+const p={_taskRow:()=>'<div class="check-row completed"><button class="task-toggle box">✓</button><button class="task-open"><span class="task-label"><span>Job</span><small>Afgevinkt · tik om terug te zetten</small></span></button></div>',_regularTodos:()=>[],_css:()=>''};status.install(p);
+const c=Object.assign(Object.create(p),{_meta:()=>meta,_progress:{jobs:{}},_esc:String,_dateISO:()=> '2026-11-07',_todoAll:{m:[item]}});
+assert(c._taskRow('',item).includes('chore-state-pending'));assert(!c._taskRow('',item).includes('tik om terug'));assert(c._taskRow('',item).includes('Aangevraagd'));
+c._progress.jobs[key]={state:'pending'};assert.deepEqual(c._regularTodos({id:'m'}),[item]);c._progress.jobs[key]={state:'awarded',resolved_at:'2026-11-07T10:00:00'};assert(c._taskRow('',item).includes('chore-state-approved'));assert.deepEqual(c._regularTodos({id:'m'}),[item]);c._progress.jobs[key].resolved_at='2026-11-06';assert.deepEqual(c._regularTodos({id:'m'}),[]);
+console.log('CHORE_STATUS_PASSED: completion is orange request until ledger approval, green approval, rejection, no false completed caption and outstanding older work retained');

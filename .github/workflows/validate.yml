@@ -263,6 +263,8 @@ jobs:
           node tests/hub-stars.cjs
           node tests/hub-activity-filter.cjs
           node tests/hub-activity-board.cjs
+          node tests/hub-chore-status.cjs
+          python tests/chore_actions.py
           python tests/activity_settings.py
           node tests/hub-family-experience.cjs
           node --check vandereijt_family_hub/static/routine-drag.js

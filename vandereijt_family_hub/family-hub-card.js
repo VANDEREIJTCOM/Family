@@ -579,6 +579,10 @@ class FamilyHubCard extends HTMLElement{
     if(!entity||!item)return;
     const meta=this._meta(item),completed=item.status==="completed",next=completed?"needs_action":"completed";
     await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next,...(["routine_step","smart_task","manual_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
+    if(["routine_step","smart_task","manual_task"].includes(meta?.kind)){
+      item.status=next;item.description="FH_META:"+JSON.stringify({...meta,points:0,progress_version:1});
+      this._progressAt=0;this._render();this._queueHubUpdate?.('progress');return;
+    }
     if(!["routine_step","smart_task","manual_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity){
       const current=Math.max(0,Number(this._hass?.states?.[meta.points_entity]?.state||0)||0);
       await this._setPoints(meta.points_entity,completed?Math.max(0,current-Number(meta.points||0)):current+Number(meta.points||0));

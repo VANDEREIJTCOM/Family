@@ -3,7 +3,7 @@ const registry=new Map(),context={HTMLElement:class{},window:{},customElements:{
 vm.runInNewContext(fs.readFileSync(process.argv[2],'utf8'),context);const proto=registry.get('family-hub-card').prototype;
 (async()=>{
  for(const kind of ['routine_step','smart_task']){
-  const calls=[],card=Object.assign(Object.create(proto),{_load:async()=>{},_hass:{states:{},callService:async(...a)=>calls.push(a)}}),item={uid:'one',summary:'Test',status:'needs_action',description:'FH_META:'+JSON.stringify({kind,points:8,points_entity:'input_number.test'})};
+  const calls=[],card=Object.assign(Object.create(proto),{_load:async()=>{},_render(){},_queueHubUpdate(){},_hass:{states:{},callService:async(...a)=>calls.push(a)}}),item={uid:'one',summary:'Test',status:'needs_action',description:'FH_META:'+JSON.stringify({kind,points:8,points_entity:'input_number.test'})};
   await card._toggleTodo('todo.test',item);assert.equal(calls.length,1);assert.equal(calls[0][0],'todo');assert.equal(calls[0][1],'update_item');const meta=JSON.parse(calls[0][2].description.slice(8));assert.equal(meta.points,0);assert.equal(meta.progress_version,1);
   calls.length=0;await card._complete('todo.test',item);assert.equal(calls.length,1);assert.equal(calls[0][0],'todo');
  }
