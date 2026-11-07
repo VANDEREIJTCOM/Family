@@ -1,3 +1,10 @@
+## 0.16.5
+
+- Routines en klusjes samen in persoonskolommen met de gekoppelde profielfoto. Alle routines van vandaag blijven bij hun persoon, met tijdvakgestuurd openklappen; klusjes en de persoonlijke plusknop staan eronder. Taken en Routines openen hetzelfde overzicht, ook op Vandaag verschijnt het blok één keer.
+- Volgorde en plaatsing onder een ander gezinslid zijn instelbaar bij Gezin. Bestaande gezinsselectie, vinkjes, oudergoedkeuring en sterrenregistratie blijven behouden. Geen namen in de code.
+- Optionele installatie-instellingen voor een eerste persoonsindeling en het vervangen van leesbare teksten, zonder IDs, koppelingen of afbeeldingen te wijzigen.
+- Nieuw kiesbaar plaatje Sieraden omdoen: gouden ketting met gekleurde hanger en kralenarmband. Hetzelfde plaatje in beheer en dashboard, ook voor routinestappen.
+
 ## 0.16.4
 
 - Personen bij Taken en Routines rechtstreeks aan- en uitvinken, ook in de blokken op Vandaag. De selectie wordt gedeeld tussen Taken en Routines; Iedereen en Standaard zijn direct beschikbaar.
