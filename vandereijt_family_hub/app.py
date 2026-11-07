@@ -163,8 +163,49 @@ def normalize_routine_window(routine):
         raise ValueError("De eindtijd moet later zijn dan de starttijd op dezelfde dag.")
     return {"end_time": end, "duration_minutes": duration}
 
+def _clamp_int(value, low, high, default):
+    try:
+        return max(low, min(high, int(value)))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def activity_setup_options():
+    """Optional deployment defaults; persisted member choices always take precedence."""
+    try:
+        value = json.loads((DATA_DIR / "options.json").read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def replace_display_text(value, replacements):
+    # Only human-readable labels. Never replace IDs, entity names or URLs.
+    if isinstance(value, list):
+        return [replace_display_text(item, replacements) for item in value]
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key in {"title", "label", "summary", "subtitle"} and isinstance(item, str):
+                for pair in replacements:
+                    if isinstance(pair, str) and "=" in pair:
+                        old, new = pair.split("=", 1)
+                        if old:
+                            item = re.sub(re.escape(old), lambda match: new, item, flags=re.I)
+                result[key] = item
+            else:
+                result[key] = replace_display_text(item, replacements)
+        return result
+    return value
+
+
 def normalize_settings(data):
     src = data if isinstance(data, dict) else {}
+    setup = activity_setup_options()
+    src = replace_display_text(src, setup.get("display_text_replacements") or [])
+    order = setup.get("activity_member_order") or []
+    stacks = dict(pair.split("=", 1) for pair in setup.get("activity_member_stacks", []) if isinstance(pair, str) and "=" in pair)
+    seed_layout = not src.get("activity_layout_seeded") and bool(order or stacks)
     # Reject oversized submissions before any provisioning or persistence.
     # Never silently discard a newly created routine, task or step.
     for key, limit, label in (("routines", MAX_ROUTINES, "routines"), ("smart_tasks", MAX_SMART_TASKS, "taken")):
@@ -185,6 +226,7 @@ def normalize_settings(data):
     for key in DEFAULTS:
         if key in src:
             out[key] = src[key]
+    out["activity_layout_seeded"] = bool(src.get("activity_layout_seeded") or seed_layout)
 
     members = []
     for idx, member in enumerate(src.get("members") or []):
@@ -204,7 +246,15 @@ def normalize_settings(data):
             "points_entity": str(member.get("points_entity") or "")[:160],
             "role": "child" if str(member.get("role") or "").lower() == "child" else "adult",
             "activity_default_visible": member["activity_default_visible"] if type(member.get("activity_default_visible")) is bool else str(member.get("role") or "").lower() == "child",
+            "activity_order": _clamp_int(order.index(member.get("id")) if seed_layout and member.get("id") in order else member.get("activity_order", idx), 0, 1000, idx),
+            "activity_under_member_id": str(stacks.get(member.get("id"), member.get("activity_under_member_id", "")) if seed_layout else member.get("activity_under_member_id") or "")[:80],
         })
+    by_id = {m["id"]: m for m in members}
+    links = {m["id"]: m["activity_under_member_id"] for m in members}
+    for member in members:
+        parent = member["activity_under_member_id"]
+        if parent not in by_id or parent == member["id"] or links.get(parent):
+            member["activity_under_member_id"] = ""
     out["members"] = members[:16]
 
     nav_by_id = {item["id"]: dict(item) for item in DEFAULT_NAVIGATION}
