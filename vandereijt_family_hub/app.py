@@ -17,7 +17,8 @@ import uuid
 import websocket
 from progress_bridge import ProgressBridge
 import chore_actions
-from family_progress import ProgressError, task_members, scheduled_on
+import chore_claims
+from family_progress import ProgressError, task_members, scheduled_on, chore_period, same_chore_period
 from ha_access import FamilyHubAccess, AccessError
 from reward_images import image_url as reward_image_url, save_image as save_reward_image
 from collections import Counter, defaultdict
@@ -348,6 +349,8 @@ def normalize_settings(data):
             "title": title[:100],
             "member_id": str(task.get("member_id") or "")[:80],
             "assignment": task.get("assignment") if task.get("assignment") in ("all", "choice") else "named",
+            "repeat_mode": "period" if task.get("repeat_mode")=="period" else "daily",
+            "claim_scope": "per_member" if task.get("claim_scope")=="per_member" else "shared",
             "icon": str(task.get("icon") or "mdi:checkbox-marked-circle-outline")[:80],
             "points": max(0, min(500, int(task.get("points") or 0))),
             "days": [int(x) for x in (task.get("days") if task.get("days") is not None else [0,1,2,3,4,5,6]) if str(x).isdigit() and 0 <= int(x) <= 6],
@@ -1187,6 +1190,7 @@ def reward_notification_action_loop():
             ws.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "mobile_app_notification_action"}))
             ws.send(json.dumps({"id": 2, "type": "subscribe_events", "event_type": "state_changed"}))
             ws.send(json.dumps({"id": 3, "type": "subscribe_events", "event_type": "family_hub_chore_action"}))
+            ws.send(json.dumps({"id": 4, "type": "subscribe_events", "event_type": "family_hub_chore_claim"}))
             heartbeat=100
             awaiting_pong=False
             while True:
@@ -1209,6 +1213,9 @@ def reward_notification_action_loop():
                 if event.get('event_type')=='state_changed':
                     if str(data.get('entity_id','')).startswith('todo.'):
                         PROGRESS.wakeup.set()
+                    continue
+                if event.get('event_type')=='family_hub_chore_claim':
+                    chore_claims.handle(globals(),event)
                     continue
                 if event.get('event_type')=='family_hub_chore_action':
                     chore_actions.handle(globals(),event)
@@ -1952,18 +1959,20 @@ def _sync_generated_content():
     for task in settings.get("smart_tasks", []):
         if not task.get("enabled", True) or not scheduled_on(task, today):
             continue
-        for assigned_id in task_members(task, members):
+        assigned_members=PROGRESS.store.claimed_members(task,today) if task.get("assignment")=="choice" else task_members(task,members)
+        for assigned_id in assigned_members:
             member = members.get(assigned_id)
             if not member or not member.get("todo"):
                 continue
-            key = f"smarttask:{task.get('id')}:{assigned_id}:{today}"
-            if task.get("assignment", "named") == "named" and runtime.get(f"smarttask:{task.get('id')}:{today}"):
+            period = chore_period(task,today)
+            key = f"smarttask:{task.get('id')}:{assigned_id}:{period}"
+            if task.get('repeat_mode')!='period' and task.get("assignment", "named") == "named" and runtime.get(f"smarttask:{task.get('id')}:{today}"):
                 continue
-            if runtime.get(key):
+            if runtime.get(key) and task.get('assignment')!='choice':
                 continue
             try:
                 existing = _generated_items(member["todo"])
-                if any((meta := _fh_meta(item)).get("kind") == "smart_task" and meta.get("task_id") == task.get("id") and meta.get("member_id") == assigned_id and meta.get("date") == today for item in existing):
+                if any((meta := _fh_meta(item)).get("kind") == "smart_task" and meta.get("task_id") == task.get("id") and meta.get("member_id") == assigned_id and same_chore_period(task,meta.get('date'),today) for item in existing):
                     runtime[key] = int(time.time()); changed = True
                     continue
                 meta = {
@@ -3374,6 +3383,8 @@ def main():
     except Exception as exc:print(f'[Family Hub] Goedkeurknoppen instellen uitgesteld: {exc}',flush=True)
     print(f"[Family Hub] v{APP_VERSION} listening on {PORT}", flush=True)
     print(f"[Family Hub] Card: {CARD_TARGET}", flush=True)
+    try:chore_claims.ensure_script(globals())
+    except Exception as exc:print(f'[Family Hub] Klusjes kiezen instellen uitgesteld: {exc}',flush=True)
     threading.Thread(target=PROGRESS.loop, daemon=True).start()
     threading.Thread(target=family_scheduler_loop, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()

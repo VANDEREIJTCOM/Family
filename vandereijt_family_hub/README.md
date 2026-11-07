@@ -93,3 +93,19 @@ Het element `family-hub-approvals` kan met `{actions: true}` als ouderoverzicht 
 Bij het uitvinken van een routinestap wordt een eerder toegekende routinester teruggeboekt bij persoon en gezin. Herhaald uit- en aanvinken kan geen extra saldo opleveren. Als sterren intussen besteed zijn, gaat het zichtbare saldo niet onder nul; het tekort wordt met volgende verdiende sterren verrekend. De optelling en terugboeking worden eerst in het register vastgelegd, zodat een onderbroken verbinding of herstart geen dubbele afschrijving geeft.
 
 Live vernieuwing gebruikt de standaard HA-state-events van `sensor.family_hub_settings`, `sensor.family_hub_progress` en `sensor.family_hub_chore_result`. Hierdoor werken snelle updates en bevestigingen ook voor niet-beherende ouder- en displayaccounts; aangepaste eventabonnementen met HA-beheerrechten zijn niet nodig. De resultaatsensor bevat geen goedkeuringssleutels of private meldtokens.
+
+
+### Eén klusje over meerdere dagen
+
+Bij een klusje kiest **Hoe vaak binnen de gekozen dagen?** tussen **Iedere gekozen dag opnieuw** (standaard) en **Eén keer binnen de gekozen dagen**. Voor weekdagen geldt één gelegenheid per kalenderweek; voor specifieke datums één gelegenheid over de hele selectie. Dit werkt per gezinslid. Na zaterdag uitvoeren ontstaat zondag geen tweede taak; na akkoord verdwijnt de afgehandelde weekendklus op de volgende dag. Een open aanvraag blijft herkenbaar, en afkeuren laat hetzelfde taakje opnieuw doen. De volgende week begint een nieuwe gelegenheid.
+
+### Bonusster aanvragen
+
+**Sterretje** boven het gecombineerde overzicht opent de kinderprofielfoto's. Foto kiezen vraagt precies één bonusster aan. De server gebruikt de ingestelde persoonlijke puntenkoppeling, controleert ouderakkoord via hetzelfde beveiligde kanaal als klusjes en negeert een door de browser opgegeven puntenbedrag. Eén aanvraag-ID kan maar één keer worden beloond. Bij bevestigde toekenning verschijnt de bonusanimatie; vóór akkoord verandert geen saldo.
+
+
+### Grabbelbak
+
+Kies bij **Voor wie?** de optie **Grabbelbak · zelf kiezen**. Het klusje blijft boven de persoonskolommen staan, met zijn ingestelde icoon en sterrenwaarde. Een gezinslid kiest het klusje en vervolgens een profielfoto; alleen bij die persoon verschijnt het onder Klusjes. Open werk kan worden teruggelegd. Na afvinken volgen de bestaande oudercontrole en sterrenregistratie.
+
+**Eén plekje** reserveert het klusje voor één persoon tegelijk. **Iedereen mag dit voor zichzelf kiezen** biedt ieder gezinslid een eigen gelegenheid, bijvoorbeeld de eigen kamer. De reservering volgt de gekozen herhaling (dagelijks of eenmaal in de periode). De server schrijft de keuze vast voordat hij de taak aanmaakt; gelijktijdige keuzes, herstarts en herhaalde verzoeken maken geen dubbele gedeelde reservering of extra sterren. Reeds afgeronde en aangevraagde oude klusjes blijven behouden; onbeantwoorde lege keuzelijsten worden niet meer automatisch onder iedereen aangemaakt.

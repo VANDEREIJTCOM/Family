@@ -15,6 +15,7 @@ vm.runInNewContext(fs.readFileSync(process.argv[2],'utf8'),context);const proto=
  const task=(uid,id,date=today,member='a',status='needs_action')=>({uid,summary:'Same title',status,description:'FH_META:'+JSON.stringify({kind:'smart_task',task_id:id,member_id:member,date})});
  card._config.smart_tasks=[{id:'choice',assignment:'choice',days:[0,1,2,3,4,5,6]},{id:'hidden',assignment:'all',enabled:false},{id:'later',assignment:'all',schedule:'dates',dates:['2099-01-01']},{id:'wrong-person',member_id:'b',days:[0,1,2,3,4,5,6]},{id:'other-real-task',assignment:'all',days:[0,1,2,3,4,5,6]}];
  card._todoAll={a:[task('old-personal','deleted'),task('yesterday','choice',other),task('one','choice'),task('dupe-done','choice',today,'a','completed'),task('wrong','choice',today,'b'),task('hidden','hidden'),task('later','later'),task('wrong-assignee','wrong-person'),task('different-definition','other-real-task'),{uid:'manual-overdue',status:'needs_action',due:other},{uid:'manual-old-done',status:'completed',due:other}]};card._todos={};
+ card._progress.jobs['chore:choice:a:'+today]={key:'chore:choice:a:'+today,kind:'chore',member_id:'a',date:today,state:'pending'};
  assert.deepEqual(Array.from(card._regularTodos({id:'a'}),x=>x.uid),['manual-overdue','different-definition','dupe-done']);
  card._config.routines=[{id:'r',member_ids:['a'],steps:[{id:'s1'},{id:'s2'}]}];
  const step=(uid,id,status='needs_action')=>({uid,status,description:'FH_META:'+JSON.stringify({kind:'routine_step',routine_id:'r',member_id:'a',date:today,step_id:id})});

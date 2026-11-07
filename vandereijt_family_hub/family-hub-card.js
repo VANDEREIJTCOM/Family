@@ -703,7 +703,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
     const visible=[],generated=new Map();
     for(const item of all){
       const meta=this._meta(item);
-      if(meta?.kind==="routine_step"||meta?.kind==="reward_claim")continue;
+      if(meta?.kind==="routine_step"||meta?.kind==="reward_claim"||meta?.kind==="bonus_request")continue;
       if(meta?.kind==="smart_task"){
         const task=(this._config.smart_tasks||[]).find(t=>t.id===meta.task_id);
         if(!task||task.enabled===false||meta.date!==today||meta.member_id!==m.id||!this._scheduledOn(task,today))continue;

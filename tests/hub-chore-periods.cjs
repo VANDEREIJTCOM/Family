@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),periods=require('../vandereijt_family_hub/hub-chore-periods.js');
+const task={id:'t',repeat_mode:'period',days:[5,6],assignment:'all'};
+for(const [a,b] of [['2026-11-07','2026-11-08'],['2027-01-02','2027-01-03'],['2027-03-27','2027-03-28']])assert.equal(periods.period(task,a),periods.period(task,b));
+assert.notEqual(periods.period(task,'2026-11-08'),periods.period(task,'2026-11-14'));assert.notEqual(periods.period({},'2026-11-07'),periods.period({},'2026-11-08'));
+let today='2026-11-08';const row=(day,mid='a',status='needs_action')=>({uid:day+mid,status,meta:{kind:'smart_task',task_id:'t',member_id:mid,date:day}});
+const p={_regularTodos(){return this._todoAll.a},_scheduledForDay(day){return [{member:{id:'a'},event:{_fhKind:'task',_fhId:'t'}}]},_taskRow:()=>''};periods.install(p);
+const c=Object.assign(Object.create(p),{_config:{smart_tasks:[task]},_meta:i=>i.meta,_dateISO:()=>today,_scheduledOn:(t,d)=>[5,6].includes((new Date(d+'T12:00:00').getDay()+6)%7),_todoAll:{a:[row('2026-11-07','a','completed'),row('2026-11-08')],b:[row('2026-11-07','b')]},_progress:{jobs:{'chore:t:a:2026-11-07':{state:'awarded'}}}});
+assert.equal(c._regularTodos({id:'a'}).length,0,'Saturday approval suppresses Sunday');assert.equal(c._regularTodos({id:'b'}).length,1,'other child still has an opportunity');
+c._progress.jobs['chore:t:a:2026-11-07'].state='pending';assert.equal(c._regularTodos({id:'a'}).length,1,'carry the same request, never a second open job');assert.equal(c._regularTodos({id:'a'})[0].uid,'2026-11-07a');assert.equal(c._scheduledForDay(new Date()).length,0,'no Sunday agenda repeat after Saturday completion');
+c._progress.jobs['chore:t:a:2026-11-07'].state='rejected';assert.equal(c._scheduledForDay(new Date()).length,1,'rejected work can be retried');
+console.log('CHORE_PERIODS_PASSED: weekly/daily boundaries, per-person opportunities, approved Saturday hidden Sunday, same pending request, rejection retry and agenda suppression');

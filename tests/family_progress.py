@@ -116,6 +116,8 @@ class BridgeTests(unittest.TestCase):
   def service(domain,name,data,entity,response=False):
    if name=='get_items':return {'items':copy.deepcopy(self.items)}
    if name=='set_value':self.bal=data['value'];return {}
+   if name=='update_item':
+    row=next(r for r in self.items if r['uid']==data['item']);row['status']=data['status'];return {}
    raise AssertionError('Unexpected service '+name)
   def notify(targets,*args):self.sent.append(targets);return {'sent':targets,'errors':[]}
   self.app={'DATA_DIR':self.root,'WWW_DIR':self.root,'ha_states':lambda:[{'entity_id':'input_number.a','state':str(self.bal)}],'ha_service':service,'_service_payload':lambda r,e:r,'load_settings':lambda:copy.deepcopy(self.settings),'send_push_notification':notify}
@@ -188,6 +190,7 @@ class ManualBonusTests(BridgeTests):
  def test_manual_request_approval_without_points_then_bonus(self):
   self.manual();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();key='manual:a:real-uid';self.assertEqual(self.bridge.store.snapshot()['jobs'][key]['state'],'pending')
   self.bridge.resolve({'action':'approve','key':key});self.assertEqual(self.bal,50);self.bridge.resolve({'action':'manual_bonus','key':key,'points':2});self.assertEqual(self.bal,52)
+
  def manual(self,complete=False):
   self.items=[{'uid':'real-uid','summary':'Zelf bedacht','status':'completed' if complete else 'needs_action','description':'FH_META:'+json.dumps(dict(kind='manual_task',member_id='a',date='2026-11-05',points=999,points_entity='input_number.forged'))}]
  def test_completed_bonus_once_and_independent_family_credit(self):
@@ -229,6 +232,17 @@ class DatedScheduleTests(unittest.TestCase):
    store.observe([{**work[0],'complete':False}]);store.observe(work);job=next(iter(store.snapshot()['jobs'].values()))
    self.assertEqual((job['before'],job['awarded_points'],job['target']),(4,1,5))
    self.assertNotIn('points_entity',job)
+
+class RequestedBonusTests(BridgeTests):
+ def bonus(self,nonce='request-one',uid='uid-one'):
+  return {'uid':uid,'status':'needs_action','description':'FH_META:'+json.dumps({'kind':'bonus_request','member_id':'a','date':'2026-11-07','request_id':nonce,'points':500,'points_entity':'input_number.forged'})}
+ def test_one_star_only_after_parent_approval(self):
+  self.items=[self.bonus()];self.bridge.sync();key='bonus:a:request-one';self.assertEqual(self.bridge.store.snapshot()['jobs'][key]['state'],'pending');self.assertEqual(self.bal,50)
+  self.bridge.resolve({'action':'approve','key':key,'points':500});self.bridge.resolve({'action':'approve','key':key});self.assertEqual(self.bal,51);self.assertEqual(self.bridge.store.snapshot()['family']['balance'],1);self.assertEqual(self.items[0]['status'],'completed')
+ def test_rejected_bonus_gives_no_stars(self):
+  self.items=[self.bonus()];self.bridge.sync();self.bridge.resolve({'action':'reject','key':'bonus:a:request-one'});self.assertEqual(self.bal,50);self.assertEqual(self.bridge.store.snapshot()['family']['balance'],0)
+ def test_same_request_nonce_cannot_create_multiple_rewards(self):
+  self.items=[self.bonus(),self.bonus(uid='duplicate')];self.bridge.sync();self.assertEqual(len(self.bridge.store.snapshot()['jobs']),1);self.bridge.resolve({'action':'approve','key':'bonus:a:request-one'});self.bridge.sync();self.assertEqual(self.bal,51)
 
 if __name__=='__main__':unittest.main()
 

@@ -26,6 +26,7 @@ const FamilyHubUpdates=(()=>{
    this._hubUpdateUnsubscribe?.();this._hubUpdateUnsubscribe=null;this._hubUpdateConnection=connection;
    const generation=this._hubUpdateGeneration||0;
    Promise.resolve(connection.subscribeEvents(event=>{
+    if(event.data?.entity_id==='sensor.family_hub_chore_claim_result'){this._onPoolResult?.(event.data?.new_state?.attributes);return}
     const scope={'sensor.family_hub_settings':'settings','sensor.family_hub_progress':'progress'}[event.data?.entity_id];if(!scope)return;
     const revision=event.data?.new_state?.state;
     const current=scope==='settings'?this._config?._settings_revision:this._progress?._revision;
