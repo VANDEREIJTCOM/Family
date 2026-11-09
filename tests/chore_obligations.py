@@ -67,5 +67,8 @@ class Obligations(unittest.TestCase):
   self.bridge.store.set_claim(self.task,'a',self.day,release=True);self.bridge.sync();key='chore:glass:b:'+self.day
   self.assertEqual(self.bridge.store.claimed_members(self.task,self.day),['b']);self.assertEqual(self.bridge.store.snapshot()['jobs'][key]['state'],'pending');self.assertEqual(a['status'],'needs_action');self.assertEqual(b['uid'],'b'+self.day)
   self.bridge.resolve({'key':key,'action':'approve'});self.assertEqual(self.balance['b'],2);self.assertEqual(self.balance['a'],0);self.assertEqual(self.bridge.store.snapshot()['family']['balance'],2)
+ def test_personal_three_star_once_task_carries_across_weeks_and_credits_only_on_approval(self):
+  self.task.update(repeat_mode='once',points=3,days=list(range(7)));row=self.row();self.bridge.sync();self.day='2026-11-23';self.bridge.sync();self.assertEqual(len(self.bridge.collect()[2]),1)
+  row['status']='completed';self.bridge.sync();self.assertEqual(self.balance['a'],0);key=next(iter(self.bridge.store.snapshot()['jobs']));self.bridge.resolve({'key':key,'action':'approve'});self.day='2026-11-30';self.bridge.sync();self.bridge.resolve({'key':key,'action':'approve'});self.assertEqual(self.balance['a'],3);self.assertEqual(self.bridge.store.snapshot()['family']['balance'],3);self.assertEqual(len(self.todos['todo.a']),1)
 
 if __name__=='__main__':unittest.main()
