@@ -96,11 +96,15 @@ class FamilyProgress:
         with self.lock:
             state=self._read();claims=state.setdefault('claims',{});key=chore_claim_key(task,mid,date);old=claims.get(key)
             team=list(member_ids) if member_ids is not None else [mid]
-            if not release and (len(team)!=int(task.get('participant_count',1)) or len(set(team))!=len(team) or not team or team[0]!=mid):raise ProgressError('Kies het ingestelde aantal verschillende personen.')
+            if not release and (not 1<=len(team)<=int(task.get('participant_count',1)) or len(set(team))!=len(team) or team[0]!=mid):raise ProgressError('Kies minimaal één persoon, tot het ingestelde maximum.')
             if old and old.get('state')=='active' and ((release and mid not in claim_members(old)) or (not release and set(claim_members(old))!=set(team))):raise ProgressError('Dit klusje is al gekozen door iemand anders.')
             if release:
                 if not old or old.get('state')!='active':return old
-                old['state']='released';self._save(state);return copy.deepcopy(old)
+                remaining=[person for person in claim_members(old) if person!=mid]
+                old['released_members']=list(dict.fromkeys((old.get('released_members') or [])+[mid]))
+                if remaining:old.update(member_id=remaining[0],member_ids=remaining)
+                else:old.update(state='released',member_ids=[])
+                self._save(state);return copy.deepcopy(old)
             if old and old.get('state')=='active':return copy.deepcopy(old)
             claims[key]={'key':key,'task_id':task['id'],'member_id':mid,'member_ids':team,'period_id':chore_period(task,date),'state':'active','date':date}
             self._save(state);return copy.deepcopy(claims[key])

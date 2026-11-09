@@ -62,5 +62,10 @@ class Obligations(unittest.TestCase):
   self.app['ha_service']=lambda domain,name,*args: {} if name=='update_item' else service(domain,name,*args)
   self.bridge.resolve({'key':key,'action':'reject'});self.assertTrue(self.bridge.store.snapshot()['jobs'][key]['reset_pending']);self.assertEqual(self.bridge.store.claimed_members(self.task,self.day),['a'])
   self.app['ha_service']=service;self.bridge.sync();self.assertEqual(self.bridge.store.claimed_members(self.task,self.day),[]);self.assertEqual(row['status'],'needs_action')
+ def test_individual_return_preserves_partner_todo_and_parent_approval(self):
+  self.task.update(assignment='choice',participant_count=5,keep_until_done=False);self.bridge.store.set_claim(self.task,'a',self.day,member_ids=['a','b']);a=self.row('a');b=self.row('b');self.bridge.sync();b['status']='completed';self.bridge.sync()
+  self.bridge.store.set_claim(self.task,'a',self.day,release=True);self.bridge.sync();key='chore:glass:b:'+self.day
+  self.assertEqual(self.bridge.store.claimed_members(self.task,self.day),['b']);self.assertEqual(self.bridge.store.snapshot()['jobs'][key]['state'],'pending');self.assertEqual(a['status'],'needs_action');self.assertEqual(b['uid'],'b'+self.day)
+  self.bridge.resolve({'key':key,'action':'approve'});self.assertEqual(self.balance['b'],2);self.assertEqual(self.balance['a'],0);self.assertEqual(self.bridge.store.snapshot()['family']['balance'],2)
 
 if __name__=='__main__':unittest.main()

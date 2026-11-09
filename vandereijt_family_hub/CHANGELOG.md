@@ -1,3 +1,8 @@
+## 0.17.3
+
+- Het aantal deelnemers is een maximum. Een klusje met maximaal vijf personen kan ook alleen of met een kleinere groep worden gedaan. Kies foto’s en bevestig met Ik doe dit alleen of Samen doen.
+- Teruggeven verwijdert alleen de persoon die teruggeeft. Het klusje blijft bij de andere deelnemers, inclusief hun eventuele open ouderaanvraag. Pas als de laatste deelnemer teruggeeft, komt het gedeelde plekje weer vrij.
+
 ## 0.17.2
 
 - Eenmalig geconfigureerde routine-aanvullingen behouden bestaande stap-IDs en volgorde. Nieuwe stappen gelden vanaf hun ingangsdatum, zodat eerder afgeronde routines hun sterren behouden.
