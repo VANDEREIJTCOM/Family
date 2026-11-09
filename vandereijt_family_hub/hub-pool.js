@@ -13,9 +13,13 @@ const FamilyHubPool=(()=>{
    const owner=this._poolOwner(task,m.id,meta.date),job=this._progress?.jobs?.['chore:'+task.id+':'+m.id+':'+meta.date];
    return team(owner).includes(m.id)||['pending','awarded','legacy','crediting','review'].includes(job?.state)||(job?.last_decision==='rejected'&&!job.dismissed);
   })};
+  p._poolTaskFinished=function(task){
+   if(task.repeat_mode!=='once'||task._maintenance)return false;
+   return Object.values(this._progress?.jobs||{}).some(j=>j.kind==='chore'&&j.key?.startsWith('chore:'+task.id+':')&&['pending','awarded','legacy','crediting','review'].includes(j.state))||Object.values(this._todoAll||{}).flat().some(it=>this._meta(it)?.task_id===task.id&&it.status==='completed'&&!['rejected','cancelled'].includes(this._progress?.jobs?.['chore:'+task.id+':'+this._meta(it)?.member_id+':'+this._meta(it)?.date]?.state));
+  };
   p._poolHtml=function(){
    if(!this._poolOpen)return '<section id="fh-pool-content" hidden></section>';
-   const esc=x=>this._esc(String(x??'')),today=this._dateISO(new Date()),members=(this._config.members||[]).filter(m=>m.todo&&m.points_entity),tasks=(this._config.smart_tasks||[]).filter(t=>t.assignment==='choice'&&t.enabled!==false&&t._maintenance?.available!==false&&this._scheduledOn(t,today));
+   const esc=x=>this._esc(String(x??'')),today=this._dateISO(new Date()),members=(this._config.members||[]).filter(m=>m.todo&&m.points_entity),tasks=(this._config.smart_tasks||[]).filter(t=>t.assignment==='choice'&&t.enabled!==false&&t._maintenance?.available!==false&&!this._poolTaskFinished(t)&&this._scheduledOn(t,today));
    const names=c=>team(c).map(id=>(this._config.members||[]).find(m=>m.id===id)?.name||'Gezinslid').join(' & ');
    const cards=tasks.map(t=>{const available=members.some(m=>!this._poolOwner(t,m.id)),owner=t.claim_scope==='per_member'?null:this._poolOwner(t);return '<article class="pool-chore"><div class="pool-chore-name">'+FamilyHubIcons.svg(t.icon||'mdi:check-circle-outline')+'<div><strong>'+esc(t.title)+'</strong>'+(t._maintenance?'<small class="pool-maintenance-note">'+esc(t._maintenance.note)+'</small>':'')+'<small>'+(t.repeat_mode==='once'?'Eén keer voor deze melding':t.repeat_mode==='period'?(t.schedule==='dates'?'Eén keer over deze datums':'Eén keer deze week'):'Iedere gekozen dag')+' · '+(Number(t.participant_count||1)>1?'maximaal '+Number(t.participant_count)+' personen':t.claim_scope==='per_member'?'per persoon':'één plekje')+'</small></div></div><div class="pool-chore-actions"><b>'+Number(t.points||0)+' ★'+(Number(t.participant_count||1)>1?' p.p.':'')+'</b><button type="button" data-pool-choose="'+esc(t.id)+'" '+(!available||this._poolRequest?'disabled':'')+'>'+(available?'Ik ga dit doen':owner?'Bij '+esc(names(owner)):'Al gekozen')+'</button></div></article>'}).join('');
    const task=tasks.find(t=>t.id===this._poolChooser),selected=this._poolSelected||[],count=Number(task?.participant_count||1);

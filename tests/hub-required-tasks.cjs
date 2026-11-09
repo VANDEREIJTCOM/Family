@@ -7,3 +7,5 @@ c._todoAll.a[0].status='completed';c._progress.jobs['chore:glass:a:2026-11-07']=
 c._progress.jobs['chore:glass:a:2026-11-07']={state:'awarded',date:'2026-11-07',resolved_at:'2026-11-09T10:00:00'};assert.equal(c._regularTodos({id:'a'}).length,1,'green approval remains for the rest of the approval day');c._dateISO=()=> '2026-11-10';assert.equal(c._regularTodos({id:'a'}).length,0,'older duplicates do not reappear tomorrow');c._todoAll.a.push(row('2026-11-10'));assert.equal(c._regularTodos({id:'a'})[0].uid,'2026-11-10','a later new opportunity remains independent');
 task.enabled=false;assert.equal(c._regularTodos({id:'a'}).length,0);assert.equal(c._todoAll.a.length,4,'history is preserved');
 console.log('REQUIRED_CHORES_PASSED: off-day carry, one obligation, stable pending key, approval closes older duplicates, future opportunities, enabled flag and original history');
+
+task.enabled=true;task.repeat_mode='once';c._dateISO=()=> '2026-11-09';assert.equal(c._regularTodos({id:'a'}).length,0,'one-off personal chore disappears after parent approval without repeating');

@@ -1,3 +1,8 @@
+## 0.17.4
+
+- Eenmalige klusjes zijn instelbaar in beheer en blijven over dagen en weken dezelfde gelegenheid. Een afgeronde eenmalige keuze verdwijnt uit Sterrenpakkers; na afwijzen kan het aanbod weer terugkomen. Eigen eenmalige klusjes blijven staan tot afronding en oudergoedkeuring en worden daarna niet automatisch herhaald.
+- Optionele eenmalige installatieset voor gewone klusjes bewaart latere handmatige wijzigingen. Nieuw glasplaatje met flessen en pot voor glas wegbrengen.
+
 ## 0.17.3
 
 - Het aantal deelnemers is een maximum. Een klusje met maximaal vijf personen kan ook alleen of met een kleinere groep worden gedaan. Kies foto’s en bevestig met Ik doe dit alleen of Samen doen.

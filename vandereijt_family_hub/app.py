@@ -239,6 +239,17 @@ def normalize_settings(data):
     setup = activity_setup_options()
     src = replace_display_text(src, setup.get("display_text_replacements") or [])
     src = apply_routine_step_setup(src,setup)
+    try:task_setup=json.loads(setup.get('smart_task_setup') or '[]')
+    except (TypeError,ValueError):task_setup=[]
+    if isinstance(task_setup,list) and task_setup:
+        tasks=list(src.get('smart_tasks') or []);applied=list(src.get('smart_task_setups_applied') or [])
+        for task in task_setup:
+            if not isinstance(task,dict) or not task.get('id') or not task.get('title') or task['id'] in applied:continue
+            index=next((i for i,t in enumerate(tasks) if isinstance(t,dict) and t.get('id')==task['id']),None)
+            if index is None:tasks.append(task)
+            else:tasks[index]={**tasks[index],**task}
+            applied.append(task['id'])
+        src={**src,'smart_tasks':tasks,'smart_task_setups_applied':applied}
     order = setup.get("activity_member_order") or []
     stacks = dict(pair.split("=", 1) for pair in setup.get("activity_member_stacks", []) if isinstance(pair, str) and "=" in pair)
     seed_layout = not src.get("activity_layout_seeded") and bool(order or stacks)
@@ -264,6 +275,7 @@ def normalize_settings(data):
             out[key] = src[key]
     out["activity_layout_seeded"] = bool(src.get("activity_layout_seeded") or seed_layout)
     out['routine_step_setups_applied']=list(src.get('routine_step_setups_applied') or [])
+    out['smart_task_setups_applied']=list(src.get('smart_task_setups_applied') or [])
     calendar_actions=src.get('calendar_actions')
     seed_actions=not src.get('calendar_actions_seeded') and not calendar_actions and bool(setup.get('calendar_action_setup') and setup.get('calendar_action_setup')!='[]')
     if calendar_actions is None or seed_actions:
@@ -399,7 +411,7 @@ def normalize_settings(data):
             "title": title[:100],
             "member_id": str(task.get("member_id") or "")[:80],
             "assignment": task.get("assignment") if task.get("assignment") in ("all", "choice") else "named",
-            "repeat_mode": "period" if task.get("repeat_mode")=="period" else "daily",
+            "repeat_mode": task.get("repeat_mode") if task.get("repeat_mode") in ("period","once") else "daily",
             "claim_scope": "per_member" if task.get("claim_scope")=="per_member" else "shared",
             "participant_count": _clamp_int(task.get('participant_count',1),1,16,1),
             "keep_until_done": task['keep_until_done'] if type(task.get('keep_until_done')) is bool else task.get('assignment')!='choice',

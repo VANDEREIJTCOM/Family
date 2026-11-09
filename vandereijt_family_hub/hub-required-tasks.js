@@ -13,7 +13,7 @@ const FamilyHubRequiredTasks=(()=>{
     const open=all.filter(it=>this._meta(it).date>closed);
     const item=FamilyHubChorePeriods.choose(task,member.id,open,jobs,it=>this._meta(it));
     if(item)rows.push(item);
-    else{const approved=all.find(it=>{const j=jobs['chore:'+task.id+':'+member.id+':'+this._meta(it).date];return j?.state==='awarded'&&String(j.resolved_at||'').startsWith(today)});if(approved)rows.push(approved)}
+    else if(task.repeat_mode!=='once'){const approved=all.find(it=>{const j=jobs['chore:'+task.id+':'+member.id+':'+this._meta(it).date];return j?.state==='awarded'&&String(j.resolved_at||'').startsWith(today)});if(approved)rows.push(approved)}
    }
    return rows;
   };

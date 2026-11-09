@@ -112,3 +112,9 @@ with patch.object(app,'activity_setup_options',return_value={'routine_step_setup
  assert app.normalize_settings(changed)==changed
  routine['steps']=routine['steps'][1:];assert len(app.normalize_settings(changed)['routines'][0]['steps'])==4,'later manual removal must not be undone by installer option'
 print('ROUTINE_STEP_SETUP_PASSED: exact placement, existing IDs/order preserved, one-time application, later user edits preserved and effective date retained')
+
+seed=[{'id':'glass','title':'Glas naar glasbak brengen','assignment':'choice','repeat_mode':'once','participant_count':5,'points':3,'days':list(range(7))},{'id':'closet','title':'Kledingkast opruimen met mama','member_id':'child','repeat_mode':'once','keep_until_done':True,'points':3,'days':list(range(7))}]
+with patch.object(app,'activity_setup_options',return_value={'smart_task_setup':json.dumps(seed)}):
+ clean=app.normalize_settings({});assert len(clean['smart_tasks'])==2 and all(t['repeat_mode']=='once' and t['points']==3 for t in clean['smart_tasks']);assert clean['smart_tasks'][0]['participant_count']==5 and clean['smart_tasks'][1]['keep_until_done'];assert app.normalize_settings(clean)==clean
+ clean['smart_tasks']=[];assert app.normalize_settings(clean)['smart_tasks']==[]
+print('ONE_OFF_TASK_SETTINGS_PASSED: pool solo/group capacity, personal carry, 3-star value, once mode roundtrip and explicit removal retained')
