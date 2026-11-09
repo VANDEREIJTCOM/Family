@@ -1,3 +1,9 @@
+## 0.17.0
+
+- Agenda-afhankelijke actieknoppen op Vandaag en Agenda. Een ingesteld trefwoord toont de actie de hele betreffende dag, ook voor afspraken van verborgen gezinsleden en gedeelde agenda’s. Dubbele afspraken leveren één knop op.
+- Een gekoppeld Home Assistant-script start pas na een tik. Een actieve stand biedt een herstelknop, ook na afloop van de agendadag. Instelbare scriptkoppelingen houden verlichting en latere uitbreidingen zoals muziek centraal in Home Assistant.
+- Afzonderlijke controle van de afspraken van vandaag blijft werken bij bladeren naar een andere week. Niet gekoppelde installaties krijgen geen extra knoppen of acties.
+
 ## 0.16.9
 
 - Een afgewezen klusje heeft een wit, opnieuw aanklikbaar vakje. Bij opnieuw afvinken wordt eerst de serverreservering bevestigd; als iemand anders het klusje al koos, wordt niets afgevinkt en worden geen punten toegekend.

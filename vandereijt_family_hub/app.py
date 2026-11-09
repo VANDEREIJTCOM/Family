@@ -105,6 +105,8 @@ DEFAULTS = {
     "rewards": [],
     "lists": [],
     "departure_rules": [],
+    "calendar_actions": [],
+    "calendar_actions_seeded": False,
     "home_entities": [],
     "notification_entities": [],
     "push_targets": [],
@@ -229,6 +231,20 @@ def normalize_settings(data):
         if key in src:
             out[key] = src[key]
     out["activity_layout_seeded"] = bool(src.get("activity_layout_seeded") or seed_layout)
+    calendar_actions=src.get('calendar_actions')
+    seed_actions=not src.get('calendar_actions_seeded') and not calendar_actions and bool(setup.get('calendar_action_setup') and setup.get('calendar_action_setup')!='[]')
+    if calendar_actions is None or seed_actions:
+        try:calendar_actions=json.loads(setup.get('calendar_action_setup') or '[]')
+        except (TypeError,ValueError):calendar_actions=[]
+    out['calendar_actions']=[]
+    for idx,rule in enumerate(calendar_actions if isinstance(calendar_actions,list) else []):
+        if not isinstance(rule,dict):continue
+        start=str(rule.get('start_script') or '')
+        if not re.fullmatch(r'script\.[a-z0-9_]+',start) or not str(rule.get('match') or '').strip():continue
+        stop=str(rule.get('stop_script') or '');active=str(rule.get('active_entity') or '')
+        out['calendar_actions'].append({'id':_clean_id(rule.get('id'),f'calendar_action_{idx+1}'),'label':str(rule.get('label') or rule['match'])[:80],'match':str(rule['match']).strip()[:80],'start_script':start,'stop_script':stop if re.fullmatch(r'script\.[a-z0-9_]+',stop) else '', 'active_entity':active if re.fullmatch(r'input_boolean\.[a-z0-9_]+',active) else '', 'stop_label':str(rule.get('stop_label') or 'Stoppen')[:80],'enabled':rule.get('enabled') is not False})
+        if len(out['calendar_actions'])>=20:break
+    out['calendar_actions_seeded']=bool(src.get('calendar_actions_seeded') or (seed_actions and out['calendar_actions']))
 
     members = []
     for idx, member in enumerate(src.get("members") or []):

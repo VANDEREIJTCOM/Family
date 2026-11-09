@@ -118,3 +118,10 @@ Bij **Routines & taken** stelt **Aantal personen samen** de grootte van een groe
 Voor klusjes op naam staat **Blijven staan tot uitgevoerd en goedgekeurd** standaard aan. De gekozen dag is de startdag; het klusje blijft daarna open totdat een ouder goedkeurt. Er ontstaat geen extra exemplaar per dag. Na goedkeuring volgt pas een nieuwe gelegenheid op een latere geplande dag. Keuzeklusjes behouden hun ingestelde dagelijkse of eenmalige periode.
 
 Bij afwijzen wordt het vakje weer leeg met **Afgewezen**. Een keuzeklusje komt weer beschikbaar in de Sterrenpakkers. Tijdens herstel bij een verbindingsprobleem blijft de reservering beschermd; er worden geen sterren toegekend.
+
+
+### Actieknop op basis van een afspraak
+
+`calendar_actions` bevat optionele regels met `id`, `label`, `match`, `start_script`, `stop_script`, `active_entity`, `stop_label` en `enabled`. Het trefwoord wordt als woord in de afspraaktitel herkend. De knop verschijnt op Vandaag en Agenda gedurende de hele agendadag; er wordt nooit automatisch een script gestart. Een actieve stand houdt de stopknop beschikbaar om de vorige toestand te kunnen herstellen. Alle gekoppelde agenda’s tellen mee, onafhankelijk van personenfilters.
+
+Met de optionele add-oninstelling `calendar_action_setup` (JSON-lijst) kan een installatie eenmalig regels instellen. Een daarna bewust leeg gemaakte lijst blijft leeg. Gebruik een centraal Home Assistant-script voor uitbreidingen zoals muziek; script- en entiteitsnamen staan niet vast in de productcode.

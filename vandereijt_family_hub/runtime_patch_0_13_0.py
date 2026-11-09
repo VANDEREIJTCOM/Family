@@ -63,5 +63,6 @@ s=s.replace(marker,(ROOT/'hub-chore-periods.js').read_text(encoding='utf-8')+'\n
 s=s.replace(marker,(ROOT/'hub-required-tasks.js').read_text(encoding='utf-8')+'\nFamilyHubRequiredTasks.install(FamilyHubCard.prototype);\n'+marker,1)
 s=s.replace(marker,(ROOT/'hub-bonus.js').read_text(encoding='utf-8')+'\nFamilyHubBonus.install(FamilyHubCard.prototype);\n'+marker,1)
 s=s.replace(marker,(ROOT/'hub-pool.js').read_text(encoding='utf-8')+'\nFamilyHubPool.install(FamilyHubCard.prototype);\n'+marker,1)
+s=s.replace(marker,(ROOT/'hub-calendar-actions.js').read_text(encoding='utf-8')+'\nFamilyHubCalendarActions.install(FamilyHubCard.prototype);\n'+marker,1)
 path.write_text(s,encoding='utf-8')
 print('HA_THEME_AND_CONTEXT_PATCHED')
