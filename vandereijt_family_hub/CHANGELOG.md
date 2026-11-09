@@ -1,3 +1,7 @@
+## 0.17.6
+
+- Nieuw kleurrijk blaadjesicoon voor tuin- en bladerklusjes, met dezelfde weergave in beheer en dashboard.
+
 ## 0.17.5
 
 - Rustiger routinescherm: algemene uitleg over ouderakkoord en eenmalige periodes staat niet meer onder elk klusje. De actuele aanvraag-, goedkeurings- en afwijsstatus blijft zichtbaar.
