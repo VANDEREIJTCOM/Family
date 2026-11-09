@@ -11,7 +11,7 @@ const FamilyHubChorePeriods=(()=>{
   return [...rows].sort((a,b)=>rank(a)-rank(b)||String(meta(a).date).localeCompare(String(meta(b).date))||(a.status==='completed'?-1:1))[0];
  }
  function install(p){
-  const regular=p._regularTodos,scheduled=p._scheduledForDay,row=p._taskRow;
+  const regular=p._regularTodos,scheduled=p._scheduledForDay;
   p._periodChoreRow=function(task,member,date){
    const group=(this._todoAll[member.id]||[]).filter(it=>{const m=this._meta(it);return m?.kind==='smart_task'&&m.task_id===task.id&&m.member_id===member.id&&m.date<=date&&this._scheduledOn(task,m.date)&&period(task,m.date)===period(task,date)});
    return choose(task,member.id,group,this._progress?.jobs,m=>this._meta(m));
@@ -35,11 +35,6 @@ const FamilyHubChorePeriods=(()=>{
     const meta=this._meta(item),job=this._progress?.jobs?.['chore:'+task.id+':'+x.member.id+':'+meta.date];
     return meta.date>=date||(!['awarded','legacy'].includes(job?.state)&&(item.status!=='completed'||job?.state==='rejected'));
    });
-  };
-  p._taskRow=function(entity,item,mid){
-   const meta=this._meta(item),task=(this._config.smart_tasks||[]).find(t=>t.id===meta?.task_id),html=row.call(this,entity,item,mid);
-   if(!['period','once'].includes(task?.repeat_mode))return html;
-   return html+'<small class="approval-note">'+(task.repeat_mode==='once'?'Eén keer voor deze onderhoudsmelding':task.schedule==='dates'?'Eén keer binnen de gekozen datums':'Eén keer deze week op de gekozen dagen')+'</small>';
   };
  }
  return {install,period,choose};

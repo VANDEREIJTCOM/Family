@@ -1,3 +1,7 @@
+## 0.17.5
+
+- Rustiger routinescherm: algemene uitleg over ouderakkoord en eenmalige periodes staat niet meer onder elk klusje. De actuele aanvraag-, goedkeurings- en afwijsstatus blijft zichtbaar.
+
 ## 0.17.4
 
 - Eenmalige klusjes zijn instelbaar in beheer en blijven over dagen en weken dezelfde gelegenheid. Een afgeronde eenmalige keuze verdwijnt uit Sterrenpakkers; na afwijzen kan het aanbod weer terugkomen. Eigen eenmalige klusjes blijven staan tot afronding en oudergoedkeuring en worden daarna niet automatisch herhaald.

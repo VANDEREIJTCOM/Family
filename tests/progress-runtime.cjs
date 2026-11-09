@@ -8,7 +8,7 @@ vm.runInNewContext(fs.readFileSync(process.argv[2],'utf8'),context);const proto=
   calls.length=0;await card._complete('todo.test',item);assert.equal(calls.length,1);assert.equal(calls[0][0],'todo');
  }
  const card=Object.assign(Object.create(proto),{_config:{smart_tasks:[{id:'choice',points:7,assignment:'choice'}]},_progress:{jobs:{}}});
- const html=card._taskRow('todo.test',{uid:'two',summary:'Extra klus',description:'FH_META:'+JSON.stringify({kind:'smart_task',task_id:'choice',member_id:'a',date:'2026-11-05',points:0})});assert(html.includes('+7 ★'));assert(html.includes('Keuzeklus · vrijwillig'));assert(html.includes('Punten na ouderakkoord'));
+ const html=card._taskRow('todo.test',{uid:'two',summary:'Extra klus',description:'FH_META:'+JSON.stringify({kind:'smart_task',task_id:'choice',member_id:'a',date:'2026-11-05',points:0})});assert(html.includes('+7 ★'));assert(!html.includes('Keuzeklus · vrijwillig'));assert(!html.includes('Punten na ouderakkoord'));
  // Old personal/deleted definitions and yesterday's generated work must not
  // duplicate the current shared chore. Manual overdue work stays visible.
  const today=card._dateISO(new Date()),other='2000-01-01';
