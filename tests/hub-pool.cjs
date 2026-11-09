@@ -16,3 +16,5 @@ c._poolOpen=false;assert(c._poolHtml().includes('hidden'));assert(!c._poolHtml()
 
 c._progress.jobs['chore:t:a:2026-11-07'].dismissed=true;assert.equal(c._regularTodos({id:'a'}).length,0,'return dismisses rejected reminder');c._progress.jobs['chore:t:a:2026-11-07'].dismissed=false;
 (async()=>{task.participant_count=1;const before=picks.length;await c._prepareChoreToggle('todo.a',item);assert.deepEqual(picks[before],['t','a','claim',['a']]);console.log('POOL_RETRY_PASSED: rejected checkbox selectable, reclaims before completion, explicit return button and durable dismissal')})().catch(e=>{console.error(e);process.exitCode=1});
+
+task._maintenance={available:false,note:'Dringend ontkalken'};assert(!c._poolHtml().includes('data-pool-choose="t"'));task._maintenance.available=true;assert(c._poolHtml().includes('Dringend ontkalken'));task.repeat_mode='once';assert.equal(FamilyHubChorePeriods.period(task,'2026-11-09'),FamilyHubChorePeriods.period(task,'2026-12-10'));console.log('MAINTENANCE_POOL_PASSED: automatic note, resolved offer hidden and one stable opportunity across weeks');

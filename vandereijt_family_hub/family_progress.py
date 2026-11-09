@@ -16,6 +16,7 @@ def scheduled_on(item, date):
 
 def chore_period(task,date):
     """Daily remains the default; dated selections form one window, weekly ones one week."""
+    if task.get('repeat_mode')=='once':return 'once:'+task['id']
     if task.get('repeat_mode')!='period':return date
     if task.get('schedule')=='dates':return 'dates:'+min(task.get('dates') or [date])
     day=datetime.strptime(date,'%Y-%m-%d')
@@ -26,7 +27,7 @@ def chore_job_date(task,member_id,rows,jobs):
     def rank(date):
         job=jobs.get(f'chore:{task["id"]}:{member_id}:{date}',{});state=job.get('state')
         complete=any(row.get('status')=='completed' and json.loads(row['description'][8:]).get('date')==date for row in rows)
-        return (-1 if task.get('repeat_mode')=='period' and job.get('period_id')==chore_period(task,date) else 0 if state in ('awarded','legacy','crediting','review') else 1 if complete else 2 if state in ('pending','rejected') else 3,date)
+        return (-1 if task.get('repeat_mode') in ('period','once') and job.get('period_id')==chore_period(task,date) else 0 if state in ('awarded','legacy','crediting','review') else 1 if complete else 2 if state in ('pending','rejected') else 3,date)
     return min(dates,key=rank)
 
 def same_chore_period(task,date,target):
@@ -393,7 +394,7 @@ def build_work(settings,todos,today,jobs=None,claims=None):
                     claim=claims.get(chore_claim_key(task,mid,date),{});existing=(jobs or {}).get(f'chore:{task["id"]}:{mid}:{date}',{})
                     if not (claim.get('state')=='active' and mid in claim_members(claim)) and existing.get('state') not in ('awarded','legacy','pending','crediting','review'):continue
                 complete=any(r.get('status')=='completed' for r in group)
-                work.append({'key':f'chore:{task["id"]}:{mid}:{date}','kind':'chore','title':task['title'],'member_id':mid,'member_name':member.get('name',mid),'date':date,'period_id':chore_period(task,date) if task.get('repeat_mode')=='period' else None,'points':max(0,min(500,int(task.get('points',0)))),'points_entity':member['points_entity'],'complete':complete,'legacy_complete':complete and not any(meta(r).get('progress_version') for r in group if r.get('status')=='completed'),'optional':task.get('assignment')=='choice'})
+                work.append({'key':f'chore:{task["id"]}:{mid}:{date}','kind':'chore','title':task['title'],'member_id':mid,'member_name':member.get('name',mid),'date':date,'period_id':chore_period(task,date) if task.get('repeat_mode') in ('period','once') else None,'points':max(0,min(500,int(task.get('points',0)))),'points_entity':member['points_entity'],'complete':complete,'legacy_complete':complete and not any(meta(r).get('progress_version') for r in group if r.get('status')=='completed'),'optional':task.get('assignment')=='choice'})
     return work
 
 

@@ -32,7 +32,7 @@ def handle(app,event):
             settings,todos,work=bridge.collect();task=next((t for t in settings.get('smart_tasks',[]) if t['id']==data.get('task_id')),None)
             mid=data.get('member_id');member=next((m for m in settings.get('members',[]) if m['id']==mid),None);action=data.get('action')
             selected=data.get('member_ids') or [mid]
-            if not task or task.get('assignment')!='choice' or (action=='claim' and (not task.get('enabled',True) or not scheduled_on(task,today))):raise ProgressError('Dit klusje is nu niet beschikbaar.')
+            if not task or task.get('assignment')!='choice' or (action=='claim' and (not task.get('enabled',True) or not scheduled_on(task,today) or task.get('_maintenance',{}).get('available') is False)):raise ProgressError('Dit klusje is nu niet beschikbaar.')
             if not member or not member.get('todo') or not member.get('points_entity') or action not in ('claim','release'):raise ProgressError('Ongeldige keuze.')
             if action=='claim':
                 if not isinstance(selected,list) or any(not isinstance(x,str) for x in selected) or len(set(selected))!=len(selected) or len(selected)!=int(task.get('participant_count',1)) or not selected or selected[0]!=mid:raise ProgressError('Kies precies '+str(task.get('participant_count',1))+' verschillende personen.')

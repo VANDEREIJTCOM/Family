@@ -16,6 +16,7 @@ import uuid
 
 import websocket
 from progress_bridge import ProgressBridge
+from maintenance_tasks import MaintenanceTasks
 import chore_actions
 import chore_claims
 from family_progress import ProgressError, task_members, scheduled_on, chore_period, same_chore_period, chore_closed_through
@@ -375,6 +376,7 @@ def normalize_settings(data):
             "due_time": str(task.get("due_time") or "")[:5],
             "show_in_calendar": bool(task.get("show_in_calendar", True)),
             "enabled": bool(task.get("enabled", True)),
+            **({"_maintenance": task["_maintenance"]} if isinstance(task.get("_maintenance"), dict) else {}),
             **normalize_schedule(task),
         })
     out["smart_tasks"] = smart_tasks
@@ -540,12 +542,11 @@ def normalize_settings(data):
 
 
 def load_settings():
+    settings=dict(DEFAULTS)
     if SETTINGS_FILE.exists():
-        try:
-            return normalize_settings(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
-        except Exception as exc:
-            print(f"[Family Hub] Could not read settings: {exc}", flush=True)
-    return dict(DEFAULTS)
+        try:settings=normalize_settings(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
+        except Exception as exc:print(f"[Family Hub] Could not read settings: {exc}",flush=True)
+    return MAINTENANCE.overlay(settings) if 'MAINTENANCE' in globals() else settings
 
 
 def notify_frontends(scope, revision):
@@ -559,8 +560,13 @@ def notify_frontends(scope, revision):
         print(f"[Family Hub] Frontend update deferred: {exc}", flush=True)
 
 
+PUBLIC_SETTINGS_LOCK=threading.RLock()
+
 def publish_settings(settings):
-    payload = dict(settings)
+    with PUBLIC_SETTINGS_LOCK:return _publish_settings(settings)
+
+def _publish_settings(settings):
+    payload = MAINTENANCE.overlay(settings) if 'MAINTENANCE' in globals() else dict(settings)
     payload["_app_version"] = APP_VERSION
     revision = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     previous = {}
@@ -576,12 +582,13 @@ def publish_settings(settings):
 
 
 def save_settings(settings):
+    settings={**settings,'smart_tasks':[t for t in settings.get('smart_tasks',[]) if not isinstance(t,dict) or not t.get('_maintenance')]}
     settings = normalize_settings(settings)
     tmp = SETTINGS_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(SETTINGS_FILE)
     publish_settings(settings)
-    return settings
+    return MAINTENANCE.overlay(settings) if 'MAINTENANCE' in globals() else settings
 
 
 def ha_states():
@@ -1232,6 +1239,7 @@ def reward_notification_action_loop():
                 data = ((msg.get("event") or {}).get("data") or {})
                 event=msg.get('event') or {}
                 if event.get('event_type')=='state_changed':
+                    if data.get('entity_id') in MAINTENANCE.source_ids:MAINTENANCE.wakeup.set()
                     if str(data.get('entity_id','')).startswith('todo.'):
                         PROGRESS.wakeup.set()
                     continue
@@ -3399,6 +3407,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 PROGRESS = ProgressBridge(globals())
+MAINTENANCE = MaintenanceTasks(globals())
 
 def main():
     ensure_dirs()
@@ -3411,6 +3420,7 @@ def main():
     try:chore_claims.ensure_script(globals())
     except Exception as exc:print(f'[Family Hub] Klusjes kiezen instellen uitgesteld: {exc}',flush=True)
     threading.Thread(target=PROGRESS.loop, daemon=True).start()
+    threading.Thread(target=MAINTENANCE.loop, daemon=True).start()
     threading.Thread(target=family_scheduler_loop, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()
     threading.Thread(target=points_state_watch_loop, daemon=True).start()

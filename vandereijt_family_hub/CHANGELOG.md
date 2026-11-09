@@ -1,3 +1,10 @@
+## 0.17.1
+
+- Onderhoudsmeldingen van Home Assistant kunnen automatisch een klusje bij Sterrenpakkers aanbieden, met een herkenbaar koffie-icoon en de actuele urgentie.
+- Eén gelegenheid per onderhoudsmelding, ook over meerdere dagen/weken en herstarts. Vroege waarschuwingen, urgentie en bevestigde meldingen blijven bij hetzelfde klusje. Offline of onbekende sensoren worden niet als uitgevoerd behandeld.
+- Een aanbod verdwijnt na twee minuten bevestigde afwezigheid van de melding. Een nieuwe onderhoudsronde krijgt een eigen klusje. Eerder gekozen werk en oudergoedkeuring blijven bewaard; er worden geen sterren automatisch toegekend.
+- Instelbare bronregels via maintenance_task_setup; geen koffieapparaat- of gezinsnamen in productcode. Automatische taken blijven gescheiden van handmatig ingestelde klusjes en worden bij opslaan niet dubbel vastgelegd.
+
 ## 0.17.0
 
 - Agenda-afhankelijke actieknoppen op Vandaag en Agenda. Een ingesteld trefwoord toont de actie de hele betreffende dag, ook voor afspraken van verborgen gezinsleden en gedeelde agenda’s. Dubbele afspraken leveren één knop op.
