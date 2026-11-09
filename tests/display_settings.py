@@ -80,3 +80,13 @@ assert required['keep_until_done'] and required['participant_count']==1
 assert not pool['keep_until_done'] and pool['participant_count']==2 and pool['claim_scope']=='shared'
 assert not daily['keep_until_done'] and app.normalize_settings(normalized)==normalized
 print('CHORE_SETTINGS_PASSED: carry defaults, explicit opt-out, team count, shared group slot and round-trip')
+
+from unittest.mock import patch
+import json
+rule={'id':'clean','label':'Poetsen','match':'poetsen','start_script':'script.example_clean','stop_script':'script.example_restore','active_entity':'input_boolean.example','stop_label':'Klaar met poetsen'}
+with patch.object(app,'activity_setup_options',return_value={'calendar_action_setup':json.dumps([rule])}):
+ clean=app.normalize_settings({});assert clean['calendar_actions']==[{**rule,'enabled':True}] and clean['calendar_actions_seeded'];assert app.normalize_settings(clean)==clean
+ clean['calendar_actions']=[];assert app.normalize_settings(clean)['calendar_actions']==[], 'clearing persisted actions must override setup'
+ assert app.normalize_settings({'calendar_actions':[{'match':'poetsen','start_script':'light.all'}]})['calendar_actions']==[]
+assert app.normalize_settings({})['calendar_actions']==[]
+print('CALENDAR_ACTION_SETTINGS_PASSED: opt-in, configured scripts, setup seed, roundtrip, explicit removal and invalid domain')
