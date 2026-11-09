@@ -104,3 +104,11 @@ with tempfile.TemporaryDirectory() as folder:
    assert len(json.loads((root/'settings.json').read_text(encoding='utf-8'))['smart_tasks'])==1
   assert len(json.loads((root/'public.json').read_text(encoding='utf-8'))['smart_tasks'])==2
 print('MAINTENANCE_OVERLAY_SAVE_PASSED: existing tasks preserved, generated task not duplicated/persisted during normal admin saves, public mirror includes maintenance')
+
+base={'routines':[{'id':'evening','title':'Avond','member_ids':['child'],'days':[0],'completion_points':1,'steps':[{'id':'bag','title':'Tas uitpakken'},{'id':'last','title':'Slapen'}]}]}
+edit={'id':'entrance_v1','routine_id':'evening','effective_date':'2026-11-09','prepend':[{'id':'coat','title':'Jas aan kapstok','icon':'mdi:coat-rack','points':0},{'id':'shoes','title':'Schoenen in de la','icon':'mdi:shoe-sneaker','points':0}],'after':[{'step_id':'bag','step':{'id':'fruit','title':'Fruit gegeten','icon':'mdi:food-apple','points':0}}]}
+with patch.object(app,'activity_setup_options',return_value={'routine_step_setup':json.dumps([edit])}):
+ changed=app.normalize_settings(base);routine=changed['routines'][0];assert [s['id'] for s in routine['steps']]==['coat','shoes','bag','fruit','last'];assert routine['step_start_dates']=={'coat':'2026-11-09','shoes':'2026-11-09','fruit':'2026-11-09'};assert routine['completion_points']==1
+ assert app.normalize_settings(changed)==changed
+ routine['steps']=routine['steps'][1:];assert len(app.normalize_settings(changed)['routines'][0]['steps'])==4,'later manual removal must not be undone by installer option'
+print('ROUTINE_STEP_SETUP_PASSED: exact placement, existing IDs/order preserved, one-time application, later user edits preserved and effective date retained')

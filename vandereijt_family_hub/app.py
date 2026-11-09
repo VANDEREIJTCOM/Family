@@ -204,10 +204,41 @@ def replace_display_text(value, replacements):
     return value
 
 
+def apply_routine_step_setup(src,setup):
+    """Apply an explicitly configured installation edit once, preserving step identities."""
+    try:operations=json.loads(setup.get('routine_step_setup') or '[]')
+    except (TypeError,ValueError):operations=[]
+    if not isinstance(operations,list) or not operations:return src
+    applied=list(src.get('routine_step_setups_applied') or [])
+    routines=[{**r,'steps':[dict(s) if isinstance(s,dict) else s for s in r.get('steps',[])]} if isinstance(r,dict) else r for r in src.get('routines',[])]
+    for operation in operations:
+        if not isinstance(operation,dict) or not operation.get('id') or operation['id'] in applied:continue
+        routine=next((r for r in routines if isinstance(r,dict) and r.get('id')==operation.get('routine_id')),None)
+        if routine is None:raise ValueError('Routine voor de ingestelde stappenwijziging niet gevonden')
+        date=str(operation.get('effective_date',''));datetime.strptime(date,'%Y-%m-%d')
+        steps=routine['steps'];starts=dict(routine.get('step_start_dates') or {})
+        def take(value):
+            if not isinstance(value,dict) or not value.get('id') or not value.get('title'):raise ValueError('Ongeldige nieuwe routinestap')
+            existing=next((s for s in steps if isinstance(s,dict) and (s.get('id')==value['id'] or str(s.get('title','')).casefold()==value['title'].casefold())),None)
+            step={**(existing or {}),**value,'id':existing['id'] if existing else value['id']}
+            if existing:steps.remove(existing)
+            else:starts[step['id']]=date
+            return step
+        prefix=[take(value) for value in operation.get('prepend',[])]
+        steps[:0]=prefix
+        for insertion in operation.get('after',[]):
+            step=take(insertion.get('step'));index=next((i for i,s in enumerate(steps) if isinstance(s,dict) and s.get('id')==insertion.get('step_id')),None)
+            if index is None:raise ValueError('De bestaande stap voor invoegen is niet gevonden')
+            steps.insert(index+1,step)
+        routine['step_start_dates']=starts;applied.append(operation['id'])
+    return {**src,'routines':routines,'routine_step_setups_applied':applied}
+
+
 def normalize_settings(data):
     src = data if isinstance(data, dict) else {}
     setup = activity_setup_options()
     src = replace_display_text(src, setup.get("display_text_replacements") or [])
+    src = apply_routine_step_setup(src,setup)
     order = setup.get("activity_member_order") or []
     stacks = dict(pair.split("=", 1) for pair in setup.get("activity_member_stacks", []) if isinstance(pair, str) and "=" in pair)
     seed_layout = not src.get("activity_layout_seeded") and bool(order or stacks)
@@ -232,6 +263,7 @@ def normalize_settings(data):
         if key in src:
             out[key] = src[key]
     out["activity_layout_seeded"] = bool(src.get("activity_layout_seeded") or seed_layout)
+    out['routine_step_setups_applied']=list(src.get('routine_step_setups_applied') or [])
     calendar_actions=src.get('calendar_actions')
     seed_actions=not src.get('calendar_actions_seeded') and not calendar_actions and bool(setup.get('calendar_action_setup') and setup.get('calendar_action_setup')!='[]')
     if calendar_actions is None or seed_actions:
@@ -349,6 +381,7 @@ def normalize_settings(data):
             "todo_entity": str(routine.get("todo_entity") or "")[:160],
             "completion_points": max(0, min(500, int(routine.get("completion_points", sum(s["points"] for s in steps))))),
             "steps": steps,
+            **({'step_start_dates':{str(k):str(v) for k,v in routine['step_start_dates'].items() if isinstance(v,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}',v)}} if isinstance(routine.get('step_start_dates'),dict) else {}),
             **normalize_schedule(routine),
             **normalize_routine_window(routine),
         })
@@ -545,7 +578,9 @@ def load_settings():
     settings=dict(DEFAULTS)
     if SETTINGS_FILE.exists():
         try:settings=normalize_settings(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
-        except Exception as exc:print(f"[Family Hub] Could not read settings: {exc}",flush=True)
+        except Exception as exc:
+            print(f"[Family Hub] Could not read settings: {exc}",flush=True)
+            raise
     return MAINTENANCE.overlay(settings) if 'MAINTENANCE' in globals() else settings
 
 
@@ -1935,6 +1970,7 @@ def _sync_generated_content():
                 if routine.get("show_in_tasks", True) and member.get("todo"):
                     existing = _generated_items(member["todo"])
                     for step in routine.get("steps", []):
+                        if routine.get('step_start_dates',{}).get(step.get('id'),'')>today:continue
                         matches = [item for item in existing if (meta := _fh_meta(item)).get("kind") == "routine_step" and meta.get("routine_id") == routine.get("id") and meta.get("member_id") == member_id and meta.get("date") == today and meta.get("step_id") == step.get("id")]
                         if matches:
                             # Retain completion, legacy credit metadata and stable UIDs.

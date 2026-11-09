@@ -1,3 +1,8 @@
+## 0.17.2
+
+- Eenmalig geconfigureerde routine-aanvullingen behouden bestaande stap-IDs en volgorde. Nieuwe stappen gelden vanaf hun ingangsdatum, zodat eerder afgeronde routines hun sterren behouden.
+- Nieuwe kiesbare plaatjes voor Sinterklaas (rode mijter met gouden kruis) en Kerst (versierde kerstboom met ster). Dezelfde kleurrijke illustraties staan in beheer, routines, stappen en losse klusjes.
+
 ## 0.17.1
 
 - Onderhoudsmeldingen van Home Assistant kunnen automatisch een klusje bij Sterrenpakkers aanbieden, met een herkenbaar koffie-icoon en de actuele urgentie.
