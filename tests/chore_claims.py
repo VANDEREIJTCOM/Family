@@ -26,6 +26,9 @@ class Claims(unittest.TestCase):
   self.assertFalse(chore_claims.handle(self.app,self.event('a','release'))['ok']);self.assertFalse(chore_claims.handle(self.app,self.event('b'))['ok']);self.assertEqual(self.bal,10)
  def test_system_or_forged_member_cannot_choose(self):
   self.assertFalse(chore_claims.handle(self.app,self.event('a',uid='system'))['ok']);self.assertFalse(chore_claims.handle(self.app,self.event('missing'))['ok']);self.assertEqual(self.store.snapshot()['claims'],[])
+ def test_resolved_maintenance_cannot_be_newly_claimed_but_open_work_can_return(self):
+  self.assertTrue(chore_claims.handle(self.app,self.event('a'))['ok']);self.task['_maintenance']={'available':False}
+  self.assertFalse(chore_claims.handle(self.app,self.event('b'))['ok']);self.assertTrue(chore_claims.handle(self.app,self.event('a','release'))['ok'])
  def test_team_requires_two_distinct_real_people_before_any_claim(self):
   self.task['participant_count']=2
   for ids in ([],['a'],['a','a'],['a','missing'],['b','a'],['a','b','c']):

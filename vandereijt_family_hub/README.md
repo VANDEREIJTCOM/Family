@@ -125,3 +125,10 @@ Bij afwijzen wordt het vakje weer leeg met **Afgewezen**. Een keuzeklusje komt w
 `calendar_actions` bevat optionele regels met `id`, `label`, `match`, `start_script`, `stop_script`, `active_entity`, `stop_label` en `enabled`. Het trefwoord wordt als woord in de afspraaktitel herkend. De knop verschijnt op Vandaag en Agenda gedurende de hele agendadag; er wordt nooit automatisch een script gestart. Een actieve stand houdt de stopknop beschikbaar om de vorige toestand te kunnen herstellen. Alle gekoppelde agenda’s tellen mee, onafhankelijk van personenfilters.
 
 Met de optionele add-oninstelling `calendar_action_setup` (JSON-lijst) kan een installatie eenmalig regels instellen. Een daarna bewust leeg gemaakte lijst blijft leeg. Gebruik een centraal Home Assistant-script voor uitbreidingen zoals muziek; script- en entiteitsnamen staan niet vast in de productcode.
+
+
+### Automatisch onderhoud bij Sterrenpakkers
+
+De add-onoptie `maintenance_task_setup` bevat een JSON-lijst met regels: `id`, `title`, `points`, `icon`, `connectivity` en `levels` (oplopende urgentie, elk met `entities` en `label`). De bronentiteiten zijn Home Assistant-sensoren. `present`, `confirmed` en `on` gelden als actieve melding; alleen alle bronnen `off` bij verbonden apparaat sluiten na twee minuten de melding. Onbekend/offline behoudt de bekende open melding. `supersedes` kan andere onderhoudsregels tijdelijk verbergen bij een gecombineerd onderhoudsprogramma.
+
+Elke onderhoudsronde krijgt één persistente taak-ID en één gedeeld plekje. Een nieuwe dag of week levert geen dubbel klusje of extra sterren op. Bronherstel verbergt het aanbod; gekozen werk kan nog ter oudergoedkeuring worden afgevinkt. Een volgende echte onderhoudsronde is een nieuwe gelegenheid. De onderhoudsregistratie staat in `/data/maintenance-tasks.json`; gegenereerde taken worden niet in de handmatige instellingen opgeslagen. Er worden geen apparaatprogramma’s op afstand gestart.

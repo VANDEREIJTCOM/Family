@@ -90,3 +90,17 @@ with patch.object(app,'activity_setup_options',return_value={'calendar_action_se
  assert app.normalize_settings({'calendar_actions':[{'match':'poetsen','start_script':'light.all'}]})['calendar_actions']==[]
 assert app.normalize_settings({})['calendar_actions']==[]
 print('CALENDAR_ACTION_SETTINGS_PASSED: opt-in, configured scripts, setup seed, roundtrip, explicit removal and invalid domain')
+
+import tempfile
+from maintenance_tasks import MaintenanceTasks
+with tempfile.TemporaryDirectory() as folder:
+ root=Path(folder);(root/'options.json').write_text(json.dumps({'maintenance_task_setup':json.dumps([{'id':'clean','title':'Onderhoud','levels':[{'entities':['sensor.need']}]}])}),encoding='utf-8')
+ monitor=MaintenanceTasks({'DATA_DIR':root});monitor.sync([{'entity_id':'sensor.need','state':'present'}],1000)
+ with patch.object(app,'MAINTENANCE',monitor),patch.object(app,'SETTINGS_FILE',root/'settings.json'),patch.object(app,'PUBLIC_SETTINGS',root/'public.json'),patch.object(app,'notify_frontends',lambda *a:None):
+  settings={'smart_tasks':[{'id':'normal','title':'Eigen klus'}]}
+  for _ in range(4):
+   settings=app.save_settings(app.normalize_settings(settings));assert len(settings['smart_tasks'])==2
+   settings=app.load_settings();assert len(settings['smart_tasks'])==2
+   assert len(json.loads((root/'settings.json').read_text(encoding='utf-8'))['smart_tasks'])==1
+  assert len(json.loads((root/'public.json').read_text(encoding='utf-8'))['smart_tasks'])==2
+print('MAINTENANCE_OVERLAY_SAVE_PASSED: existing tasks preserved, generated task not duplicated/persisted during normal admin saves, public mirror includes maintenance')
