@@ -378,7 +378,7 @@ def build_work(settings,todos,today,jobs=None,claims=None):
             for date in dates(rows):
                 if not scheduled_on(routine,date):continue
                 done={meta(r).get('step_id') for r in rows if meta(r).get('date')==date and r.get('status')=='completed'}
-                steps=routine.get('steps',[]);complete=bool(steps) and all(x['id'] in done for x in steps)
+                steps=[s for s in routine.get('steps',[]) if routine.get('step_start_dates',{}).get(s['id'],'')<=date];complete=bool(steps) and all(x['id'] in done for x in steps)
                 points=max(0,min(500,int(routine.get('completion_points',sum(int(s.get('points',0)) for s in steps)))))
                 work.append({'key':f'routine:{routine["id"]}:{mid}:{date}','kind':'routine','title':routine['title'],'member_id':mid,'member_name':member.get('name',mid),'date':date,'points':points,'points_entity':member['points_entity'],'complete':complete,'legacy_credit':sum(max([min(number(s.get('points',0)),number(meta(r).get('points',0))) for r in rows if meta(r).get('date')==date and meta(r).get('step_id')==s['id'] and r.get('status')=='completed' and not meta(r).get('progress_version')]+[0]) for s in steps)})
     for task in settings.get('smart_tasks',[]):

@@ -244,5 +244,11 @@ class RequestedBonusTests(BridgeTests):
  def test_same_request_nonce_cannot_create_multiple_rewards(self):
   self.items=[self.bonus(),self.bonus(uid='duplicate')];self.bridge.sync();self.assertEqual(len(self.bridge.store.snapshot()['jobs']),1);self.bridge.resolve({'action':'approve','key':'bonus:a:request-one'});self.bridge.sync();self.assertEqual(self.bal,51)
 
+class EffectiveStepTests(unittest.TestCase):
+ def test_new_steps_do_not_revoke_stars_from_completed_historical_dates(self):
+  settings={'members':[{'id':'a','todo':'todo.a','points_entity':'input_number.a'}],'routines':[{'id':'r','title':'Avond','member_ids':['a'],'days':list(range(7)),'completion_points':1,'steps':[{'id':'old','title':'Slapen'},{'id':'new','title':'Jas ophangen'}],'step_start_dates':{'new':'2026-11-09'}}]}
+  rows=[{'status':'completed','description':'FH_META:'+json.dumps({'kind':'routine_step','routine_id':'r','member_id':'a','date':date,'step_id':'old','progress_version':1})} for date in ('2026-11-07','2026-11-09')]
+  work=build_work(settings,{'todo.a':rows},'2026-11-09');self.assertTrue(next(w for w in work if w['date']=='2026-11-07')['complete']);self.assertFalse(next(w for w in work if w['date']=='2026-11-09')['complete'])
+
 if __name__=='__main__':unittest.main()
 
