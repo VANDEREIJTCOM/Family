@@ -414,7 +414,7 @@ function openTaskEditor(index=null,seed=null){
     <label>Tijd<input id="ed-task-time" type="time" value="${esc(t.due_time||"")}"></label>
    </div>
    ${scheduleEditor(t,"task")}
-   <label>Aantal personen samen<input id="ed-task-participants" type="number" min="1" max="${Math.max(1,(settings.members||[]).length)}" value="${Number(t.participant_count||1)}"><small>Voor de Sterrenpakkers. Bij meer personen kies je eerst jezelf, daarna ‘Samen met…’. Punten en oudergoedkeuring gelden per persoon.</small></label>
+   <label>Maximaal aantal personen<input id="ed-task-participants" type="number" min="1" max="${Math.max(1,(settings.members||[]).length)}" value="${Number(t.participant_count||1)}"><small>Voor de Sterrenpakkers. Kies jezelf en eventueel anderen. Alleen doen mag ook; dit aantal is het maximum. Punten en oudergoedkeuring gelden per persoon.</small></label>
    <label>Bij zelf kiezen<select id="ed-task-claim-scope"><option value="shared" ${t.claim_scope!=="per_member"?"selected":""}>Eén plekje voor de gekozen persoon of groep</option><option value="per_member" ${t.claim_scope==="per_member"?"selected":""}>Iedereen mag dit voor zichzelf kiezen</option></select><small>Bij meerdere personen samen wordt één groepsplekje gebruikt.</small></label>
    <label class="switch"><input id="ed-task-keep" type="checkbox" ${t.assignment==="choice"?"disabled":""} ${(t.keep_until_done??t.assignment!=="choice")?"checked":""}> Blijven staan tot uitgevoerd en goedgekeurd</label>
    <p class="help-inline">Voor klusjes op naam: de gekozen dag is de startdag. Een open klusje blijft daarna zichtbaar, zonder dagelijks een extra exemplaar. Uitvinken laat de gewone planning gelden.</p>

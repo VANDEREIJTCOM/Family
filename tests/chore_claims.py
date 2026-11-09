@@ -31,12 +31,12 @@ class Claims(unittest.TestCase):
   self.assertFalse(chore_claims.handle(self.app,self.event('b'))['ok']);self.assertTrue(chore_claims.handle(self.app,self.event('a','release'))['ok'])
  def test_team_requires_two_distinct_real_people_before_any_claim(self):
   self.task['participant_count']=2
-  for ids in ([],['a'],['a','a'],['a','missing'],['b','a'],['a','b','c']):
+  for ids in (['a','a'],['a','missing'],['b','a'],['a','b','c']):
    event=self.event('a');event['data']['member_ids']=ids;self.assertFalse(chore_claims.handle(self.app,event)['ok'],ids)
   self.assertEqual(self.store.snapshot()['claims'],[])
   event=self.event('a');event['data']['member_ids']=['a','b'];self.assertTrue(chore_claims.handle(self.app,event)['ok'])
   self.assertEqual(self.store.claimed_members(self.task,__import__('time').strftime('%Y-%m-%d')),['a','b']);self.assertEqual(self.bal,10)
-  self.assertTrue(chore_claims.handle(self.app,self.event('b','release'))['ok']);self.assertEqual(self.store.snapshot()['claims'][0]['state'],'released')
+  self.assertTrue(chore_claims.handle(self.app,self.event('b','release'))['ok']);self.assertEqual(self.store.snapshot()['claims'][0]['state'],'active');self.assertEqual(self.store.claimed_members(self.task,__import__('time').strftime('%Y-%m-%d')),['a']);self.assertTrue(chore_claims.handle(self.app,self.event('a','release'))['ok']);self.assertEqual(self.store.snapshot()['claims'][0]['state'],'released')
  def test_team_builds_one_work_unit_for_each_person(self):
   import json
   self.task['participant_count']=2;date='2026-11-07';self.store.set_claim(self.task,'a',date,member_ids=['a','b'])
@@ -57,5 +57,16 @@ class Claims(unittest.TestCase):
   self.store.observe([unit]);unit['complete']=True;self.store.observe([unit]);self.store.resolve(key,False,[unit]);self.store.rejection_reset(key,finished=True)
   self.store.set_claim(self.task,'b',date);self.task['days']=[];self.assertTrue(chore_claims.handle(self.app,self.event('a','release'))['ok'])
   self.assertTrue(self.store.snapshot()['jobs'][key]['dismissed']);self.assertEqual(self.store.claimed_members(self.task,date),['b']);self.assertEqual(self.bal,10)
+
+ def test_capacity_five_allows_solo_and_any_smaller_group(self):
+  self.task['participant_count']=5;self.assertTrue(chore_claims.handle(self.app,self.event('a'))['ok']);self.assertTrue(chore_claims.handle(self.app,self.event('a','release'))['ok'])
+  event=self.event('a');event['data']['member_ids']=['a','b'];self.assertTrue(chore_claims.handle(self.app,event)['ok']);self.assertEqual(len(self.store.snapshot()['claims'][0]['member_ids']),2)
+ def test_open_member_can_leave_without_disturbing_pending_partner_or_points(self):
+  from datetime import datetime
+  date=datetime.now().strftime('%Y-%m-%d');self.task['participant_count']=5;event=self.event('a');event['data']['member_ids']=['a','b'];self.assertTrue(chore_claims.handle(self.app,event)['ok'])
+  self.work=[{'key':'chore:leaves:'+mid+':'+date,'kind':'chore','member_id':mid,'member_name':mid,'title':'Bladeren','date':date,'points':2,'points_entity':'input_number.'+mid,'complete':mid=='b'} for mid in ('a','b')]
+  result=chore_claims.handle(self.app,self.event('a','release'));self.assertTrue(result['ok']);self.assertEqual(result['remaining_member_ids'],['b']);self.assertEqual(self.store.claimed_members(self.task,date),['b']);self.assertEqual(self.store.snapshot()['jobs']['chore:leaves:b:'+date]['state'],'pending');self.assertEqual(self.bal,10)
+  retry=chore_claims.handle(self.app,self.event('a','release'));self.assertTrue(retry['ok']);self.assertEqual(retry['remaining_member_ids'],['b'])
+  self.assertFalse(chore_claims.handle(self.app,self.event('b','release'))['ok'],'own pending work cannot be returned without undo/rejection')
 
 if __name__=='__main__':unittest.main()
