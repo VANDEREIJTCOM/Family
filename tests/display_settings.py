@@ -118,3 +118,11 @@ with patch.object(app,'activity_setup_options',return_value={'smart_task_setup':
  clean=app.normalize_settings({});assert len(clean['smart_tasks'])==2 and all(t['repeat_mode']=='once' and t['points']==3 for t in clean['smart_tasks']);assert clean['smart_tasks'][0]['participant_count']==5 and clean['smart_tasks'][1]['keep_until_done'];assert app.normalize_settings(clean)==clean
  clean['smart_tasks']=[];assert app.normalize_settings(clean)['smart_tasks']==[]
 print('ONE_OFF_TASK_SETTINGS_PASSED: pool solo/group capacity, personal carry, 3-star value, once mode roundtrip and explicit removal retained')
+
+edit_existing={'id':'tidy_v2','routine_id':'evening','effective_date':'2026-11-12','rename_steps':{'bag':'Tas leegmaken'},'remove_step_ids':['last'],'enabled':False}
+with patch.object(app,'activity_setup_options',return_value={'routine_step_setup':json.dumps([edit_existing])}):
+ changed=app.normalize_settings(base);routine=changed['routines'][0];assert routine['steps'][0]['id']=='bag' and routine['steps'][0]['title']=='Tas leegmaken' and len(routine['steps'])==1 and routine['enabled'] is False
+ assert app.normalize_settings(changed)==changed
+ routine['steps'][0]['title']='Eigen wijziging';assert app.normalize_settings(changed)['routines'][0]['steps'][0]['title']=='Eigen wijziging'
+ assert len(base['routines'][0]['steps'])==2
+print('ROUTINE_EXISTING_STEP_SETUP_PASSED: identities retained, precise removal/rename/visibility, one-time application, source and later edits preserved')

@@ -217,6 +217,17 @@ def apply_routine_step_setup(src,setup):
         if routine is None:raise ValueError('Routine voor de ingestelde stappenwijziging niet gevonden')
         date=str(operation.get('effective_date',''));datetime.strptime(date,'%Y-%m-%d')
         steps=routine['steps'];starts=dict(routine.get('step_start_dates') or {})
+        if 'enabled' in operation:
+            if type(operation['enabled']) is not bool:raise ValueError('Ongeldige zichtbaarheid van routine')
+            routine['enabled']=operation['enabled']
+        for step_id in operation.get('remove_step_ids',[]):
+            existing=next((s for s in steps if s.get('id')==step_id),None)
+            if existing is None:raise ValueError('De te verwijderen routinestap is niet gevonden')
+            steps.remove(existing);starts.pop(step_id,None)
+        for step_id,title in operation.get('rename_steps',{}).items():
+            existing=next((s for s in steps if s.get('id')==step_id),None)
+            if existing is None or not isinstance(title,str) or not title.strip():raise ValueError('Ongeldige wijziging van routinestap')
+            existing['title']=title
         def take(value):
             if not isinstance(value,dict) or not value.get('id') or not value.get('title'):raise ValueError('Ongeldige nieuwe routinestap')
             existing=next((s for s in steps if isinstance(s,dict) and (s.get('id')==value['id'] or str(s.get('title','')).casefold()==value['title'].casefold())),None)
