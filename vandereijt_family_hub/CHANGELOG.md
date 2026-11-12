@@ -1,3 +1,7 @@
+## 0.17.8
+
+- Eenmalige routinestappenconfiguratie ondersteunt gericht hernoemen, verwijderen en zichtbaar maken, met behoud van bestaande routine- en stapidentiteiten en latere handmatige wijzigingen.
+
 ## 0.17.7
 
 - Het dubbele personenfilter bovenaan Routines & klusjes is verwijderd. Het filter in de onderste navigatie blijft beschikbaar met dezelfde selectie.
