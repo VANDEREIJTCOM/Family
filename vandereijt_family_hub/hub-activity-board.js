@@ -19,7 +19,7 @@ const FamilyHubActivityBoard=(()=>{
    const previous=this._activityRendering;this._activityRendering=true;
    try{
     const groups=columns(this._config.members||[],m=>this._activityMemberVisible(m));
-    return this._activityFilterHtml()+'<div class="activity-board" data-layout="'+this._routineGridLayout()+'">'+(groups.map(c=>'<div class="activity-column" data-activity-column="'+this._esc(c.id)+'">'+c.members.map(m=>this._activityPerson(m)).join('')+'</div>').join('')||'<div class="empty">Vink een persoon aan om routines en klusjes te zien.</div>')+'</div>';
+    return (['routines','tasks'].includes(this._screen)?'':this._activityFilterHtml())+'<div class="activity-board" data-layout="'+this._routineGridLayout()+'">'+(groups.map(c=>'<div class="activity-column" data-activity-column="'+this._esc(c.id)+'">'+c.members.map(m=>this._activityPerson(m)).join('')+'</div>').join('')||'<div class="empty">Vink een persoon aan om routines en klusjes te zien.</div>')+'</div>';
    }finally{this._activityRendering=previous}
   };
   p._routinesScreen=function(){return '<div class="screen-heading"><div><small>VANDAAG</small><h1>Routines &amp; klusjes</h1></div></div>'+this._activityBoard()};

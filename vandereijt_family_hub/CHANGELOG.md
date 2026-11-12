@@ -1,3 +1,7 @@
+## 0.17.7
+
+- Het dubbele personenfilter bovenaan Routines & klusjes is verwijderd. Het filter in de onderste navigatie blijft beschikbaar met dezelfde selectie.
+
 ## 0.17.6
 
 - Nieuw kleurrijk blaadjesicoon voor tuin- en bladerklusjes, met dezelfde weergave in beheer en dashboard.
