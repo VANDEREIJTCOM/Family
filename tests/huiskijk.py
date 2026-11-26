@@ -29,4 +29,25 @@ class Films(unittest.TestCase):
   class Unknown(Client):
    def call(self,path,body):return super().call(path,body) if path=='search' else {'info':{'subtitles':['nl']}}
   with self.assertRaises(FilmError):find_dutch(Unknown(),{'title':'Frozen','year':2013})
+ def test_dual_translated_title_keeps_sequels_excluded(self):
+  f={'title':'Vaiana','aliases':['Moana'],'year':2016}
+  self.assertTrue(matches(f,{'itemId':'vod:1','title':'NL┃ Moana / Vaiana'}))
+  self.assertFalse(matches(f,{'itemId':'vod:1','title':'NL┃ Moana 2 / Vaiana 2'}))
+ def test_missing_metadata_requires_actual_audio_track(self):
+  class Client:
+   def call(self,path,body):
+    return {'items':[{'itemId':'vod:1','title':'Frozen (2013)'}]} if path=='search' else {'info':{'releasedate':'2013-01-01','subtitles':['nl']}}
+   def audio_tracks(self,row,metadata,timeout):return {'audioTracks':[{'language':'en'},{'language':'nl'}]}
+  self.assertEqual(find_dutch(Client(),{'title':'Frozen','year':2013})['itemId'],'vod:1')
+  class English(Client):
+   def audio_tracks(self,*args,**kwargs):return {'audioTracks':[{'language':'en'}]}
+  with self.assertRaises(FilmError):find_dutch(English(),{'title':'Frozen','year':2013})
+ def test_short_title_recovers_from_limited_search_in_allowed_categories(self):
+  class Client:
+   def call(self,path,body):
+    if path=='search':return {'items':[],'limited':True}
+    if body['action']=='get_vod_categories':return {'items':[{'category_id':'10','category_name':'NL Kids'}]}
+    if body['action']=='get_vod_streams':return {'items':[{'stream_id':'12','name':'NL┃ Up'}]}
+    return {'info':{'releasedate':'2009-01-01','audioLanguages':['nl']}}
+  self.assertEqual(find_dutch(Client(),{'title':'Up','year':2009})['itemId'],'vod:12')
 if __name__=='__main__':unittest.main()

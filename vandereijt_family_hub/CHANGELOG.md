@@ -1,3 +1,8 @@
+## 0.18.1
+
+- Als de filmbeschrijving de gesproken taal niet vermeldt, controleert Family Hub de werkelijke audiosporen via de gekoppelde HUISKIJK-server, zonder afspelen of kijkvoortgang te starten. Alleen bevestigde Nederlandse audio wordt toegevoegd.
+- Herkent dubbele originele/vertaalde filmtitels en zoekt korte titels zoals Up ook in de toegestane kindercategorieën als de gewone zoekresultaten zijn afgekapt.
+
 ## 0.18.0
 
 - Configureerbare aftelkalenders onder de agenda, met eigen afbeeldingen, weetjes en dagdeurtjes. Afvinken en herstellen worden gedeeld opgeslagen in Home Assistant; toekomstige dagen blijven gesloten. Filmvinkjes zijn herstelbaar en de taalvoorkeur blijft buiten beeld.
