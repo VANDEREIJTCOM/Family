@@ -266,6 +266,24 @@ def normalize_settings(data):
             else:rows[index]={**rows[index],**row}
             content_applied.append(key)
         src={**src,section:rows}
+    # Targeted one-time text/media edits preserve list identities and todo completion.
+    for operation in content.get('list_updates',[]) if isinstance(content,dict) and isinstance(content.get('list_updates'),list) else []:
+        if not isinstance(operation,dict) or not isinstance(operation.get('id'),str):continue
+        key='list_update:'+operation['id']
+        if key in content_applied:continue
+        rows=list(src.get('lists') or [])
+        index=next((i for i,row in enumerate(rows) if row.get('id')==operation.get('list_id')),None)
+        if index is None:continue
+        row=dict(rows[index])
+        films={f.get('id'):f for f in operation.get('films',[]) if isinstance(f,dict)} if isinstance(operation.get('films'),list) else {}
+        if row.get('films'):
+            allowed={'description','trailer_id','trailer_source','trailer_language'}
+            row['films']=[{**f,**{k:v for k,v in films.get(f.get('id'),{}).items() if k in allowed}} for f in row['films']]
+        days={d.get('date'):d for d in operation.get('days',[]) if isinstance(d,dict)} if isinstance(operation.get('days'),list) else {}
+        if isinstance(row.get('countdown'),dict):
+            allowed={'title','kind','text','question','answer','label','icon','image','image_crop'}
+            row['countdown']={**row['countdown'],'days':[{**d,**{k:v for k,v in days.get(d.get('date'),{}).items() if k in allowed}} for d in row['countdown'].get('days',[])]}
+        rows[index]=row;src={**src,'lists':rows};content_applied.append(key)
     src={**src,'content_setups_applied':content_applied}
     try:task_setup=json.loads(setup.get('smart_task_setup') or '[]')
     except (TypeError,ValueError):task_setup=[]

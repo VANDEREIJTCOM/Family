@@ -43,4 +43,20 @@ class Countdowns(unittest.TestCase):
             app.sync_generated_content()
             add.assert_not_called()
 
+    def test_targeted_content_update_is_once_and_keeps_identity(self):
+        src={'lists':[dict(id='trip',title='Trip',todo_entity='todo.trip',countdown=self.content),dict(id='movies',title='Films',todo_entity='todo.films',films=[dict(id='one',title='Film',year=2013)])]}
+        before=copy.deepcopy(src)
+        operation=dict(id='holiday_text',list_id='trip',days=[dict(date='2026-11-26',title='Feest!',text='Samen spelen',date_override='bad')])
+        film=dict(id='description',list_id='movies',films=[dict(id='one',description='Korte tekst',trailer_id='ly0Zz5VT__g',trailer_source='Disney NL',title='Niet hernoemen')])
+        import json
+        with patch.object(app,'activity_setup_options',return_value={'content_setup':json.dumps({'list_updates':[operation,film]})}):
+            value=app.normalize_settings(src)
+            self.assertEqual(src,before)
+            self.assertEqual(value['lists'][0]['countdown']['days'][0]['title'],'Feest!')
+            self.assertEqual(value['lists'][0]['todo_entity'],'todo.trip')
+            self.assertEqual(value['lists'][1]['films'][0]['title'],'Film')
+            self.assertEqual(value['lists'][1]['films'][0]['trailer_id'],'ly0Zz5VT__g')
+            value['lists'][0]['countdown']['days'][0]['title']='Eigen tekst'
+            self.assertEqual(app.normalize_settings(value)['lists'][0]['countdown']['days'][0]['title'],'Eigen tekst')
+
 if __name__=='__main__':unittest.main()

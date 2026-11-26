@@ -5,6 +5,10 @@ from film_actions import FilmBridge,normalize_films
 from huiskijk import FilmError
 
 class Actions(unittest.TestCase):
+ def test_film_description_and_safe_video_id_roundtrip(self):
+  film=normalize_films([{'id':'test','title':'Test','description':'Korte tekst','trailer_id':'ly0Zz5VT__g','trailer_language':'nl','trailer_source':'Disney NL'}])[0]
+  self.assertEqual(film['trailer_id'],'ly0Zz5VT__g');self.assertEqual(film['description'],'Korte tekst')
+  self.assertNotIn('trailer_id',normalize_films([{'id':'test','title':'Test','trailer_id':'https://untrusted.invalid/'}])[0])
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.addCleanup(self.temp.cleanup);self.remote=[];self.calls=[];self.results=[]
   (self.root/'options.json').write_text(json.dumps({'huiskijk_server':'http://local.invalid:8787','huiskijk_token':'SECRET_TOKEN_NOT_PUBLIC_1234567890'}))

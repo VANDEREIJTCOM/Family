@@ -1,3 +1,9 @@
+## 0.18.2
+
+- ‘Al gekeken’ behoudt zijn open/dicht-stand tijdens verversen. Ook de hele filmlijst is inklapbaar en blijft in de gekozen stand staan.
+- Klik op een filmafbeelding of titel voor een korte beschrijving. Een ingestelde officiële trailer opent pas na een aparte klik; sluiten stopt de video en een achtergrondverversing onderbreekt hem niet.
+- Gerichte eenmalige inhoudsupdates ondersteunen filmteksten, veilige trailer-IDs en feestdagdeurtjes, met behoud van lijstidentiteiten en afgevinkte dagen/films.
+
 ## 0.18.1
 
 - Als de filmbeschrijving de gesproken taal niet vermeldt, controleert Family Hub de werkelijke audiosporen via de gekoppelde HUISKIJK-server, zonder afspelen of kijkvoortgang te starten. Alleen bevestigde Nederlandse audio wordt toegevoegd.

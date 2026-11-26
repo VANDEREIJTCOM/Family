@@ -6,4 +6,14 @@ const config={lists:[{id:'shopping',title:'Boodschappen'},{id:'disney',title:'Fi
 const c=Object.assign(Object.create(p),{_config:config,_esc:String,_listTodos:{disney:[watched]},_films:{choices:{'disney:cars':{selected:true}}},_filmNotice:'',_render(){},_hass:{callService:async()=>{}}});
 const html=c._listsScreen();assert(html.includes('Boodschappen'));assert(html.includes('Al gekeken · 1'));assert(html.includes('Op HUISKIJK-kijklijst'));assert(html.includes('Hebben we gekeken'));assert(html.includes('Terug naar nog kijken'));assert(!html.includes('Nederlands gesproken'));assert.equal(c._config,config);assert.equal(config.lists.length,2);
 assert(films.picture({title:'Frozen',image_url:'/image.jpg',image_crop:{x:10,y:10,width:50,height:50,image_width:100,image_height:100}},String).includes('background-size:200% 200%'));
+const summary={},details={dataset:{fhFilmDisclosure:'seen:disney'},open:false,isConnected:true,querySelector:()=>summary};
+c.shadowRoot={querySelectorAll:selector=>selector==='[data-fh-film-disclosure]'?[details]:[],querySelector:()=>null};
+c._bind();let prevented=false;summary.onclick({preventDefault(){prevented=true}});
+assert(prevented);assert.equal(details.open,true);assert.equal(c._filmDisclosures.get('seen:disney'),true);
+assert.match(c._filmList(config.lists[1]),/data-fh-film-disclosure="seen:disney" open/);
+summary.onclick({preventDefault(){}});assert.equal(c._filmDisclosures.get('seen:disney'),false);
+c._filmDisclosures.set('list:disney',false);assert.match(c._filmList(config.lists[1]),/data-fh-film-disclosure="list:disney" ><summary/);
+c._filmInfoKey='disney:frozen';config.lists[1].films[0].description='Korte tekst';config.lists[1].films[0].trailer_id='ly0Zz5VT__g';
+assert(c._modalHtml().includes('Korte tekst'));assert(!c._modalHtml().includes('<iframe'));
+c._filmTrailerKey='disney:frozen';assert(c._modalHtml().includes('youtube-nocookie.com/embed/ly0Zz5VT__g'));c._filmInfoKey=null;
 (async()=>{let request;c._hass.callService=async(...args)=>request=args;await c._chooseFilm(config.lists[1],{id:'cars'});assert.equal(request[1],'family_hub_film_choice');assert.equal(request[2].selected,false);assert.equal(request[2].list_id,'disney');c._onFilmResult({request_id:request[2].request_id,ok:true,selected:false});assert.equal(c._filmPending.size,0);assert(c._filmNotice.includes('uitgezet'));c.disconnectedCallback();console.log('FILMS_PASSED: separate selection/watched actions, configured data, pending guard and per-request results');})().catch(e=>{console.error(e);process.exitCode=1});

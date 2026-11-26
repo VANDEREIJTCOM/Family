@@ -14,6 +14,11 @@ def normalize_films(rows):
   if not isinstance(row,dict) or not isinstance(row.get('id'),str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}',row['id']) or not str(row.get('title','')).strip() or row['id'] in seen:continue
   seen.add(row['id']);value={'id':row['id'],'title':str(row['title']).strip()[:120],'aliases':[str(x)[:120] for x in row.get('aliases',[])[:3] if isinstance(x,str)] if isinstance(row.get('aliases'),list) else []}
   if row.get('initial_watched') is True:value['initial_watched']=True
+  if isinstance(row.get('description'),str):value['description']=row['description'].strip()[:800]
+  if re.fullmatch(r'[a-zA-Z0-9_-]{11}',str(row.get('trailer_id') or '')):
+   value['trailer_id']=row['trailer_id']
+   value['trailer_source']=str(row.get('trailer_source') or '')[:80]
+   if row.get('trailer_language') in ('nl','nl_subtitles','en'):value['trailer_language']=row['trailer_language']
   if type(row.get('year')) is int and 1900<=row['year']<=2100:value['year']=row['year']
   image=str(row.get('image_url') or '')
   if image.startswith('/') and not image.startswith('//') or image.startswith('https://'):value['image_url']=image[:1000]
