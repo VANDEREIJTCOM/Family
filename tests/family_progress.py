@@ -187,9 +187,10 @@ class BridgeTests(unittest.TestCase):
 
 
 class ManualBonusTests(BridgeTests):
- def test_manual_request_approval_without_points_then_bonus(self):
-  self.manual();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();key='manual:a:real-uid';self.assertEqual(self.bridge.store.snapshot()['jobs'][key]['state'],'pending')
-  self.bridge.resolve({'action':'approve','key':key});self.assertEqual(self.bal,50);self.bridge.resolve({'action':'manual_bonus','key':key,'points':2});self.assertEqual(self.bal,52)
+ def test_manual_without_points_finishes_without_parent_then_bonus(self):
+  self.manual();self.bridge.sync();self.items[0]['status']='completed';self.bridge.sync();key='manual:a:real-uid';self.assertEqual(self.bridge.store.snapshot()['jobs'][key]['state'],'awarded')
+  self.assertEqual(self.bridge.store.notification_jobs(),[]);self.assertEqual(self.bal,50);self.assertEqual(self.bridge.store.snapshot()['family']['balance'],0)
+  self.bridge.resolve({'action':'manual_bonus','key':key,'points':2});self.assertEqual(self.bal,52);self.assertEqual(self.bridge.store.snapshot()['family']['balance'],2)
 
  def manual(self,complete=False):
   self.items=[{'uid':'real-uid','summary':'Zelf bedacht','status':'completed' if complete else 'needs_action','description':'FH_META:'+json.dumps(dict(kind='manual_task',member_id='a',date='2026-11-05',points=999,points_entity='input_number.forged'))}]

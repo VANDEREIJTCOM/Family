@@ -274,6 +274,9 @@ jobs:
           node tests/hub-required-tasks.cjs
           node tests/hub-calendar-actions.cjs
           python tests/chore_actions.py
+          python tests/huiskijk.py
+          python tests/film_actions.py
+          node tests/hub-films.cjs
           python tests/activity_settings.py
           node tests/hub-family-experience.cjs
           node --check vandereijt_family_hub/static/routine-drag.js

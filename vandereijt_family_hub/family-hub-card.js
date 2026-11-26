@@ -386,7 +386,7 @@ class FamilyHubCard extends HTMLElement{
   }
   _todayRoutines(now=new Date()){
     const date=this._dateISO(now),rank={active:0,normal:1,upcoming:1,past:2};
-    return (this._config.routines||[]).filter(r=>r.enabled!==false&&this._scheduledOn(r,date)).sort((a,b)=>rank[this._routinePhase(a,now)]-rank[this._routinePhase(b,now)]);
+    return (this._config.routines||[]).filter(r=>r.enabled!==false&&this._scheduledOn(r,date)).map(r=>({...r,steps:(r.steps||[]).filter(s=>(r.step_start_dates?.[s.id]||'')<=date)})).sort((a,b)=>rank[this._routinePhase(a,now)]-rank[this._routinePhase(b,now)]);
   }
   _scheduledOn(item,date){return item.schedule==="dates"?(item.dates||[]).includes(date):(item.days||[0,1,2,3,4,5,6]).map(Number).includes((new Date(date+"T12:00:00").getDay()+6)%7);}
 
@@ -409,7 +409,7 @@ class FamilyHubCard extends HTMLElement{
         if(r.todo_entity)jobs.push(this._todo(r.todo_entity,["needs_action","completed"]).then(v=>this._routineTodos[r.id]=v).catch(()=>this._routineTodos[r.id]=[]));
       }
       for(const l of this._config.lists||[]){
-        if(l.todo_entity)jobs.push(this._todo(l.todo_entity,["needs_action"]).then(v=>this._listTodos[l.id]=v).catch(()=>this._listTodos[l.id]=[]));
+        if(l.todo_entity)jobs.push(this._todo(l.todo_entity,(l.show_completed||l.films?.length)?["needs_action","completed"]:["needs_action"]).then(v=>this._listTodos[l.id]=v).catch(()=>this._listTodos[l.id]=[]));
       }
       if(this._config.shopping_list)jobs.push(this._todo(this._config.shopping_list,["needs_action"]).then(v=>this._shopping=v).catch(()=>this._shopping=[]));
       if(this._config.meals_todo)jobs.push(this._todo(this._config.meals_todo,["needs_action"]).then(v=>this._meals=v).catch(()=>this._meals=[]));
@@ -578,11 +578,21 @@ class FamilyHubCard extends HTMLElement{
   async _toggleTodo(entity,item){
     if(!entity||!item)return;
     const meta=this._meta(item),completed=item.status==="completed",next=completed?"needs_action":"completed";
-    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next,...(["routine_step","smart_task","manual_task"].includes(meta?.kind)?{description:"FH_META:"+JSON.stringify({...meta,points:0,progress_version:1})}:{})},{entity_id:entity});
     if(["routine_step","smart_task","manual_task"].includes(meta?.kind)){
-      item.status=next;item.description="FH_META:"+JSON.stringify({...meta,points:0,progress_version:1});
-      this._progressAt=0;this._render();this._queueHubUpdate?.('progress');return;
+      const id=String(item.uid||item.summary),key=entity+'|'+id;this._taskMutations??=new Map();
+      if(this._taskMutations.has(key))return this._taskMutations.get(key).promise;
+      const before={status:item.status,description:item.description},description="FH_META:"+JSON.stringify({...meta,points:0,progress_version:1});
+      const record={entity,id,status:next,description,active:true,epoch:this._todoEpoch=(this._todoEpoch||0)+1};
+      this._taskMutations.set(key,record);this._taskHistory??=new Map();this._taskHistory.set(key,record);
+      const apply=(status,text)=>{item.status=status;item.description=text;for(const rows of [...Object.values(this._todoAll||{}),...Object.values(this._todos||{}),...Object.values(this._routineTodos||{})])for(const row of rows||[])if(String(row.uid||row.summary)===id){row.status=status;row.description=text}};
+      apply(next,description);this._render();
+      record.promise=(async()=>{
+        try{await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next,description},{entity_id:entity});this._progressAt=0;this._queueHubUpdate?.('progress');}
+        catch(error){record.status=before.status;record.description=before.description;apply(before.status,before.description);throw error;}
+        finally{record.active=false;record.epoch=this._todoEpoch=(this._todoEpoch||0)+1;this._taskMutations.delete(key);this._render();}
+      })();return record.promise;
     }
+    await this._hass.callService("todo","update_item",{item:item.uid||item.summary,status:next},{entity_id:entity});
     if(!["routine_step","smart_task","manual_task"].includes(meta?.kind)&&meta?.points&&meta?.points_entity){
       const current=Math.max(0,Number(this._hass?.states?.[meta.points_entity]?.state||0)||0);
       await this._setPoints(meta.points_entity,completed?Math.max(0,current-Number(meta.points||0)):current+Number(meta.points||0));
@@ -806,7 +816,7 @@ Een ouder krijgt een pushbericht met Akkoord of Afwijzen.`))return;
   }
 
   _listsScreen(){
-    const lists=this._config.lists||[];return `<div class="screen-heading"><div><small>LIJSTJES</small><h1>Alles op een rij</h1></div></div><div class="list-grid">${lists.length?lists.map(l=>`<section class="list-card" style="--list:${l.color||this._config.accent_color}"><div class="list-head"><div><ha-icon icon="${this._esc(l.icon||"mdi:format-list-checks")}"></ha-icon><strong>${this._esc(l.title)}</strong></div><button data-add-list-item="${this._esc(l.id)}">＋</button></div>${(this._listTodos[l.id]||[]).length?(this._listTodos[l.id]||[]).map(it=>`<button class="list-row" data-complete-list="${this._esc(l.id)}" data-complete-id="${this._esc(it.uid||it.summary)}"><span class="box">✓</span><span>${this._esc(it.summary)}</span></button>`).join(""):'<div class="empty">Lijst is leeg</div>'}</section>`).join(""):'<div class="empty big">Voeg lijstjes toe in de Family Hub App.</div>'}</div>`;
+    const lists=this._config.lists||[];return `<div class="screen-heading"><div><small>LIJSTJES</small><h1>Alles op een rij</h1></div></div><div class="list-grid">${lists.length?lists.map(l=>`<section class="list-card" style="--list:${l.color||this._config.accent_color}"><div class="list-head"><div><ha-icon icon="${this._esc(l.icon||"mdi:format-list-checks")}"></ha-icon><strong>${this._esc(l.title)}</strong></div><button data-add-list-item="${this._esc(l.id)}">＋</button></div>${(this._listTodos[l.id]||[]).length?(this._listTodos[l.id]||[]).map(it=>`<button class="list-row ${it.status==="completed"?"completed":""}" aria-pressed="${it.status==="completed"}" data-complete-list="${this._esc(l.id)}" data-complete-id="${this._esc(it.uid||it.summary)}"><span class="box">${it.status==="completed"?"✓":""}</span><span>${this._esc(it.summary)}</span></button>`).join(""):'<div class="empty">Lijst is leeg</div>'}</section>`).join(""):'<div class="empty big">Voeg lijstjes toe in de Family Hub App.</div>'}</div>`;
   }
 
   _mealsScreen(){
@@ -941,7 +951,7 @@ ha-card{height:calc(100vh - var(--header-height,0px));min-height:650px;border-ra
     q("[data-calendar-refresh]")&&(q("[data-calendar-refresh]").onclick=()=>this._manualCalendarRefresh());
     q("[data-week-prev]")&&(q("[data-week-prev]").onclick=()=>{this._weekOffset--;this._load()});q("[data-week-next]")&&(q("[data-week-next]").onclick=()=>{this._weekOffset++;this._load()});q("[data-week-today]")&&(q("[data-week-today]").onclick=()=>{this._weekOffset=0;this._load()});
 
-    this.shadowRoot.querySelectorAll("[data-complete-list]").forEach(b=>b.onclick=()=>{const l=(this._config.lists||[]).find(x=>x.id===b.dataset.completeList),it=this._findTodoItem(b.dataset.completeId);if(l&&it)this._complete(l.todo_entity,it)});
+    this.shadowRoot.querySelectorAll("[data-complete-list]").forEach(b=>b.onclick=()=>{const l=(this._config.lists||[]).find(x=>x.id===b.dataset.completeList),it=this._findTodoItem(b.dataset.completeId);if(l&&it)this._toggleTodo(l.todo_entity,it)});
     this.shadowRoot.querySelectorAll("[data-complete-shopping]").forEach(b=>b.onclick=()=>{const it=this._findTodoItem(b.dataset.completeShopping);if(it)this._complete(this._config.shopping_list,it)});
     this.shadowRoot.querySelectorAll("[data-redeem]").forEach(b=>b.onclick=()=>{const r=(this._config.rewards||[]).find(x=>x.id===b.dataset.redeem),m=this._member(b.dataset.redeemMember);if(r&&m)this._redeem(r,m)});
     this.shadowRoot.querySelectorAll("[data-depart-key]").forEach(b=>b.onclick=()=>{let state={};try{state=JSON.parse(localStorage.getItem(b.dataset.departKey)||"{}")}catch{}state[b.dataset.departIndex]=!state[b.dataset.departIndex];localStorage.setItem(b.dataset.departKey,JSON.stringify(state));this._render()});

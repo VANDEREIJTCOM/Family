@@ -5,7 +5,8 @@ const card=Object.assign(Object.create(proto),{_config:{rewards:[{id:'f',member_
 let html=card._rewardsScreen();assert(html.includes('Film'));assert(html.includes('data-family-reward="f"'));assert(html.includes('165 ★'));assert(html.includes('Zakgeld'));assert.equal(card._config.rewards.length,2);assert(!html.includes('disabled'));
 card._progress.family.available=100;assert(card._familyPanel().includes('disabled'));card._progressError=true;card._progress.family.available=200;assert(card._familyPanel().includes('disabled'));
 card._closedRoutines=new Set(['r:a']);assert(!card._routineCard({id:'r',title:'Morning',completion_points:7},false,{id:'a',name:'Alex'}).includes(' open'));assert(card._routineCard({id:'r',title:'Morning',completion_points:7},false,{id:'a',name:'Alex'}).includes('7 ★'));assert.equal(card._routineCard({id:'r'},true),'<article>routine</article>');
-card._progress.jobs={'chore:c:a:2026-11-05':{state:'pending'}};assert(card._taskRow('',{meta:{kind:'smart_task',task_id:'c',member_id:'a',date:'2026-11-05'}}).includes('Wacht op ouderakkoord'));
+card._config.smart_tasks=[{id:'c',points:3}];card._progress.jobs={'chore:c:a:2026-11-05':{state:'pending'}};assert(card._taskRow('',{meta:{kind:'smart_task',task_id:'c',member_id:'a',date:'2026-11-05'}}).includes('Wacht op ouderakkoord'));
+card._config.smart_tasks[0].points=0;assert(!card._taskRow('',{meta:{kind:'smart_task',task_id:'c',member_id:'a',date:'2026-11-05'}}).includes('Wacht op ouderakkoord'));
 assert.equal(card._calendarScreen(),'week');assert(!card._calendarScreen().includes('day-controls'));assert(card._css().includes('order:10!important'));
 console.log('PROGRESS_CARD_PASSED: visible family choices, distinct personal rewards, insufficient/stale balance guard, collapse, routine points, approval status and original calendar controls');
 

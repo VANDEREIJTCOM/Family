@@ -26,11 +26,17 @@ def handle(app,event):
         configured=app['activity_setup_options']().get('chore_approver_user_ids') or []
         if uid not in configured:app['FAMILY_ACCESS'].require_admin(user)
         decision=data.get('decision')
-        if decision not in ('approve','reject'):raise ProgressError('Ongeldige beslissing')
-        job=app['PROGRESS'].store.snapshot()['jobs'].get(result['key'])
-        if not job or type(data.get('attempt')) is not int or data['attempt']!=job['attempt']:raise ProgressError('Deze aanvraag is gewijzigd. Ververs het overzicht.')
-        value=app['PROGRESS'].resolve({'action':decision,'key':result['key']})
-        result.update(ok=True,state=value['jobs'][result['key']]['state'])
+        if decision=='family_fulfil':
+            reward=next((r for r in app['PROGRESS'].store.snapshot()['rewards'] if r['key']==result['key']),None)
+            if not reward or reward['state'] not in ('selected','fulfilled'):raise ProgressError('Deze gezinsbeloning wacht niet op uitvoering.')
+            value=app['PROGRESS'].resolve({'action':'family_fulfil','key':result['key']})
+            result.update(ok=True,state=next(r for r in value['rewards'] if r['key']==result['key'])['state'])
+        else:
+            if decision not in ('approve','reject'):raise ProgressError('Ongeldige beslissing')
+            job=app['PROGRESS'].store.snapshot()['jobs'].get(result['key'])
+            if not job or type(data.get('attempt')) is not int or data['attempt']!=job['attempt']:raise ProgressError('Deze aanvraag is gewijzigd. Ververs het overzicht.')
+            value=app['PROGRESS'].resolve({'action':decision,'key':result['key']})
+            result.update(ok=True,state=value['jobs'][result['key']]['state'])
     except Exception as exc:
         result['error']=str(exc) if isinstance(exc,ProgressError) or hasattr(exc,'status') else 'Beoordelen niet gelukt. Probeer opnieuw.'
     app['ha_api']('POST','states/sensor.family_hub_chore_result',{'state':request_id or 'idle','attributes':{'friendly_name':'Family Hub klusjesbesluit',**result}})

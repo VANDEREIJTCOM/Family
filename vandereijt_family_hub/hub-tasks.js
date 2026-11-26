@@ -7,7 +7,8 @@ const FamilyHubTasks=(()=>{
   p._routinesScreen=function(){return routines.call(this).replace('<div class="routine-grid">','<div class="routine-grid hub-routine-columns" data-layout="'+this._routineGridLayout()+'">')};
   p._routineOpenState=function(key,complete,phase="normal"){
    this._routineUi??=new Map();const id=this._dateISO(new Date())+':'+key;let state=this._routineUi.get(id);
-   if(!state){state={open:!complete&&!["upcoming","past"].includes(phase),complete,phase};this._routineUi.set(id,state)}else if(state.complete!==complete||state.phase!==phase){state.complete=complete;state.phase=phase;state.open=!complete&&!["upcoming","past"].includes(phase)}
+   const defaultOpen=phase==='active'||(!complete&&!["upcoming","past"].includes(phase));
+   if(!state){state={open:defaultOpen,complete,phase};this._routineUi.set(id,state)}else if(state.phase!==phase){state.complete=complete;state.phase=phase;state.manual=false;state.open=defaultOpen}else if(state.complete!==complete){state.complete=complete;if(!state.manual&&phase!=='active')state.open=defaultOpen}
    return state;
   };
   p._routineTaskGroup=function(m,group){
@@ -25,12 +26,12 @@ const FamilyHubTasks=(()=>{
   p._taskRow=function(entity,item,mid){
    const meta=this._meta(item);if(meta?.kind!=='manual_task')return row.call(this,entity,item,mid);
    const key='manual:'+meta.member_id+':'+item.uid,job=this._progress?.jobs?.[key],display={...item,description:'FH_META:'+JSON.stringify({...meta,points:0})};
-   const note=job?.state==='awarded'?'Ouderbonus ontvangen: '+Number(job.awarded_points||0)+' ★':job?.state==='pending'?'Ouderbonus: wacht op akkoord':job?.points?'Ouderbonus: '+Number(job.points)+' ★ na controle':'';
+    const note=job?.state==='awarded'&&Number(job.awarded_points)>0?'Ouderbonus ontvangen: '+Number(job.awarded_points)+' ★':job?.state==='pending'&&Number(job.points)>0?'Ouderbonus: wacht op akkoord':job?.points?'Ouderbonus: '+Number(job.points)+' ★ na controle':'';
    return row.call(this,entity,display,mid)+(note?'<small class="approval-note">'+this._esc(note)+'</small>':'');
   };
   p._bind=function(...args){
    bind.apply(this,args);
-   this.shadowRoot.querySelectorAll('[data-routine-group],[data-routine-collapse]').forEach(el=>{const key=el.dataset.routineGroup||el.dataset.routineCollapse;el.ontoggle=()=>{const state=this._routineUi?.get(this._dateISO(new Date())+':'+key);if(state)state.open=el.open}});
+   this.shadowRoot.querySelectorAll('[data-routine-group],[data-routine-collapse]').forEach(el=>{const key=el.dataset.routineGroup||el.dataset.routineCollapse,state=this._routineUi?.get(this._dateISO(new Date())+':'+key);el.ontoggle=()=>{if(el.isConnected===false||this.shadowRoot.contains&&!this.shadowRoot.contains(el))return;if(state)state.open=el.open};const summary=el.querySelector?.('summary');if(summary)summary.onclick=e=>{e.preventDefault();if(state){state.open=!el.open;state.manual=true;el.open=state.open}}});
   };
   p._css=function(){return css.call(this)+`
    .hub-task-columns[data-layout=three_columns],.hub-routine-columns[data-layout=three_columns]{grid-template-columns:repeat(3,minmax(0,1fr))!important}.hub-routine-columns{display:grid;gap:18px;align-items:start}.hub-routine-columns>*{min-width:0}.hub-routine-columns[data-layout=stacked]{grid-template-columns:1fr!important}.hub-routine-columns[data-layout=columns]{grid-template-columns:repeat(2,minmax(0,1fr))!important}.hub-task-columns .person-mini{min-width:0}.hub-task-columns[data-layout=two_plus_one]>.person-mini:last-child:nth-child(odd){grid-column:1/-1}

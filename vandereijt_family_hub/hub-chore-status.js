@@ -1,17 +1,18 @@
 /* The ledger decides approval; native todo completion alone is only a request. */
 const FamilyHubChoreStatus=(()=>{
  function key(meta,item){return meta?.kind==='smart_task'?'chore:'+meta.task_id+':'+meta.member_id+':'+meta.date:meta?.kind==='manual_task'?'manual:'+meta.member_id+':'+item.uid:null}
- function status(item,job){
+ function status(item,job,requiresApproval=true){
+  if(!requiresApproval)return item.status==='completed'?'done':'open';
   if(job?.state==='awarded'&&item.status==='completed')return 'approved';
   if(job?.reset_pending||job?.state==='rejected'||(item.status!=='completed'&&job?.last_decision==='rejected'))return 'rejected';
   return item.status==='completed'?'pending':'open';
  }
- const labels={approved:'Goedgekeurd',pending:'Aangevraagd · wacht op je ouder',rejected:'Afgewezen',open:''};
+ const labels={done:'Afgerond',approved:'Goedgekeurd',pending:'Aangevraagd · wacht op je ouder',rejected:'Afgewezen',open:''};
  function install(p){
   const row=p._taskRow,regular=p._regularTodos,css=p._css;
   p._taskRow=function(entity,item,mid){
    const id=key(this._meta(item),item);let html=row.call(this,entity,item,mid);if(!id)return html;
-   const job=this._progress?.jobs?.[id],state=status(item,job),caption=labels[state];
+   const job=this._progress?.jobs?.[id],meta=this._meta(item),task=(this._config?.smart_tasks||[]).find(t=>t.id===meta?.task_id),points=meta?.kind==='smart_task'?Number(task?.points??job?.points??1):Number(job?.points??job?.awarded_points??0),state=status(item,job,points>0),caption=labels[state];
    html=html.replace('class="check-row','data-chore-state="'+state+'" class="check-row chore-state-'+state);
    if(['pending','rejected'].includes(state))html=html.replace(/(class="check-row[^"\n]*)\bcompleted\b/,'$1');
    // Remove the generic "completed" caption; it is not an approval.

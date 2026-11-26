@@ -8,28 +8,33 @@ const FamilyHubTaskActions=(()=>{
  function install(proto){
   if(proto._haDirectTaskActions)return;proto._haDirectTaskActions=true;
   proto._findTodoItem=function(id){return find(this,id);};
-  const bind=proto._bind,row=proto._taskRow;
+  const bind=proto._bind,row=proto._taskRow,todo=proto._todo;
+  if(todo)proto._todo=async function(entity,...args){
+   const epoch=this._todoEpoch=(this._todoEpoch||0)+1,rows=await todo.call(this,entity,...args);
+   return rows.map(item=>{const record=this._taskHistory?.get(entity+'|'+String(item.uid||item.summary));return record&&(record.active||record.epoch>epoch)?{...item,status:record.status,description:record.description}:item});
+  };
   proto._taskRow=function(...args){return row.apply(this,args).replaceAll('Afgerond · klik om te bekijken','Afgevinkt · tik om terug te zetten').replace('<span class="row-arrow">›</span>','');};
   proto._bind=function(){
    bind.call(this);
    const toggle=async(entity,id)=>{
-    if(this._haTaskSaving)return;
+    const key=entity+'|'+String(id);this._haTaskSavingIds??=new Set();if(this._haTaskSavingIds.has(key))return;
     const item=find(this,id);if(!entity||!item)return;
-    this._haTaskSaving=true;
-    this.shadowRoot.querySelectorAll('[data-toggle-task-entity],[data-task-detail]').forEach(b=>b.disabled=true);
+    this._haTaskSavingIds.add(key);this._haTaskSaving=true;
+    this.shadowRoot.querySelectorAll('[data-toggle-task-entity],[data-task-detail]').forEach(b=>{if(String(b.dataset.toggleTaskId||b.dataset.taskId)===String(id))b.disabled=true});
     this.shadowRoot.querySelectorAll('[data-toggle-task-entity]').forEach(b=>{if(String(b.dataset.toggleTaskId)===String(id)){b.textContent=item.status==='completed'?'':'✓';b.setAttribute('aria-busy','true');}});
     try{if(this._prepareChoreToggle&&!await this._prepareChoreToggle(entity,item))return;await this._toggleTodo(entity,item);}
     catch(error){
      console.error('[Family Hub] taak wijzigen',error);
      const message=document.createElement('p');message.setAttribute('role','alert');message.className='ha-task-error';message.textContent='De taak kon niet worden bijgewerkt. Controleer de verbinding en probeer opnieuw.';
      (this.shadowRoot.querySelector('.content')||this.shadowRoot).prepend(message);
-    }finally{this._haTaskSaving=false;this.shadowRoot.querySelectorAll('[data-toggle-task-entity],[data-task-detail]').forEach(b=>b.disabled=!!b.hasAttribute?.('data-chore-locked'));this.shadowRoot.querySelectorAll('[data-toggle-task-entity]').forEach(b=>{if(String(b.dataset.toggleTaskId)===String(id)){b.textContent=!b.hasAttribute?.('data-chore-locked')&&find(this,id)?.status==='completed'?'✓':'';b.setAttribute('aria-busy','false');}});}
+    }finally{this._haTaskSavingIds.delete(key);this._haTaskSaving=this._haTaskSavingIds.size>0;this.shadowRoot.querySelectorAll('[data-toggle-task-entity],[data-task-detail]').forEach(b=>{const k=(b.dataset.toggleTaskEntity||b.dataset.taskEntity)+'|'+String(b.dataset.toggleTaskId||b.dataset.taskId);b.disabled=!!b.hasAttribute?.('data-chore-locked')||this._haTaskSavingIds.has(k)});this.shadowRoot.querySelectorAll('[data-toggle-task-entity]').forEach(b=>{if(String(b.dataset.toggleTaskId)===String(id)){b.textContent=!b.hasAttribute?.('data-chore-locked')&&find(this,id)?.status==='completed'?'✓':'';b.setAttribute('aria-busy','false');}});}
    };
    this.shadowRoot.querySelectorAll('[data-toggle-task-entity]').forEach(b=>{
-    const item=find(this,b.dataset.toggleTaskId);b.setAttribute('aria-label',(item?.status==='completed'?'Zet terug: ':'Vink af: ')+(item?.summary||'Taak'));
+    const item=find(this,b.dataset.toggleTaskId);b.disabled=!!b.hasAttribute?.('data-chore-locked')||!!this._haTaskSavingIds?.has(b.dataset.toggleTaskEntity+'|'+String(b.dataset.toggleTaskId));b.setAttribute('aria-label',(item?.status==='completed'?'Zet terug: ':'Vink af: ')+(item?.summary||'Taak'));
     b.onclick=e=>{e.stopPropagation();return toggle(b.dataset.toggleTaskEntity,b.dataset.toggleTaskId);};
    });
    this.shadowRoot.querySelectorAll('[data-task-detail]').forEach(b=>{
+    b.disabled=!!b.hasAttribute?.('data-chore-locked')||!!this._haTaskSavingIds?.has(b.dataset.taskEntity+'|'+String(b.dataset.taskId));
     b.onclick=e=>{e.stopPropagation();return toggle(b.dataset.taskEntity,b.dataset.taskId);};
    });
   };

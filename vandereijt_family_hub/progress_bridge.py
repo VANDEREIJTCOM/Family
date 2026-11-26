@@ -53,7 +53,9 @@ class ProgressBridge:
         old=target.read_text(encoding='utf-8') if target.exists() else ''
         if text!=old:
             temp.write_text(text,encoding='utf-8');temp.replace(target)
+        if text!=old or not getattr(self,'published_once',False):
             if self.app.get('notify_frontends'):self.app['notify_frontends']('progress',revision)
+            self.published_once=True
         return value
     def sync(self):
         with self.sync_lock:

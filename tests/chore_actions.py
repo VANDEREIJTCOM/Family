@@ -23,6 +23,12 @@ class Actions(unittest.TestCase):
  def test_existing_script_not_overwritten_even_if_disabled(self):
   calls=[];app={'ha_states':lambda:[],'ha_api':lambda *args:calls.append(args) or {'sequence':['custom']}}
   chore_actions.ensure_script(app);self.assertEqual([x[0] for x in calls],['GET'])
+ def test_family_reward_requires_parent_context_and_server_selected_reward(self):
+  self.app['PROGRESS'].store.snapshot=lambda:{'jobs':{},'rewards':[{'key':'film','state':'selected','cost':150}]}
+  self.app['PROGRESS'].resolve=lambda payload:self.calls.append(payload) or {'rewards':[{'key':'film','state':'fulfilled'}]}
+  self.assertFalse(chore_actions.handle(self.app,self.event('child',key='film',decision='family_fulfil',user_id='parent'))['ok']);self.assertEqual(self.calls,[])
+  self.assertTrue(chore_actions.handle(self.app,self.event('parent',key='film',decision='family_fulfil',points=999))['ok']);self.assertEqual(self.calls,[{'action':'family_fulfil','key':'film'}])
+  self.assertFalse(chore_actions.handle(self.app,self.event('parent',key='missing',decision='family_fulfil'))['ok'])
  def test_missing_script_installed_through_supported_config_api(self):
   calls=[]
   def api(*args):

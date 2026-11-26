@@ -238,7 +238,9 @@ class FamilyProgress:
                 if first and item['kind']!='bonus':continue
                 # Use current server configuration, never client-supplied points.
                 job['points']=item['points'];job['points_entity']=item['points_entity']
-                if item['kind']=='routine':
+                if item['kind'] in ('chore','manual') and int(item['points'])==0:
+                    self._credit(state,job)
+                elif item['kind']=='routine':
                     job['legacy_credit']=max(job.get('legacy_credit',0),int(item.get('legacy_credit',0)))
                     self._credit(state,job)
                 elif item.get('legacy_complete'):

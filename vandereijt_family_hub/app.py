@@ -19,6 +19,8 @@ from progress_bridge import ProgressBridge
 from maintenance_tasks import MaintenanceTasks
 import chore_actions
 import chore_claims
+import film_actions
+import countdowns
 from family_progress import ProgressError, task_members, scheduled_on, chore_period, same_chore_period, chore_closed_through
 from ha_access import FamilyHubAccess, AccessError
 from reward_images import image_url as reward_image_url, save_image as save_reward_image
@@ -250,6 +252,21 @@ def normalize_settings(data):
     setup = activity_setup_options()
     src = replace_display_text(src, setup.get("display_text_replacements") or [])
     src = apply_routine_step_setup(src,setup)
+    try:content=json.loads(setup.get('content_setup') or '{}')
+    except (TypeError,ValueError):content={}
+    content_applied=list(src.get('content_setups_applied') or [])
+    for section in ('lists','shared_calendars'):
+        rows=list(src.get(section) or [])
+        for row in content.get(section,[]) if isinstance(content,dict) and isinstance(content.get(section),list) else []:
+            if not isinstance(row,dict) or not row.get('id'):continue
+            key=section+':'+str(row['id'])
+            if key in content_applied:continue
+            index=next((i for i,value in enumerate(rows) if value.get('id')==row['id']),None)
+            if index is None:rows.append(row)
+            else:rows[index]={**rows[index],**row}
+            content_applied.append(key)
+        src={**src,section:rows}
+    src={**src,'content_setups_applied':content_applied}
     try:task_setup=json.loads(setup.get('smart_task_setup') or '[]')
     except (TypeError,ValueError):task_setup=[]
     if isinstance(task_setup,list) and task_setup:
@@ -286,6 +303,7 @@ def normalize_settings(data):
             out[key] = src[key]
     out["activity_layout_seeded"] = bool(src.get("activity_layout_seeded") or seed_layout)
     out['routine_step_setups_applied']=list(src.get('routine_step_setups_applied') or [])
+    out['content_setups_applied']=list(src.get('content_setups_applied') or [])
     out['smart_task_setups_applied']=list(src.get('smart_task_setups_applied') or [])
     calendar_actions=src.get('calendar_actions')
     seed_actions=not src.get('calendar_actions_seeded') and not calendar_actions and bool(setup.get('calendar_action_setup') and setup.get('calendar_action_setup')!='[]')
@@ -496,6 +514,10 @@ def normalize_settings(data):
             "icon": str(item.get("icon") or "mdi:format-list-checks")[:80],
             "color": str(item.get("color") or "#2E6CA5")[:20],
             "todo_entity": str(item.get("todo_entity") or "")[:160],
+            **({'hero_image':countdowns.image(item.get('hero_image'))} if countdowns.image(item.get('hero_image')) else {}),
+            **({'show_completed':True} if item.get('show_completed') is True else {}),
+            **({'films':film_actions.normalize_films(item['films'])} if isinstance(item.get('films'),list) else {}),
+            **({'countdown':countdowns.normalize(item['countdown']),'show_completed':True} if countdowns.normalize(item.get('countdown')) else {}),
         })
     out["lists"] = lists[:30]
 
@@ -611,7 +633,7 @@ def notify_frontends(scope, revision):
     if not SUPERVISOR_TOKEN:
         return
     try:
-        if scope in ('settings','progress'):
+        if scope in ('settings','progress','films'):
             ha_api('POST','states/sensor.family_hub_'+scope,{'state':str(revision),'attributes':{'friendly_name':'Family Hub '+scope,'icon':'mdi:account-group'}},timeout=5)
         ha_api("POST", "events/family_hub_updated", {"scope": scope, "revision": revision}, timeout=5)
     except Exception as exc:
@@ -1277,6 +1299,7 @@ def reward_notification_action_loop():
             ws.send(json.dumps({"id": 2, "type": "subscribe_events", "event_type": "state_changed"}))
             ws.send(json.dumps({"id": 3, "type": "subscribe_events", "event_type": "family_hub_chore_action"}))
             ws.send(json.dumps({"id": 4, "type": "subscribe_events", "event_type": "family_hub_chore_claim"}))
+            ws.send(json.dumps({"id": 5, "type": "subscribe_events", "event_type": "family_hub_film_choice"}))
             heartbeat=100
             awaiting_pong=False
             while True:
@@ -1303,6 +1326,9 @@ def reward_notification_action_loop():
                     continue
                 if event.get('event_type')=='family_hub_chore_claim':
                     chore_claims.handle(globals(),event)
+                    continue
+                if event.get('event_type')=='family_hub_film_choice':
+                    FILMS.handle(event)
                     continue
                 if event.get('event_type')=='family_hub_chore_action':
                     chore_actions.handle(globals(),event)
@@ -2087,6 +2113,26 @@ def _sync_generated_content():
                 changed = True
             except Exception as exc:
                 print(f"[Family Hub] Smart task sync failed for {task.get('title')}: {exc}", flush=True)
+
+    # These shared lists are persistent; completing a date never awards stars.
+    for shared in settings.get('lists', []):
+        if not (shared.get('countdown') or shared.get('films')) or not shared.get('todo_entity'):
+            continue
+        try:
+            rows = _generated_items(shared['todo_entity'])
+            descriptions = {row.get('description') for row in rows}
+            seeds = [('FH_COUNTDOWN:' + shared['id'] + ':' + day['date'], day['date'] + ' · ' + day['title'], False) for day in shared.get('countdown', {}).get('days', [])]
+            seeds += [('FH_FILM:' + film['id'], film['title'], film.get('initial_watched', False)) for film in shared.get('films', [])]
+            for marker, title, watched in seeds:
+                if marker not in descriptions:
+                    add_todo_item(shared['todo_entity'], title, marker)
+                    descriptions.add(marker)
+                    if watched:
+                        item = next((row for row in _generated_items(shared['todo_entity']) if row.get('description') == marker), None)
+                        if item:
+                            ha_service('todo', 'update_item', {'item': item['uid'], 'status': 'completed'}, shared['todo_entity'])
+        except Exception as exc:
+            print(f"[Family Hub] Countdown sync failed for {shared.get('id')}: {exc}", flush=True)
 
     # Keep only about 45 days of generation markers.
     cutoff = time.time() - (45 * 86400)
@@ -3467,11 +3513,14 @@ class Handler(BaseHTTPRequestHandler):
 
 PROGRESS = ProgressBridge(globals())
 MAINTENANCE = MaintenanceTasks(globals())
+FILMS = film_actions.FilmBridge(globals())
 
 def main():
     ensure_dirs()
     current = load_settings()
     save_settings(current)
+    try:film_actions.ensure_script(globals());FILMS.publish()
+    except Exception as exc:print('[Family Hub] Filmkoppeling instellen wordt opnieuw geprobeerd.',flush=True)
     try:chore_actions.ensure_script(globals())
     except Exception as exc:print(f'[Family Hub] Goedkeurknoppen instellen uitgesteld: {exc}',flush=True)
     print(f"[Family Hub] v{APP_VERSION} listening on {PORT}", flush=True)
@@ -3479,6 +3528,7 @@ def main():
     try:chore_claims.ensure_script(globals())
     except Exception as exc:print(f'[Family Hub] Klusjes kiezen instellen uitgesteld: {exc}',flush=True)
     threading.Thread(target=PROGRESS.loop, daemon=True).start()
+    threading.Thread(target=FILMS.loop, daemon=True).start()
     threading.Thread(target=MAINTENANCE.loop, daemon=True).start()
     threading.Thread(target=family_scheduler_loop, daemon=True).start()
     threading.Thread(target=sync_managed_dashboard, daemon=True).start()

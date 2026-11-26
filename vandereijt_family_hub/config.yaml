@@ -1,5 +1,5 @@
 name: VANDEREIJT.COM Family Hub
-version: "0.17.8"
+version: "0.18.0"
 slug: vandereijt_family_hub
 description: VANDEREIJT.COM Family Hub – een centrale gezinsplanner voor Home Assistant wanddisplays.
 url: https://github.com/VANDEREIJTCOM/Family
@@ -21,6 +21,9 @@ map:
     read_only: false
     path: /homeassistant
 options:
+  huiskijk_server: "http://homeassistant.local:8787"
+  huiskijk_token: ""
+  content_setup: "{}"
   smart_task_setup: "[]"
   routine_step_setup: "[]"
   maintenance_task_setup: "[]"
@@ -31,6 +34,9 @@ options:
   display_text_replacements: []
   chore_approver_user_ids: []
 schema:
+  huiskijk_server: str
+  huiskijk_token: password
+  content_setup: str
   smart_task_setup: str
   routine_step_setup: str
   maintenance_task_setup: str

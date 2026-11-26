@@ -1,3 +1,14 @@
+## 0.18.0
+
+- Configureerbare aftelkalenders onder de agenda, met eigen afbeeldingen, weetjes en dagdeurtjes. Afvinken en herstellen worden gedeeld opgeslagen in Home Assistant; toekomstige dagen blijven gesloten. Filmvinkjes zijn herstelbaar en de taalvoorkeur blijft buiten beeld.
+- Klusjes zonder sterren zijn direct afgerond zonder ouderaanvraag; sterrenklusjes blijven beschermd door oudergoedkeuring.
+- Vinkjes reageren direct, blokkeren alleen hun eigen taak en herstellen bij een mislukte opslag. Gelijktijdig afvinken en verouderde leesantwoorden blijven consistent.
+- Opengeklapte routines blijven tijdens hun tijdvak stabiel. Verwijderde schermonderdelen kunnen de open/dicht-keuze niet meer overschrijven.
+- Verdiende routinesterren verschijnen compact bovenaan zonder het scherm te blokkeren. Korte goedemorgenberichten blijven staan tot sluiten, ook na verversen.
+- De gekoppelde verjaardagenagenda krijgt in de ochtend één begroeting per verjaardag per scherm. Gekozen gezinsbeloningen zijn op het ouderthuisscherm als uitgevoerd te bevestigen; alleen de gezinspot wordt belast.
+- Leesbaar contrast bij boodschappenlijsten en gedeelde illustraties voor een bril en topografie.
+- Configureerbare filmkaarten met eigen afbeeldingen, een afzonderlijke gekeken-status en een HUISKIJK-kijklijstkeuze. De backend verifieert Nederlands gesproken audio, gebruikt een eigen private devicekoppeling en laat favorieten/kijkvoortgang intact. Vereist de bijpassende HUISKIJK-kijklijstbackend.
+
 ## 0.17.8
 
 - Eenmalige routinestappenconfiguratie ondersteunt gericht hernoemen, verwijderen en zichtbaar maken, met behoud van bestaande routine- en stapidentiteiten en latere handmatige wijzigingen.

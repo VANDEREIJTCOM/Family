@@ -2,12 +2,22 @@
 const FamilyHubCelebrations=(()=>{
  const variants=['confetti','burst','praise'];
  function awardChanges(before,after){return Object.entries(after?.jobs||{}).filter(([key,j])=>['routine','bonus'].includes(j.kind)&&j.state==='awarded'&&Number(j.awarded_points)>0&&!(before?.jobs?.[key]?.state==='awarded'&&Number(before.jobs[key].awarded_points)===Number(j.awarded_points)&&before.jobs[key].award_revision===j.award_revision)).map(([key,job])=>({key,job}))}
- const morningMessages=["Fijne zondag! Vandaag is er ruimte voor iets leuks.","Een nieuwe week! Begin rustig, stap voor stap.","Goed begonnen! Elke kleine stap telt vandaag.","Je bent al op weg. Maak er een fijne woensdag van!","Jij kunt dit! We doen het vandaag stap voor stap.","Bijna weekend! Een mooie dag begint met jou.","Fijne zaterdag! Wat ga jij vandaag ontdekken?"];
+ const morningMessages=["Goedemorgen! Rek je uit als een kat. Miauw!","Nieuwe week, frisse start. Jij kunt dit!","Welke vis lacht altijd? De giechelvis!","Jij bent een topper. High five!","Wat zegt een kip als ze wakker wordt? Tok-tok!","Bijna weekend! Geef je dag een grote glimlach.","Even rekken, even gapen… klaar voor avontuur!"];
  function morningMessage(day=new Date().getDay()){return morningMessages[day]||morningMessages[0]}
  function isMorning(item,meta,config){const routine=(config.routines||[]).find(r=>r.id===meta?.routine_id),step=routine?.steps?.find(s=>s.id===meta?.step_id);return /^(goede\s*morgen)[!?.\s]*$/i.test(String(step?.title||item?.summary||'').trim())}
  function arithmetic(job){const before=job?.before,after=job?.target,points=Number(job?.awarded_points);return Number.isInteger(before)&&before>=0&&Number.isInteger(after)&&after-before===points&&points>0?{before,after,points}:null}
  function install(p){
-  const toggle=p._toggleTodo,load=p._load,disconnect=p.disconnectedCallback;
+  const toggle=p._toggleTodo,load=p._load,disconnect=p.disconnectedCallback,render=p._render;
+  p._renderMorningNotice=function(){
+   const storage='fh_morning_notice_v1:'+this._configUrl,day=this._dateISO(new Date());
+   if(!this._morningRestored){this._morningRestored=true;try{this._morningQueue=JSON.parse(sessionStorage.getItem(storage)||'[]').filter(x=>x.day===day)}catch{this._morningQueue=[]}}
+   const pending=this._morningQueue||[];this.shadowRoot?.querySelector('.morning-notice')?.remove();if(!pending.length)return;
+   const target=this.shadowRoot?.querySelector('.content')||this.shadowRoot?.querySelector('.hub');if(!target)return;
+   const notice=document.createElement('aside'),esc=x=>this._esc(String(x||''));notice.className='morning-notice';notice.setAttribute('role','status');
+   notice.innerHTML='<style>.morning-notice{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#25342b);border:2px solid #e1b441;border-radius:18px;padding:16px 20px;margin:0 0 18px}.morning-notice strong{display:block;font-size:22px}.morning-notice p{margin:7px 0 0;line-height:1.5;font-size:19px}.morning-notice button{min-width:48px;min-height:48px;font:inherit;font-size:25px;border:0;border-radius:12px;color:inherit;background:var(--secondary-background-color,#eef2e9);flex:none}</style><div><strong>☀ '+esc(pending[0].name?pending[0].name+', goedemorgen!':'Goedemorgen!')+'</strong><p>'+esc(pending[0].text)+'</p></div><button type="button" aria-label="Goedemorgenbericht sluiten">×</button>';
+   notice.querySelector('button').onclick=()=>{pending.shift();try{sessionStorage.setItem(storage,JSON.stringify(pending))}catch{}this._renderMorningNotice()};target.prepend(notice);
+  };
+  p._render=function(...args){const result=render.apply(this,args);this._renderMorningNotice();return result};
   p._celebrationOnce=function(key){
    this._celebrationSeen??=new Set();if(this._celebrationSeen.has(key))return false;
    const store='fh_celebrations_v1:'+this._configUrl;
@@ -17,8 +27,19 @@ const FamilyHubCelebrations=(()=>{
   };
   p._showCelebration=function({kind='morning',points=0,name='',title='',before=null,after=null}={}){
    if(typeof document==='undefined'||!this.isConnected||document.hidden)return;
+   if(kind==='morning'){
+    this._renderMorningNotice();this._morningQueue??=[];this._morningQueue.push({name,text:morningMessage(),day:this._dateISO(new Date())});
+    try{sessionStorage.setItem('fh_morning_notice_v1:'+this._configUrl,JSON.stringify(this._morningQueue))}catch{}this._renderMorningNotice();return;
+   }
    this._celebrationLayer?.remove();clearTimeout(this._celebrationTimer);(this._celebrationCountTimers||[]).forEach(clearTimeout);this._celebrationCountTimers=[];
    const math=arithmetic({before,target:after,awarded_points:points}),reduced=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+   if(kind==='routine'||kind==='birthday'){
+    const layer=document.createElement('div');layer.dataset.familyHubNotice=kind;layer.setAttribute('role','status');layer.setAttribute('aria-live','polite');layer.setAttribute('aria-atomic','true');layer.style.cssText='position:fixed;top:16px;left:16px;right:16px;z-index:2147483000;pointer-events:none;';
+    const shadow=layer.attachShadow({mode:'open'}),esc=x=>this._esc(String(x||''));
+    shadow.innerHTML='<style>:host{font-family:system-ui,sans-serif;color:#453612}.toast{box-sizing:border-box;max-width:540px;margin:auto;display:flex;gap:16px;align-items:center;padding:16px 22px;background:#fff7db;border:2px solid #e9bd50;border-radius:22px;box-shadow:0 7px 28px #172c4d22;pointer-events:none}.star{font-size:44px;color:#d7970d;flex:none}.copy{min-width:0}.copy strong{display:block;font-size:22px;line-height:1.25;overflow-wrap:anywhere}.copy span{display:block;margin-top:5px;font-size:16px;line-height:1.35;overflow-wrap:anywhere}.count{font-weight:700;color:#936100}@media(max-width:450px){.toast{gap:10px;padding:12px 15px}.copy strong{font-size:19px}.star{font-size:34px}}</style><div class="toast"><span class="star" aria-hidden="true">'+(kind==='birthday'?'🎂':'★')+'</span><div class="copy"><strong>'+esc(kind==='birthday'?'Vandaag een verjaardag!':name?name+', goed gedaan!':'Hele routine klaar!')+'</strong><span>'+esc(kind==='birthday'?title:(points===1?'1 ster verdiend!':points+' sterren verdiend!'))+'</span>'+(kind==='routine'&&math?'<span class="count">'+math.before+' ★ + '+math.points+' ★ = '+math.after+' ★</span>':'')+'</div></div>';
+    document.body.append(layer);this._celebrationLayer=layer;this._celebrationPoints=points;
+    this._celebrationTimer=setTimeout(()=>{layer.remove();if(this._celebrationLayer===layer)this._celebrationLayer=null;const next=this._celebrationQueue?.shift();if(next&&this.isConnected)this._showCelebration(next)},kind==='birthday'?6500:3600);return;
+   }
    if(points>0)this._lastAwardCelebration=Date.now();
    this._celebrationPoints=points;
    const layer=document.createElement('div');layer.style.cssText='position:fixed;inset:0;z-index:2147483000;pointer-events:none;';

@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir websocket-client==1.8.0
 COPY app.py ha_access.py family_progress.py progress_bridge.py reward_images.py /app/
 COPY chore_actions.py chore_claims.py /app/
 COPY maintenance_tasks.py /app/
+COPY huiskijk.py film_actions.py /app/
+COPY hub-films.js /app/
+COPY countdowns.py hub-countdowns.js /app/
 COPY static /app/static
 COPY family-hub-card.js /app/family-hub-card.js
 COPY runtime_patch_0_12_2.py /app/runtime_patch_0_12_2.py
@@ -22,7 +25,7 @@ COPY runtime_patch_0_13_0.py /app/runtime_patch_0_13_0.py
 COPY hub-activities.js hub-pictograms.js hub-completion.js hub-stars.js hub-celebrations.js hub-displays.js hub-calendar.js hub-tasks.js hub-updates.js hub-entry.js hub-reachability.js hub-navigation.js progress-card.js ha-context.js ha-theme.css ha-view-layout.js ha-task-actions.js ha-scroll-state.js /app/
 COPY hub-activity-filter.js /app/
 COPY hub-calendar-actions.js /app/
-COPY hub-activity-board.js hub-chore-status.js hub-chore-periods.js hub-required-tasks.js hub-bonus.js hub-pool.js hub-approvals.js /app/
+COPY hub-activity-board.js hub-chore-status.js hub-chore-periods.js hub-required-tasks.js hub-bonus.js hub-pool.js hub-approvals.js hub-birthdays.js /app/
 
 # Apply the previous runtime migrations plus shared Home Assistant calendars,
 # then bind every generated runtime asset to the Home Assistant BUILD_VERSION.

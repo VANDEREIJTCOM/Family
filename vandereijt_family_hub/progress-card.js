@@ -45,6 +45,7 @@ const FamilyHubProgress=(()=>{
    const display=['routine_step','smart_task'].includes(m?.kind)?{...item,description:'FH_META:'+JSON.stringify({...m,points:configured?Number(configured.points||0):0})}:item;
    const html=task.call(this,entity,display,mid);if(m?.kind!=='smart_task')return html;
    const key='chore:'+m.task_id+':'+m.member_id+':'+m.date,state=this._progress?.jobs?.[key]?.state;
+   if(Number(configured?.points??this._progress?.jobs?.[key]?.points??0)===0)return html;
    const note={pending:'Wacht op ouderakkoord',awarded:'Goedgekeurd · punten ontvangen',rejected:'Nog niet goedgekeurd · overleg met je ouder',review:'Punten worden gecontroleerd'}[state];
    return note?html+'<small class="approval-note">'+note+'</small>':html;
   };
