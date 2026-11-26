@@ -1,3 +1,7 @@
+## 0.18.3
+
+- Ook bij al bekeken films opent de titel de filminformatie. Terugzetten naar nog kijken blijft een afzonderlijke, duidelijk benoemde knop.
+
 ## 0.18.2
 
 - ‘Al gekeken’ behoudt zijn open/dicht-stand tijdens verversen. Ook de hele filmlijst is inklapbaar en blijft in de gekozen stand staan.
