@@ -1,3 +1,8 @@
+## 0.18.4
+
+- Persoonlijke spaarpot met het bedrag dat in volledige blokken van 50 sterren (€5) kan worden verzilverd. Kinderen kiezen zelf hoeveel blokken zij aanvragen en kunnen verder sparen.
+- Blijvende ouderaanvraag op het thuisscherm, met goedkeuren en afkeuren. Alleen na oudergoedkeuring worden de gekozen persoonlijke sterren afgeboekt; de gezinspot blijft gelijk. Dubbele besluiten en onzekere afboekingen kunnen geen tweede afboeking starten.
+
 ## 0.18.3
 
 - Ook bij al bekeken films opent de titel de filminformatie. Terugzetten naar nog kijken blijft een afzonderlijke, duidelijk benoemde knop.

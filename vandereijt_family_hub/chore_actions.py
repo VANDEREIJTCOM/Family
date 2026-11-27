@@ -26,7 +26,10 @@ def handle(app,event):
         configured=app['activity_setup_options']().get('chore_approver_user_ids') or []
         if uid not in configured:app['FAMILY_ACCESS'].require_admin(user)
         decision=data.get('decision')
-        if decision=='family_fulfil':
+        if decision in ('cash_approve','cash_reject'):
+            value=app['PROGRESS'].resolve({'action':decision,'key':result['key']})
+            result.update(ok=True,state=next(r for r in value['cash_requests'] if r['key']==result['key'])['state'])
+        elif decision=='family_fulfil':
             reward=next((r for r in app['PROGRESS'].store.snapshot()['rewards'] if r['key']==result['key']),None)
             if not reward or reward['state'] not in ('selected','fulfilled'):raise ProgressError('Deze gezinsbeloning wacht niet op uitvoering.')
             value=app['PROGRESS'].resolve({'action':'family_fulfil','key':result['key']})

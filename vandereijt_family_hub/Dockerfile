@@ -12,6 +12,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir websocket-client==1.8.0
 COPY app.py ha_access.py family_progress.py progress_bridge.py reward_images.py /app/
 COPY chore_actions.py chore_claims.py /app/
+COPY cash_redemptions.py hub-cash.js /app/
 COPY maintenance_tasks.py /app/
 COPY huiskijk.py film_actions.py /app/
 COPY hub-films.js /app/

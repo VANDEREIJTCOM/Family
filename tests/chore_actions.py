@@ -20,6 +20,12 @@ class Actions(unittest.TestCase):
   self.assertFalse(chore_actions.handle(self.app,self.event('child',user_id='parent'))['ok']);self.assertFalse(chore_actions.handle(self.app,self.event(None,user_id='admin'))['ok']);self.assertFalse(chore_actions.handle(self.app,self.event('disabled'))['ok']);self.assertEqual(self.calls,[])
  def test_stale_attempt_and_unknown_decision_rejected(self):
   self.assertFalse(chore_actions.handle(self.app,self.event('parent',attempt=1))['ok']);self.assertFalse(chore_actions.handle(self.app,self.event('parent',decision='grant_500'))['ok']);self.assertEqual(self.calls,[])
+ def test_cash_requires_authenticated_parent_and_preserves_server_amount(self):
+  self.app['PROGRESS'].resolve=lambda payload:self.calls.append(payload) or {'cash_requests':[{'key':'cash','state':'approved'}]}
+  self.assertFalse(chore_actions.handle(self.app,self.event('child',key='cash',decision='cash_approve',user_id='parent'))['ok'])
+  self.assertEqual(self.calls,[])
+  self.assertTrue(chore_actions.handle(self.app,self.event('parent',key='cash',decision='cash_approve',stars=999))['ok'])
+  self.assertEqual(self.calls,[{'action':'cash_approve','key':'cash'}])
  def test_existing_script_not_overwritten_even_if_disabled(self):
   calls=[];app={'ha_states':lambda:[],'ha_api':lambda *args:calls.append(args) or {'sequence':['custom']}}
   chore_actions.ensure_script(app);self.assertEqual([x[0] for x in calls],['GET'])

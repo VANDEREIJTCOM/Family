@@ -274,6 +274,8 @@ jobs:
           node tests/hub-required-tasks.cjs
           node tests/hub-calendar-actions.cjs
           python tests/chore_actions.py
+          python tests/test_cash_redemptions.py
+          node tests/hub-cash.cjs
           python tests/huiskijk.py
           python tests/film_actions.py
           node tests/hub-films.cjs

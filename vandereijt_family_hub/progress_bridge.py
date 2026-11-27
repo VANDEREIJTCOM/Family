@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 import threading
 import time
+import cash_redemptions
 from concurrent.futures import ThreadPoolExecutor
 from family_progress import FamilyProgress,ProgressError,build_work,manual_work,bonus_work,shared_reward,chore_period
 
@@ -62,6 +63,7 @@ class ProgressBridge:
             settings,todos,work=self.collect()
             if self.reset_rejections(settings,todos):settings,todos,work=self.collect()
             notices=self.store.observe(work)
+            cash_redemptions.collect(self.store,settings,todos)
             rewards={r['id']:r for r in settings.get('rewards',[]) if shared_reward(r)}
             for item in todos.get(settings.get('family_todo'),[]):
                 try:
@@ -71,6 +73,7 @@ class ProgressBridge:
                     self.store.select_reward('family:'+str(item.get('uid') or ''),{'id':reward['id'],'title':reward['title'],'cost':int(reward.get('cost') or 150)})
                 except (ValueError,TypeError):continue
             self.publish()
+            cash_redemptions.notify(self)
             members={m['id']:m for m in settings.get('members',[])}
             for notice in self.store.notification_jobs():
                 member=members.get(notice['member_id'],{})
@@ -156,6 +159,8 @@ class ProgressBridge:
                     try:self.reset_rejections(settings,todos)
                     except Exception as exc:
                         self.wakeup.set();print('[Family Hub] Klusje herstellen wordt opnieuw geprobeerd: '+str(exc),flush=True)
+            elif action in ('cash_approve','cash_reject'):
+                cash_redemptions.resolve(self.store,key,action=='cash_approve')
             elif action in ('family_fulfil','family_cancel'):
                 self.store.finish_reward(key,action=='family_fulfil')
             else:raise ProgressError('Onbekende goedkeuringsactie')

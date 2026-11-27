@@ -347,6 +347,7 @@ class FamilyProgress:
             return {'version':1,'initialized':s['initialized'],'family':{'earned':s['earned'],'spent':s['spent'],'revoked':s.get('revoked',0),'balance':balance,'reserved':reserved,'available':max(0,balance-reserved)},
                     'claims':list(copy.deepcopy(s.get('claims',{})).values()),
                     'jobs':{k:{n:j.get(n) for n in ('key','kind','member_id','member_name','title','date','points','state','attempt','awarded_points','award_revision','resolved_at','request_id','period_id','before','target','last_decision','reset_pending','dismissed')} for k,j in s['jobs'].items()},
+                    'cash_requests':list(copy.deepcopy(s.get('cash_requests',{})).values()),
                     'rewards':list(copy.deepcopy(s['rewards']).values())}
 
 
