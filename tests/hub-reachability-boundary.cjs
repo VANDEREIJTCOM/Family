@@ -1,9 +1,16 @@
-const assert=require('node:assert/strict'),reach=require('../vandereijt_family_hub/hub-reachability.js');const listeners=new Map(),styles=new Map();let removed=0;
-const node={clientHeight:600,scrollTop:0,querySelector:()=>({}),addEventListener:(type,fn)=>listeners.set(type,fn),removeEventListener:(type,fn)=>{assert.equal(listeners.get(type),fn);listeners.delete(type);removed++}};
-const proto={_screenHtml:()=>'',_render(){},_css:()=>'',disconnectedCallback(){}};reach.install(proto);const card=Object.assign(Object.create(proto),{_config:{},_screen:'tasks',hasAttribute:()=>true,shadowRoot:{querySelector:()=>node},ownerDocument:{defaultView:{getComputedStyle:()=>({paddingTop:'24px',paddingBottom:'24px'})}},style:{setProperty:(k,v)=>styles.set(k,v)}});
-const fire=(type,e={})=>listeners.get(type)?.(e),scroll=value=>{node.scrollTop=value;fire('scroll')};card._render();assert.equal(node.scrollTop,450);
-scroll(1800);fire('pointerdown',{isPrimary:true});scroll(120);assert.equal(node.scrollTop,450,'return swipe stops at normal top');scroll(0);assert.equal(node.scrollTop,450,'momentum cannot push into blank area');
-fire('pointerdown',{isPrimary:true});scroll(120);assert.equal(node.scrollTop,120,'fresh swipe from top can lower controls');card._render();assert.equal(node.scrollTop,120,'background refresh retains reach position');
-scroll(800);scroll(100);assert.equal(node.scrollTop,450,'direction reversal from lower content still stops');scroll(800);fire('wheel',{timeStamp:10,deltaY:-800});scroll(0);assert.equal(node.scrollTop,450,'wheel continuation respects boundary');fire('wheel',{timeStamp:40,deltaY:-100});scroll(0);assert.equal(node.scrollTop,450,'wheel inertia stays stopped');fire('wheel',{timeStamp:400,deltaY:-200});scroll(100);assert.equal(node.scrollTop,100,'fresh wheel gesture at top permits reachability');
-fire('keydown',{key:'Home'});scroll(0);assert.equal(node.scrollTop,450,'keyboard Home targets normal content top');card._screen='routines';card._render();assert.equal(node.scrollTop,450);fire('pointerdown',{isPrimary:true});scroll(0);assert.equal(node.scrollTop,0,'new page remains reachable');scroll(800);fire('pointerdown',{isPrimary:true,pointerType:'touch'});scroll(300);assert.equal(node.scrollTop,300,'finger pull crosses the old clamp without a bounce');scroll(50);assert.equal(node.scrollTop,50,'native touch momentum is not pushed back');card._render();assert.equal(node.scrollTop,50,'touch position survives refresh');fire('wheel',{timeStamp:800,deltaY:200});scroll(800);scroll(100);assert.equal(node.scrollTop,450,'mouse boundary remains available after touch');card.disconnectedCallback();assert.equal(removed,4);assert.equal(listeners.size,0);
-console.log('REACHABILITY_BOUNDARY_PASSED: return stop, momentum, intentional second swipe, refresh, reversal, wheel grouping, keyboard, new page and cleanup');
+const assert=require('node:assert/strict'),reach=require('../vandereijt_family_hub/hub-reachability.js');
+const listeners=new Map();let writes=0,position=0;
+const node={clientHeight:600,get scrollTop(){return position},set scrollTop(value){position=value;writes++},querySelector:()=>({}),addEventListener:(type,fn)=>listeners.set(type,fn),removeEventListener:type=>listeners.delete(type)};
+const proto={_screenHtml:()=>'',_render(){},_css:()=>'',disconnectedCallback(){}};reach.install(proto);
+const card=Object.assign(Object.create(proto),{_config:{},_screen:'routines',hasAttribute:()=>true,shadowRoot:{querySelector:()=>node},ownerDocument:{defaultView:{getComputedStyle:()=>({paddingTop:'24px',paddingBottom:'24px'})}},style:{setProperty(){}}});
+const fire=(type,event={})=>listeners.get(type)?.(event);
+card._render();assert.equal(node.scrollTop,450);
+for(const pointerType of ['touch','pen','mouse']){
+ node.scrollTop=1200;fire('scroll');fire('pointerdown',{isPrimary:true,pointerType});
+ for(const top of [900,500,430,300,120,0]){node.scrollTop=top;fire('scroll');assert.equal(node.scrollTop,top,pointerType+' crosses the old scroll boundary freely');const before=writes;card._render();assert.equal(writes,before,'background renders must not write the current scroll offset')}
+}
+node.scrollTop=900;fire('wheel',{timeStamp:20,deltaY:-800});node.scrollTop=100;fire('scroll');assert.equal(node.scrollTop,100,'wheel input from touchpad or emulated touchscreen is not clamped');
+assert(card._css().includes('overflow-anchor:none'),'manual scroll retention has one owner, without browser anchoring');
+node.clientHeight=800;card._render();assert.equal(node.scrollTop,250,'viewport resize preserves offset relative to extra reach space');
+card._screen='calendar';card._render();assert.equal(node.scrollTop,600,'deliberate navigation still starts at normal top');card.disconnectedCallback();
+console.log('NATIVE_REACHABILITY_PASSED: touch, pen, mouse and wheel cross boundary; background renders retain offset without writes; resize and navigation');

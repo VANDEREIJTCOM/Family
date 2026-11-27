@@ -7,8 +7,8 @@ const FamilyHubTasks=(()=>{
   p._routinesScreen=function(){return routines.call(this).replace('<div class="routine-grid">','<div class="routine-grid hub-routine-columns" data-layout="'+this._routineGridLayout()+'">')};
   p._routineOpenState=function(key,complete,phase="normal"){
    this._routineUi??=new Map();const id=this._dateISO(new Date())+':'+key;let state=this._routineUi.get(id);
-   const defaultOpen=phase==='active'||(!complete&&!["upcoming","past"].includes(phase));
-   if(!state){state={open:defaultOpen,complete,phase};this._routineUi.set(id,state)}else if(state.phase!==phase){state.complete=complete;state.phase=phase;state.manual=false;state.open=defaultOpen}else if(state.complete!==complete){state.complete=complete;if(!state.manual&&phase!=='active')state.open=defaultOpen}
+   const defaultOpen=!complete&&!["upcoming","past"].includes(phase);
+   if(!state){state={open:defaultOpen,complete,phase};this._routineUi.set(id,state)}else if(state.phase!==phase){state.complete=complete;state.phase=phase;state.manual=false;state.open=defaultOpen}else if(state.complete!==complete){state.complete=complete;state.manual=false;state.open=defaultOpen}
    return state;
   };
   p._routineTaskGroup=function(m,group){

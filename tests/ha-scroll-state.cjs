@@ -24,3 +24,11 @@ content.scrollTop=240;root.fire('scroll');card._modal={kind:'taskDetail'};card._
 card._render('pending');assert(timers.size>0);card.disconnectedCallback();advance(500);assert.equal(renders,6);assert.equal(timers.size,0);assert.equal(disconnects,1);
 time+=1000;card._render('reconnected');assert.equal(renders,7);doc.fire('pointerup',{pointerId:99});
 console.log('SCROLL_STATE_PASSED: inner/outer/horizontal position, touch/momentum deferral, coalescing, navigation, modal, disconnect and reconnect.');
+
+// Writing an unchanged scrollTop can interrupt native scrolling on wall browsers.
+let stableTop=0,stableLeft=0,scrollWrites=0;
+const stable=element();Object.defineProperties(stable,{scrollTop:{get:()=>stableTop,set:v=>{stableTop=v;scrollWrites++}},scrollLeft:{get:()=>stableLeft,set:v=>{stableLeft=v;scrollWrites++}}});
+const stableRoot=element();stableRoot.querySelectorAll=s=>s==='.content'?[stable]:[];
+const stableProto={_render(){},disconnectedCallback(){}};install(stableProto,env);
+const stableCard=Object.assign(Object.create(stableProto),{shadowRoot:stableRoot,_screen:'routines'});
+stableCard._render();stable.scrollTop=315;stable.scrollLeft=12;const beforeWrites=scrollWrites;stableCard._render();assert.equal(scrollWrites,beforeWrites,'unchanged native scroll offsets are not rewritten during refresh');

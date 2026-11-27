@@ -53,8 +53,8 @@ const FamilyHubScrollState=(()=>{
   return {inner:selectors.flatMap(selector=>Array.from(root.querySelectorAll(selector)).map((node,index)=>({selector,index,top:node.scrollTop,left:node.scrollLeft}))),outer:outer.map(node=>({node,top:node.scrollTop,left:node.scrollLeft}))};
  }
  function restore(root,saved){
-  for(const item of saved.inner){const node=root.querySelectorAll(item.selector)[item.index];if(node){node.scrollTop=item.top;node.scrollLeft=item.left;}}
-  for(const item of saved.outer){item.node.scrollTop=item.top;item.node.scrollLeft=item.left;}
+  for(const item of saved.inner){const node=root.querySelectorAll(item.selector)[item.index];if(node){if(node.scrollTop!==item.top)node.scrollTop=item.top;if(node.scrollLeft!==item.left)node.scrollLeft=item.left;}}
+  for(const item of saved.outer){if(item.node.scrollTop!==item.top)item.node.scrollTop=item.top;if(item.node.scrollLeft!==item.left)item.node.scrollLeft=item.left;}
  }
  function install(proto,env={}){
   if(proto._haScrollRetention===2)return;proto._haScrollRetention=2;

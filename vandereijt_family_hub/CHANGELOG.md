@@ -1,3 +1,8 @@
+## 0.18.6
+
+- Ook muis-, touchpad- en als wielbeweging doorgegeven aanraakinvoer worden niet meer teruggeduwd door de extra scrollgrens. Bestaande scrollposities worden bij verversen alleen hersteld als zij werkelijk zijn veranderd; browserankering is uitgeschakeld op hetzelfde scrollvlak.
+- Een afgeronde routine klapt nu ook binnen het actieve tijdvak automatisch in. De verdiende ster blijft zichtbaar. Handmatig openen blijft bewaard bij verversen; een opnieuw onvolledige actieve routine gaat weer open.
+
 ## 0.18.5
 
 - Aanraakschermen laten de omlaagtrekbeweging en natuurlijke uitloop doorlopen. De extra scrollstop duwt de vingerbeweging niet meer terug bij de bovenkant, waardoor de bonusknop bereikbaar blijft en schermupdates weer na het scrollen kunnen worden verwerkt. Muis- en toetsenbordbediening behouden hun bestaande scrollgrens.

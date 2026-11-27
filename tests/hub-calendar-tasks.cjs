@@ -13,3 +13,9 @@ const d=c._addTodo('todo.a','X','FH_META:'+JSON.stringify({kind:'manual_task',me
 console.log('HUB_CALENDAR_TASKS_PASSED: DST/week boundaries, read-only day selection, conditional Today, layouts, single add button, completed disclosure and zero-point creation');
 
 const windowState=c._routineOpenState('window:a',false,'upcoming');assert(!windowState.open);c._routineOpenState('window:a',false,'active');assert(windowState.open);c._routineOpenState('window:a',false,'past');assert(!windowState.open);windowState.open=true;c._routineOpenState('window:a',false,'past');assert(windowState.open);c._routineOpenState('window:a',true,'past');assert(!windowState.open);
+
+const completion=c._routineOpenState('completion:a',false,'active');assert(completion.open);
+completion.manual=true;c._routineOpenState('completion:a',true,'active');assert(!completion.open,'finishing collapses even an active manually opened routine');
+completion.open=true;completion.manual=true;c._routineOpenState('completion:a',true,'active');assert(completion.open,'completed routine can still be manually reopened');
+c._routineOpenState('completion:a',false,'active');assert(completion.open,'undoing a step reopens the active routine');
+assert(!c._routineOpenState('already-complete:a',true,'active').open,'completed routines start collapsed after reloading');
