@@ -1,3 +1,7 @@
+## 0.18.5
+
+- Aanraakschermen laten de omlaagtrekbeweging en natuurlijke uitloop doorlopen. De extra scrollstop duwt de vingerbeweging niet meer terug bij de bovenkant, waardoor de bonusknop bereikbaar blijft en schermupdates weer na het scrollen kunnen worden verwerkt. Muis- en toetsenbordbediening behouden hun bestaande scrollgrens.
+
 ## 0.18.4
 
 - Persoonlijke spaarpot met het bedrag dat in volledige blokken van 50 sterren (€5) kan worden verzilverd. Kinderen kiezen zelf hoeveel blokken zij aanvragen en kunnen verder sparen.

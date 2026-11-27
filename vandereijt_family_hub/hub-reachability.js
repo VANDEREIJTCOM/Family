@@ -10,13 +10,16 @@ const FamilyHubReachability=(()=>{
  function attachGuard(card,node,reset){
   if(card._reachGuard?.node===node){if(reset)card._reachGuard.stopAtTop=false;return}
   detachGuard(card);if(!node.addEventListener)return;
-  const g={node,stopAtTop:false,lastWheel:-Infinity,handlers:{}};
+  const g={node,stopAtTop:false,directTouch:false,lastWheel:-Infinity,handlers:{}};
   const begin=()=>{g.stopAtTop=node.scrollTop>(card._reachState?.space||0)+1};
-  g.handlers.pointerdown=e=>{if(e.isPrimary!==false)begin()};
-  g.handlers.wheel=e=>{if(e.ctrlKey)return;const now=e.timeStamp;if(now-g.lastWheel>180||now<g.lastWheel)begin();g.lastWheel=now};
-  g.handlers.keydown=e=>{if(['Home','ArrowUp','ArrowDown','PageUp','PageDown','End',' '].includes(e.key))g.stopAtTop=true};
+  g.handlers.pointerdown=e=>{if(e.isPrimary!==false){g.directTouch=['touch','pen'].includes(e.pointerType);begin()}};
+  g.handlers.wheel=e=>{if(e.ctrlKey)return;g.directTouch=false;const now=e.timeStamp;if(now-g.lastWheel>180||now<g.lastWheel)begin();g.lastWheel=now};
+  g.handlers.keydown=e=>{g.directTouch=false;if(['Home','ArrowUp','ArrowDown','PageUp','PageDown','End',' '].includes(e.key))g.stopAtTop=true};
   g.handlers.scroll=()=>{
    const state=card._reachState;if(!state||state.node!==node)return;
+   // Native touch keeps its own momentum. Clamping every scroll frame fights the
+   // gesture and keeps refreshes deferred, so let fingers pull through freely.
+   if(g.directTouch)return;
    // Coming back from the page body stops at its original top, including momentum.
    if(node.scrollTop>state.space+1)g.stopAtTop=true;
    else if(g.stopAtTop&&node.scrollTop<state.space)node.scrollTop=state.space;
